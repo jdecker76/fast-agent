@@ -61,6 +61,23 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         AugmentedLLM.PARAM_TEMPLATE_VARS,
     }
 
+    @classmethod
+    def matches_model_pattern(cls, model_name: str) -> bool:
+        """Check if a model name matches Bedrock model patterns."""
+        # Bedrock model patterns
+        bedrock_patterns = [
+            r"^amazon\.nova.*",           # Amazon Nova models
+            r"^anthropic\.claude.*",      # Anthropic Claude models
+            r"^meta\.llama.*",            # Meta Llama models
+            r"^mistral\..*",              # Mistral models
+            r"^cohere\..*",               # Cohere models
+            r"^ai21\..*",                 # AI21 models
+            r"^stability\..*",            # Stability AI models
+        ]
+        
+        import re
+        return any(re.match(pattern, model_name) for pattern in bedrock_patterns)
+
     def __init__(self, *args, **kwargs) -> None:
         """Initialize the Bedrock LLM with AWS credentials and region."""
         if boto3 is None:

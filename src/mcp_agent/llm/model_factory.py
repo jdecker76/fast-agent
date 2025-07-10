@@ -158,23 +158,6 @@ class ModelFactory:
     }
 
     @classmethod
-    def _is_bedrock_model(cls, model_name: str) -> bool:
-        """Check if a model name matches Bedrock model patterns."""
-        # Bedrock model patterns
-        bedrock_patterns = [
-            r"^amazon\.nova.*",           # Amazon Nova models
-            r"^anthropic\.claude.*",      # Anthropic Claude models
-            r"^meta\.llama.*",            # Meta Llama models
-            r"^mistral\..*",              # Mistral models
-            r"^cohere\..*",               # Cohere models
-            r"^ai21\..*",                 # AI21 models
-            r"^stability\..*",            # Stability AI models
-        ]
-        
-        import re
-        return any(re.match(pattern, model_name) for pattern in bedrock_patterns)
-
-    @classmethod
     def parse_model_string(cls, model_string: str) -> ModelConfig:
         """Parse a model string into a ModelConfig object"""
         model_string = cls.MODEL_ALIASES.get(model_string, model_string)
@@ -220,7 +203,7 @@ class ModelFactory:
             provider = cls.DEFAULT_PROVIDERS.get(model_name_str)
             
             # If still None, try pattern matching for Bedrock models
-            if provider is None and cls._is_bedrock_model(model_name_str):
+            if provider is None and BedrockAugmentedLLM.matches_model_pattern(model_name_str):
                 provider = Provider.BEDROCK
             
             if provider is None:
