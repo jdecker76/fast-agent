@@ -13,6 +13,7 @@ from mcp_agent.llm.provider_types import Provider
 from mcp_agent.llm.providers.augmented_llm_aliyun import AliyunAugmentedLLM
 from mcp_agent.llm.providers.augmented_llm_anthropic import AnthropicAugmentedLLM
 from mcp_agent.llm.providers.augmented_llm_azure import AzureOpenAIAugmentedLLM
+from mcp_agent.llm.providers.augmented_llm_bedrock import BedrockAugmentedLLM
 from mcp_agent.llm.providers.augmented_llm_deepseek import DeepSeekAugmentedLLM
 from mcp_agent.llm.providers.augmented_llm_generic import GenericAugmentedLLM
 from mcp_agent.llm.providers.augmented_llm_google_native import GoogleNativeAugmentedLLM
@@ -38,6 +39,7 @@ LLMClass = Union[
     Type[GoogleNativeAugmentedLLM],
     Type[GenericAugmentedLLM],
     Type[AzureOpenAIAugmentedLLM],
+    Type[BedrockAugmentedLLM],
 ]
 
 
@@ -110,6 +112,7 @@ class ModelFactory:
         "qwen-plus": Provider.ALIYUN,
         "qwen-max": Provider.ALIYUN,
         "qwen-long": Provider.ALIYUN,
+
     }
 
     MODEL_ALIASES = {
@@ -144,6 +147,7 @@ class ModelFactory:
         Provider.TENSORZERO: TensorZeroAugmentedLLM,
         Provider.AZURE: AzureOpenAIAugmentedLLM,
         Provider.ALIYUN: AliyunAugmentedLLM,
+        Provider.BEDROCK: BedrockAugmentedLLM,
     }
 
     # Mapping of special model names to their specific LLM classes
@@ -152,6 +156,23 @@ class ModelFactory:
         "playback": PlaybackLLM,
         "slow": SlowLLM,
     }
+
+    @classmethod
+    def _is_bedrock_model(cls, model_name: str) -> bool:
+        """Check if a model name matches Bedrock model patterns."""
+        # Bedrock model patterns
+        bedrock_patterns = [
+            r"^amazon\.nova.*",           # Amazon Nova models
+            r"^anthropic\.claude.*",      # Anthropic Claude models
+            r"^meta\.llama.*",            # Meta Llama models
+            r"^mistral\..*",              # Mistral models
+            r"^cohere\..*",               # Cohere models
+            r"^ai21\..*",                 # AI21 models
+            r"^stability\..*",            # Stability AI models
+        ]
+        
+        import re
+        return any(re.match(pattern, model_name) for pattern in bedrock_patterns)
 
     @classmethod
     def parse_model_string(cls, model_string: str) -> ModelConfig:
@@ -197,6 +218,11 @@ class ModelFactory:
         # If provider still None, try to get from DEFAULT_PROVIDERS using the model_name_str
         if provider is None:
             provider = cls.DEFAULT_PROVIDERS.get(model_name_str)
+            
+            # If still None, try pattern matching for Bedrock models
+            if provider is None and cls._is_bedrock_model(model_name_str):
+                provider = Provider.BEDROCK
+            
             if provider is None:
                 raise ModelConfigError(
                     f"Unknown model or provider for: {model_string}. Model name parsed as '{model_name_str}'"
