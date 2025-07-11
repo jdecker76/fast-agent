@@ -834,15 +834,41 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         if not multipart_messages:
             return PromptMessageMultipart(role="user", content=[])
         
-        # Use the last message as the user message
+        # Check the last message role
         last_message = multipart_messages[-1]
         
-        # Convert to Bedrock message parameter format
+        # Add all previous messages to history (or all messages if last is from assistant)
+        # if the last message is a "user" inference is required
+        messages_to_add = (
+            multipart_messages[:-1] if last_message.role == "user" else multipart_messages
+        )
+        converted = []
+        for msg in messages_to_add:
+            # Convert each message to Bedrock message parameter format
+            bedrock_msg = {
+                "role": msg.role,
+                "content": []
+            }
+            for content_item in msg.content:
+                if isinstance(content_item, TextContent):
+                    bedrock_msg["content"].append({
+                        "type": "text",
+                        "text": content_item.text
+                    })
+            converted.append(bedrock_msg)
+        
+        # Add messages to history
+        self.history.extend(converted, is_prompt=is_template)
+        
+        if last_message.role == "assistant":
+            # For assistant messages: Return the last message (no completion needed)
+            return last_message
+        
+        # Convert the last user message to Bedrock message parameter format
         message_param = {
             "role": last_message.role,
             "content": []
         }
-        
         for content_item in last_message.content:
             if isinstance(content_item, TextContent):
                 message_param["content"].append({
