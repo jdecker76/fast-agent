@@ -1,13 +1,12 @@
 import json
 import os
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Type
 
 from mcp.types import EmbeddedResource, ImageContent, TextContent
 from rich.text import Text
 
 from mcp_agent.core.exceptions import ProviderKeyError
-from mcp_agent.core.prompt import Prompt
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.event_progress import ProgressAction
 from mcp_agent.llm.augmented_llm import AugmentedLLM
