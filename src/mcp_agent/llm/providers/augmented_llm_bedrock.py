@@ -884,87 +884,22 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         model: Type[ModelT],
         request_params: RequestParams | None = None,
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
-        """Apply structured output for Bedrock using prompt engineering."""
-        # Stage 1: Assume no Bedrock models support native structured output
-        # Generate instructions from the Pydantic model and append to the message
-        
-        # Create a copy of the messages to avoid modifying the original
-        messages_copy = [msg.model_copy(deep=True) for msg in multipart_messages]
-        
-        # Generate structured output instructions from the Pydantic model
-        structured_instructions = self._generate_structured_instructions(model)
-        
-        # Append the instructions to the last message
-        if messages_copy:
-            last_message = messages_copy[-1]
-            last_message.add_text(structured_instructions)
-        
-        # Process the request with the modified messages
-        response = await self._apply_prompt_provider_specific(
-            messages_copy, request_params, is_template=True
+        """Apply structured output for Bedrock using prompt engineering (like Anthropic)."""
+        request_params = self.get_request_params(request_params)
+
+        # Use simple prompt engineering approach like Anthropic
+        multipart_messages[-1].add_text(
+            """YOU MUST RESPOND IN THE FOLLOWING FORMAT:
+            {schema}
+            RESPOND ONLY WITH THE JSON, NO PREAMBLE, CODE FENCES OR 'properties' ARE PERMISSABLE """.format(
+                schema=model.model_json_schema()
+            )
         )
-        
-        # Try to parse the response as structured data
-        parsed_model = self._structured_from_multipart(response, model)
-        return parsed_model
 
-    def _generate_structured_instructions(self, model: Type[ModelT]) -> str:
-        """
-        Generate structured output instructions from a Pydantic model.
-        
-        This mimics the manual router_instruction wrapper but works for any Pydantic model.
-        """
-        # Get the JSON schema from the Pydantic model
-        schema = model.model_json_schema()
-        
-        # Extract field information
-        properties = schema.get("properties", {})
-        required_fields = schema.get("required", [])
-        
-        # Build the JSON format example
-        json_format = "{\n"
-        field_descriptions = []
-        
-        for field_name, field_info in properties.items():
-            field_type = field_info.get("type", "string")
-            field_desc = field_info.get("description", f"The {field_name} field")
-            
-            # Add to JSON format example
-            if field_type == "string":
-                json_format += f'    "{field_name}": "The {field_name} value",\n'
-            elif field_type == "integer":
-                json_format += f'    "{field_name}": 123,\n'
-            elif field_type == "number":
-                json_format += f'    "{field_name}": 123.45,\n'
-            elif field_type == "boolean":
-                json_format += f'    "{field_name}": true,\n'
-            else:
-                json_format += f'    "{field_name}": "The {field_name} value",\n'
-            
-            # Add field description
-            required_marker = " (required)" if field_name in required_fields else " (optional)"
-            field_descriptions.append(f'    "{field_name}": {field_desc}{required_marker}')
-        
-        json_format = json_format.rstrip(",\n") + "\n}"
-        
-        # Generate the complete instruction
-        instructions = f"""
-The response must be structured in the following format:
-
-<format>
-{json_format}
-</format>
-
-Field descriptions:
-{chr(10).join(field_descriptions)}
-
-IMPORTANT: The response should be raw JSON without any other text or formatting applied. 
-Do not include ```json or ``` or any other markdown formatting - just the raw JSON string only.
-Remember to include all required fields: {', '.join(required_fields)}.
-"""
-        
-        self.logger.debug(f"Generated structured instructions for {model.__name__}: {instructions}")
-        return instructions
+        result: PromptMessageMultipart = await self._apply_prompt_provider_specific(
+            multipart_messages, request_params
+        )
+        return self._structured_from_multipart(result, model)
 
     @classmethod
     def convert_message_to_message_param(
