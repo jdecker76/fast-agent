@@ -175,6 +175,41 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         
         return True
 
+    def _supports_system_messages(self, model: str) -> bool:
+        """
+        Check if a model supports system messages.
+        
+        Some models (like Titan and Cohere embedding models) don't support system messages.
+        This method uses regex patterns to identify such models.
+        
+        Args:
+            model: The model name (e.g., "amazon.titan-embed-text-v1")
+            
+        Returns:
+            False if the model doesn't support system messages, True otherwise
+        """
+        # Remove any "bedrock." prefix for pattern matching
+        clean_model = model.replace("bedrock.", "")
+        
+        # DEBUG: Print the model names for debugging
+        self.logger.info(f"DEBUG: Checking system message support for model='{model}', clean_model='{clean_model}'")
+        
+        # Models that don't support system messages (reverse logic as suggested)
+        no_system_message_patterns = [
+            r"amazon\.titan",            # All Amazon Titan models
+            r"cohere\.command.*-text",   # Cohere command text models (command-text-v14, command-light-text-v14)
+        ]
+        
+        for pattern in no_system_message_patterns:
+            if re.search(pattern, clean_model, re.IGNORECASE):
+                self.logger.info(f"DEBUG: Model {model} detected as NOT supporting system messages (pattern: {pattern})")
+                return False
+        
+        self.logger.info(f"DEBUG: Model {model} detected as supporting system messages")
+        return True
+
+
+
     def _convert_mcp_tools_to_bedrock(self, tools: "ListToolsResult") -> List[Dict[str, Any]]:
         """Convert MCP tools to Bedrock tool format.
         
@@ -572,11 +607,33 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                 "messages": bedrock_messages,
             }
 
-            # Add system prompt if available
-            if self.instruction or params.systemPrompt:
+            # Add system prompt if available and supported by the model
+            system_text = self.instruction or params.systemPrompt
+            model_to_check = model or DEFAULT_BEDROCK_MODEL
+            
+            self.logger.info(f"DEBUG: BEFORE CHECK - model='{model_to_check}', has_system_text={bool(system_text)}")
+            self.logger.info(f"DEBUG: self.instruction='{self.instruction}', params.systemPrompt='{params.systemPrompt}'")
+            
+            supports_system = self._supports_system_messages(model_to_check)
+            self.logger.info(f"DEBUG: supports_system={supports_system}")
+            
+            if system_text and supports_system:
                 converse_args["system"] = [
-                    {"text": self.instruction or params.systemPrompt}
+                    {"text": system_text}
                 ]
+                self.logger.info(f"DEBUG: Added system prompt to {model_to_check} request")
+            elif system_text:
+                # For models that don't support system messages, inject system prompt into the first user message
+                self.logger.info(f"DEBUG: Injecting system prompt into first user message for {model_to_check} (doesn't support system messages)")
+                if bedrock_messages and bedrock_messages[0].get("role") == "user":
+                    first_message = bedrock_messages[0]
+                    if first_message.get("content") and len(first_message["content"]) > 0:
+                        # Prepend system instruction to the first user message
+                        original_text = first_message["content"][0].get("text", "")
+                        first_message["content"][0]["text"] = f"System: {system_text}\n\nUser: {original_text}"
+                        self.logger.info(f"DEBUG: Injected system prompt into first user message")
+            else:
+                self.logger.info(f"DEBUG: No system text provided for {model_to_check}")
 
             # Add tools if available - Nova requires at least one tool if toolConfig is provided
             if available_tools and len(available_tools) > 0:
@@ -804,6 +861,21 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                 if message_text:
                     await self.show_assistant_message(message_text)
                 break
+
+        # Update history 
+        if params.use_history:
+            # Get current prompt messages
+            prompt_messages = self.history.get(include_completion_history=False)
+
+            # Calculate new conversation messages (excluding prompts)
+            new_messages = messages[len(prompt_messages) :]
+
+            # Remove system prompt from new messages if it was added
+            if (self.instruction or params.systemPrompt) and new_messages:
+                # System prompt is not added to messages list in Bedrock, so no need to remove it
+                pass
+
+            self.history.set(new_messages)
 
         return responses
 
