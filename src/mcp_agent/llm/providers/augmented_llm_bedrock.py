@@ -166,11 +166,44 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
             r"ai21\.jamba",     # All AI21 Jamba models
             r"meta\.llama",     # All Meta Llama models
             r"mistral\.",       # All Mistral models
+            r"amazon\.titan",   # All Amazon Titan models
+            r"cohere\.command", # All Cohere Command models
+            r"anthropic\.claude-instant", # Anthropic Claude Instant models
+            r"anthropic\.claude-v2",      # Anthropic Claude v2 models
+            r"deepseek\.",      # All DeepSeek models
         ]
         
         for pattern in non_streaming_patterns:
             if re.search(pattern, clean_model, re.IGNORECASE):
                 self.logger.debug(f"Model {model} detected as non-streaming for tools (pattern: {pattern})")
+                return False
+        
+        return True
+
+    def _supports_tool_use(self, model_id: str) -> bool:
+        """
+        Determine if a model supports tool use at all.
+        Some models don't support tools in any form.
+        Based on AWS Bedrock documentation: https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference-supported-models-features.html
+        """
+        # Models that don't support tool use at all
+        no_tool_use_patterns = [
+            r"ai21\.jamba-instruct",         # AI21 Jamba-Instruct (but not jamba 1.5)
+            r"ai21\..*jurassic",             # AI21 Labs Jurassic-2 models
+            r"amazon\.titan",                # All Amazon Titan models
+            r"anthropic\.claude-v2",         # Anthropic Claude v2 models
+            r"anthropic\.claude-instant",    # Anthropic Claude Instant models
+            r"cohere\.command(?!-r)",        # Cohere Command (but not Command R/R+)
+            r"cohere\.command-light",        # Cohere Command Light
+            r"deepseek\.",                   # All DeepSeek models
+            r"meta\.llama[23](?!\.)",        # Meta Llama 2 and 3 (but not 3.1+)
+            r"meta\.llama3-2-[13]b",         # Meta Llama 3.2 1b and 3b (but not 11b/90b)
+            r"mistral\..*-instruct",         # Mistral AI Instruct (but not Mistral Large)
+        ]
+        
+        for pattern in no_tool_use_patterns:
+            if re.search(pattern, model_id):
+                self.logger.info(f"Model {model_id} does not support tool use")
                 return False
         
         return True
@@ -198,6 +231,9 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         no_system_message_patterns = [
             r"amazon\.titan",            # All Amazon Titan models
             r"cohere\.command.*-text",   # Cohere command text models (command-text-v14, command-light-text-v14)
+            r"mistral.*mixtral.*8x7b",   # Mistral Mixtral 8x7b models
+            r"mistral.mistral-7b-instruct", # Mistral 7b instruct models
+            r"meta\.llama3-2-11b-instruct", # Specific Meta Llama3 model
         ]
         
         for pattern in no_system_message_patterns:
@@ -575,22 +611,27 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         messages.extend(self.history.get(include_completion_history=params.use_history))
         messages.append(message_param)
 
-        # Get available tools
+        # Get available tools - but only if model supports tool use
         available_tools = []
         tool_list = None
-        try:
-            tool_list = await self.aggregator.list_tools()
-            self.logger.debug(f"Found {len(tool_list.tools)} MCP tools")
-            
-            available_tools = self._convert_mcp_tools_to_bedrock(tool_list)
-            self.logger.debug(f"Successfully converted {len(available_tools)} tools for Bedrock")
-            
-        except Exception as e:
-            self.logger.error(f"Error fetching or converting MCP tools: {e}")
-            import traceback
-            self.logger.debug(f"Traceback: {traceback.format_exc()}")
-            available_tools = []
-            tool_list = None
+        model_to_check = self.default_request_params.model or DEFAULT_BEDROCK_MODEL
+        
+        if self._supports_tool_use(model_to_check):
+            try:
+                tool_list = await self.aggregator.list_tools()
+                self.logger.debug(f"Found {len(tool_list.tools)} MCP tools")
+                
+                available_tools = self._convert_mcp_tools_to_bedrock(tool_list)
+                self.logger.debug(f"Successfully converted {len(available_tools)} tools for Bedrock")
+                
+            except Exception as e:
+                self.logger.error(f"Error fetching or converting MCP tools: {e}")
+                import traceback
+                self.logger.debug(f"Traceback: {traceback.format_exc()}")
+                available_tools = []
+                tool_list = None
+        else:
+            self.logger.info(f"Model {model_to_check} does not support tool use - skipping tool preparation")
 
         responses: List[TextContent | ImageContent | EmbeddedResource] = []
         model = self.default_request_params.model
@@ -876,6 +917,9 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                 pass
 
             self.history.set(new_messages)
+
+
+            
 
         return responses
 
