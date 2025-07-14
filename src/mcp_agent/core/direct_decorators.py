@@ -9,6 +9,7 @@ from functools import wraps
 from typing import (
     Awaitable,
     Callable,
+    Dict,
     List,
     Literal,
     Optional,
@@ -93,6 +94,9 @@ def _decorator_impl(
     request_params: RequestParams | None = None,
     human_input: bool = False,
     default: bool = False,
+    tools: Optional[Dict[str, List[str]]] = None,
+    resources: Optional[Dict[str, List[str]]] = None,
+    prompts: Optional[Dict[str, List[str]]] = None,
     **extra_kwargs,
 ) -> Callable[[AgentCallable[P, R]], DecoratedAgentProtocol[P, R]]:
     """
@@ -133,6 +137,9 @@ def _decorator_impl(
             name=name,
             instruction=instruction,
             servers=servers,
+            tools=tools,
+            resources=resources,
+            prompts=prompts,
             model=model,
             use_history=use_history,
             human_input=human_input,
@@ -177,13 +184,15 @@ def agent(
     *,
     instruction: str = "You are a helpful agent.",
     servers: List[str] = [],
+    tools: Optional[Dict[str, List[str]]] = None,
+    resources: Optional[Dict[str, List[str]]] = None,
+    prompts: Optional[Dict[str, List[str]]] = None,
     model: Optional[str] = None,
     use_history: bool = True,
     request_params: RequestParams | None = None,
     human_input: bool = False,
     default: bool = False,
     elicitation_handler: Optional[ElicitationFnT] = None,
-    api_key: str | None = None,
 ) -> Callable[[AgentCallable[P, R]], DecoratedAgentProtocol[P, R]]:
     """
     Decorator to create and register a standard agent with type-safe signature.
@@ -193,6 +202,9 @@ def agent(
         instruction_or_kwarg: Optional positional parameter for instruction
         instruction: Base instruction for the agent (keyword arg)
         servers: List of server names the agent should connect to
+        tools: Optional list of tool names or patterns to include
+        resources: Optional list of resource names or patterns to include
+        prompts: Optional list of prompt names or patterns to include
         model: Model specification string
         use_history: Whether to maintain conversation history
         request_params: Additional request parameters for the LLM
@@ -217,7 +229,9 @@ def agent(
         human_input=human_input,
         default=default,
         elicitation_handler=elicitation_handler,
-        api_key=api_key,
+        tools=tools,
+        resources=resources,
+        prompts=prompts,
     )
 
 
