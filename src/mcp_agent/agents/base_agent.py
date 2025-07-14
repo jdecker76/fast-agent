@@ -334,16 +334,20 @@ class BaseAgent(MCPAggregator, AgentProtocol):
         Check if a name matches a pattern for a specific server.
         
         Args:
-            name: The full namespaced name (e.g., "mathematics-add")
-            pattern: The pattern to match against (e.g., "add" or "math*")
-            server_name: The server name to prepend to the pattern
+            name: The name to match (could be tool name, resource URI, or prompt name)
+            pattern: The pattern to match against (e.g., "add", "math*", "resource://math/*")
+            server_name: The server name (used for tool name prefixing)
             
         Returns:
             True if the name matches the pattern
         """
-        # Build the full pattern: server_name-pattern
-        full_pattern = f"{server_name}-{pattern}"
-        return fnmatch.fnmatch(name, full_pattern)
+        # For tools, build the full pattern with server prefix: server_name-pattern
+        if name.startswith(f"{server_name}-"):
+            full_pattern = f"{server_name}-{pattern}"
+            return fnmatch.fnmatch(name, full_pattern)
+        
+        # For resources and prompts, match directly against the pattern
+        return fnmatch.fnmatch(name, pattern)
 
     async def list_tools(self) -> ListToolsResult:
         """
