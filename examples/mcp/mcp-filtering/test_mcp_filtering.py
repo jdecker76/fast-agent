@@ -3,7 +3,6 @@ import sys
 
 from mcp_agent.core.fastagent import FastAgent, PromptExitError
 
-
 fast_agent = FastAgent(
     name="MCP Filtering Demo",
     parse_cli_args=False,

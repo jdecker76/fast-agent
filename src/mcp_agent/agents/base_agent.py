@@ -6,21 +6,20 @@ and delegates operations to an attached AugmentedLLMProtocol instance.
 """
 
 import asyncio
-import uuid
-import inspect
 import fnmatch
+import uuid
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
     Dict,
     List,
+    Mapping,
     Optional,
     Tuple,
     Type,
     TypeVar,
     Union,
-    Mapping,
 )
 
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
@@ -33,7 +32,6 @@ from mcp.types import (
     ReadResourceResult,
     TextContent,
     Tool,
-    Prompt,
 )
 from opentelemetry import trace
 from pydantic import BaseModel

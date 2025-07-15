@@ -1,5 +1,6 @@
 import random
 import string
+
 from mcp.server.fastmcp import FastMCP
 
 app = FastMCP(name="Creative Writing Server")
