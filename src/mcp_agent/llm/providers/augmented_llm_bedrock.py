@@ -1,7 +1,8 @@
 import json
 import os
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Type
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Type, Union
 
 from mcp.types import EmbeddedResource, ImageContent, TextContent
 from rich.text import Text
@@ -102,7 +103,12 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         
         # Final fallback to environment variables
         if not self.aws_region:
-            self.aws_region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+            # Support both AWS_REGION and AWS_DEFAULT_REGION
+            self.aws_region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+        
+        if not self.aws_profile:
+            # Support AWS_PROFILE environment variable
+            self.aws_profile = os.environ.get("AWS_PROFILE")
         
         # Initialize AWS clients
         self._bedrock_client = None
@@ -364,7 +370,7 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                             # Nova-specific tool result format
                             tool_result_content = item.get("content", "")
                             
-                            # Try to parse as JSON for structured data
+                            # Try to parse as JSON for data
                             try:
                                 # If content is already a dict, use it directly
                                 if isinstance(tool_result_content, dict):
@@ -994,28 +1000,135 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         # Generate response
         return await self.generate_messages(message_param, request_params)
 
+    def _generate_simplified_schema(self, model: Type[ModelT]) -> str:
+        """Generates a simplified, human-readable schema with inline enum constraints."""
+
+        def get_field_type_representation(field_type: Any) -> Any:
+            """Get a string representation for a field type."""
+            # Handle Optional types
+            if hasattr(field_type, '__origin__') and field_type.__origin__ is Union:
+                non_none_types = [t for t in field_type.__args__ if t is not type(None)]
+                if non_none_types:
+                    field_type = non_none_types[0]
+
+            # Handle basic types
+            if field_type == str:
+                return "string"
+            elif field_type == int:
+                return "integer"
+            elif field_type == float:
+                return "float"
+            elif field_type == bool:
+                return "boolean"
+
+            # Handle Enum types
+            elif hasattr(field_type, '__bases__') and any(issubclass(base, Enum) for base in field_type.__bases__ if isinstance(base, type)):
+                enum_values = [f'"{e.value}"' for e in field_type]
+                return f"string (must be one of: {', '.join(enum_values)})"
+
+            # Handle List types
+            elif hasattr(field_type, '__origin__') and hasattr(field_type, '__args__') and field_type.__origin__ is list:
+                item_type_repr = "any"
+                if field_type.__args__:
+                    item_type_repr = get_field_type_representation(field_type.__args__[0])
+                return [item_type_repr]
+
+            # Handle nested Pydantic models
+            elif hasattr(field_type, '__bases__') and any(hasattr(base, 'model_fields') for base in field_type.__bases__):
+                nested_schema = _generate_schema_dict(field_type)
+                return nested_schema
+            
+            # Default fallback
+            else:
+                return "any"
+
+        def _generate_schema_dict(model_class: Type) -> Dict[str, Any]:
+            """Recursively generate the schema as a dictionary."""
+            schema_dict = {}
+            if hasattr(model_class, 'model_fields'):
+                for field_name, field_info in model_class.model_fields.items():
+                    schema_dict[field_name] = get_field_type_representation(field_info.annotation)
+            return schema_dict
+
+        schema = _generate_schema_dict(model)
+        return json.dumps(schema, indent=2)
+
     async def _apply_prompt_provider_specific_structured(
         self,
         multipart_messages: List[PromptMessageMultipart],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
-        """Apply structured output for Bedrock using prompt engineering (like Anthropic)."""
+        """Apply structured output for Bedrock using prompt engineering with a simplified schema."""
         request_params = self.get_request_params(request_params)
 
-        # Use simple prompt engineering approach like Anthropic
-        multipart_messages[-1].add_text(
-            """YOU MUST RESPOND IN THE FOLLOWING FORMAT:
-            {schema}
-            RESPOND ONLY WITH THE JSON, NO PREAMBLE, CODE FENCES OR 'properties' ARE PERMISSABLE """.format(
-                schema=model.model_json_schema()
-            )
-        )
+        # Generate a simplified, human-readable schema
+        simplified_schema = self._generate_simplified_schema(model)
+
+        # Build the new simplified prompt
+        prompt_parts = [
+            "You are a JSON generator. Respond with JSON that strictly follows the provided schema. Do not add any commentary or explanation.",
+            "",
+            "JSON Schema:",
+            simplified_schema,
+            "",
+            "IMPORTANT RULES:",
+            "- You MUST respond with only raw JSON data. No other text, commentary, or markdown is allowed.",
+            "- All field names and enum values are case-sensitive and must match the schema exactly.",
+            "- Do not add any extra fields to the JSON response. Only include the fields specified in the schema.",
+            "- Valid JSON requires double quotes for all field names and string values. Other types (int, float, boolean, etc.) should not be quoted.",
+            "",
+            "Now, generate the valid JSON response for the following request:"
+        ]
+        
+        # Add the new prompt to the last user message
+        multipart_messages[-1].add_text("\n".join(prompt_parts))
+
+        self.logger.info(f"DEBUG: Prompt messages: {multipart_messages[-1].content}")
 
         result: PromptMessageMultipart = await self._apply_prompt_provider_specific(
             multipart_messages, request_params
         )
         return self._structured_from_multipart(result, model)
+    
+    def _clean_json_response(self, text: str) -> str:
+        """Clean up JSON response by removing text before first { and after last }."""
+        if not text:
+            return text
+        
+        # Find the first { and last }
+        first_brace = text.find('{')
+        last_brace = text.rfind('}')
+        
+        # If we found both braces, extract just the JSON part
+        if first_brace != -1 and last_brace != -1 and first_brace < last_brace:
+            return text[first_brace:last_brace + 1]
+        
+        # Otherwise return the original text
+        return text
+    
+    def _structured_from_multipart(
+        self, message: PromptMessageMultipart, model: Type[ModelT]
+    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+        """Override to apply JSON cleaning before parsing."""
+        # Get the text from the multipart message
+        text = message.all_text()
+        
+        # Clean the JSON response to remove extra text
+        cleaned_text = self._clean_json_response(text)
+        
+        # If we cleaned the text, create a new multipart with the cleaned text
+        if cleaned_text != text:
+            from mcp.types import TextContent
+            cleaned_multipart = PromptMessageMultipart(
+                role=message.role,
+                content=[TextContent(type="text", text=cleaned_text)]
+            )
+        else:
+            cleaned_multipart = message
+        
+        # Use the parent class method with the cleaned multipart
+        return super()._structured_from_multipart(cleaned_multipart, model)
 
     @classmethod
     def convert_message_to_message_param(
