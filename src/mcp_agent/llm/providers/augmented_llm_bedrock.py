@@ -16,6 +16,9 @@ from mcp_agent.llm.usage_tracking import TurnUsage
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.interfaces import ModelT
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from mcp_agent.llm.providers.multipart_converter_anthropic import (
+    AnthropicConverter,
+)
 
 if TYPE_CHECKING:
     from mcp import ListToolsResult
@@ -28,6 +31,11 @@ except ImportError:
     BotoCoreError = Exception
     ClientError = Exception
     NoCredentialsError = Exception
+
+try:
+    from anthropic.types import ToolParam
+except ImportError:
+    ToolParam = None
 
 from mcp.types import (
     CallToolRequest,
@@ -45,6 +53,7 @@ class ToolSchemaType(Enum):
     """Enum for different tool schema formats used by different model families."""
     DEFAULT = "default"    # Default toolSpec format used by most models (formerly Nova)
     SYSTEM_PROMPT = "system_prompt"  # System prompt-based tool calling format
+    ANTHROPIC = "anthropic"  # Native Anthropic tool calling format
 
 
 class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
@@ -170,6 +179,11 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         # Remove any "bedrock." prefix for pattern matching
         clean_model = model_id.replace("bedrock.", "")
         
+        # Anthropic models use native Anthropic format
+        if re.search(r"anthropic\.claude", clean_model):
+            self.logger.debug(f"Model {model_id} detected as Anthropic - using native Anthropic format")
+            return ToolSchemaType.ANTHROPIC
+        
         # Scout models use SYSTEM_PROMPT format
         if re.search(r"meta\.llama4-scout", clean_model):
             self.logger.debug(f"Model {model_id} detected as Scout - using SYSTEM_PROMPT format")
@@ -186,8 +200,6 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
             return ToolSchemaType.SYSTEM_PROMPT
         
         # Future: Add other model-specific formats here
-        # if re.search(r"anthropic\.claude", clean_model):
-        #     return ToolSchemaType.ANTHROPIC
         # if re.search(r"mistral\.", clean_model):
         #     return ToolSchemaType.MISTRAL
         
@@ -502,6 +514,38 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         
         return system_prompt
 
+    def _convert_tools_anthropic_format(self, tools: "ListToolsResult") -> List[Dict[str, Any]]:
+        """Convert MCP tools to Anthropic format wrapped in Bedrock toolSpec - preserves raw schema."""
+        # No tool name mapping needed for Anthropic (uses original names)
+        self.tool_name_mapping = {}
+        
+        self.logger.debug(f"Converting {len(tools.tools)} MCP tools to Anthropic format with toolSpec wrapper")
+        
+        bedrock_tools = []
+        for tool in tools.tools:
+            self.logger.debug(f"Converting MCP tool: {tool.name}")
+            
+            # Store identity mapping (no name cleaning for Anthropic)
+            self.tool_name_mapping[tool.name] = tool.name
+            
+            # Use raw MCP schema (like native Anthropic provider) - no cleaning
+            input_schema = tool.inputSchema or {"type": "object", "properties": {}}
+            
+            # Wrap in Bedrock toolSpec format but preserve raw Anthropic schema
+            bedrock_tool = {
+                "toolSpec": {
+                    "name": tool.name,  # Original name, no cleaning
+                    "description": tool.description or f"Tool: {tool.name}",
+                    "inputSchema": {
+                        "json": input_schema  # Raw MCP schema, not cleaned
+                    }
+                }
+            }
+            bedrock_tools.append(bedrock_tool)
+        
+        self.logger.debug(f"Converted {len(bedrock_tools)} tools to Anthropic format with toolSpec wrapper")
+        return bedrock_tools
+
     def _convert_mcp_tools_to_bedrock(self, tools: "ListToolsResult") -> Union[List[Dict[str, Any]], str]:
         """Convert MCP tools to appropriate Bedrock format based on model type."""
         model_id = self.default_request_params.model or DEFAULT_BEDROCK_MODEL
@@ -512,6 +556,8 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
             # Store the system prompt for later use in system message
             self._system_prompt_tools = system_prompt
             return system_prompt
+        elif schema_type == ToolSchemaType.ANTHROPIC:
+            return self._convert_tools_anthropic_format(tools)
         else:
             return self._convert_tools_nova_format(tools)
 
@@ -523,6 +569,12 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
             # System prompt models expect tools in the system prompt, not as API parameters
             # Tools are already handled in the system prompt generation
             self.logger.debug(f"System prompt tools handled in system prompt")
+        elif schema_type == ToolSchemaType.ANTHROPIC:
+            # Anthropic models expect toolConfig with tools array (like native provider)
+            converse_args["toolConfig"] = {
+                "tools": available_tools
+            }
+            self.logger.debug(f"Added {len(available_tools)} tools to Anthropic request in toolConfig format")
         else:
             # Nova models expect toolConfig with toolSpec format
             converse_args["toolConfig"] = {
@@ -674,111 +726,88 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         
         return []
 
+    def _parse_anthropic_tool_response(self, processed_response: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Parse Anthropic tool response format (same as native provider)."""
+        tool_uses = []
+        
+        # Look for toolUse in content items (Bedrock format for Anthropic models)
+        for content_item in processed_response.get("content", []):
+            if "toolUse" in content_item:
+                tool_use = content_item["toolUse"]
+                tool_uses.append({
+                    "type": "anthropic",
+                    "name": tool_use["name"],
+                    "arguments": tool_use["input"],
+                    "id": tool_use["toolUseId"]
+                })
+        
+        return tool_uses
+
     def _parse_tool_response(self, processed_response: Dict[str, Any], model_id: str) -> List[Dict[str, Any]]:
         """Parse tool response based on model type."""
         schema_type = self._get_tool_schema_type(model_id)
         
         if schema_type == ToolSchemaType.SYSTEM_PROMPT:
             return self._parse_system_prompt_tool_response(processed_response)
+        elif schema_type == ToolSchemaType.ANTHROPIC:
+            return self._parse_anthropic_tool_response(processed_response)
         else:
             return self._parse_nova_tool_response(processed_response)
 
     def _convert_messages_to_bedrock(self, messages: List[BedrockMessageParam]) -> List[Dict[str, Any]]:
         """Convert message parameters to Bedrock format."""
         bedrock_messages = []
-        
-
-        
-        for i, message in enumerate(messages):
-            
+        for message in messages:
             bedrock_message = {
                 "role": message.get("role", "user"),
                 "content": []
             }
             
-            # Handle different content types
             content = message.get("content", [])
+            
             if isinstance(content, str):
-                message_text = content
+                bedrock_message["content"].append({"text": content})
             elif isinstance(content, list):
-                message_text = ""
                 for item in content:
-                    if isinstance(item, str):
-                        message_text += item
-                    elif isinstance(item, dict):
-                        if item.get("type") == "text":
-                            message_text += item.get("text", "")
-                        elif item.get("type") == "tool_use":
-                            bedrock_message["content"].append({
-                                "toolUse": {
-                                    "toolUseId": item.get("id", ""),
-                                    "name": item.get("name", ""),
-                                    "input": item.get("input", {})
-                                }
-                            })
-                            continue
-                        elif item.get("type") == "tool_result":
-                            # Check if we're using Llama native format
-                            model_id = getattr(self.default_request_params, 'model', None) or DEFAULT_BEDROCK_MODEL
-                            schema_type = self._get_tool_schema_type(model_id)
-                            
-                            if schema_type == ToolSchemaType.SYSTEM_PROMPT:
-                                # For system prompt format, convert tool results to plain text
-                                tool_result_content = item.get("content", "")
-                                if isinstance(tool_result_content, dict):
-                                    # Convert dict to readable format
-                                    result_text = json.dumps(tool_result_content, indent=2)
-                                else:
-                                    result_text = str(tool_result_content)
-                                
-                                # Add as plain text - no special tool result formatting
-                                message_text += f"\n\nTool Result: {result_text}"
-                            else:
-                                # Nova-specific tool result format
-                                tool_result_content = item.get("content", "")
-                                
-                                # Try to parse as JSON for data
-                                try:
-                                    # If content is already a dict, use it directly
-                                    if isinstance(tool_result_content, dict):
-                                        json_content = tool_result_content
-                                    else:
-                                        # Try to parse as JSON string
-                                        parsed_content = json.loads(tool_result_content)
-                                        
-                                        # Nova requires JSON content to be an object, not a primitive
-                                        # If we got a primitive value, wrap it in an object
-                                        if isinstance(parsed_content, (str, int, float, bool, list)):
-                                            json_content = {"result": parsed_content}
-                                        else:
-                                            json_content = parsed_content
-                                    
-                                    bedrock_message["content"].append({
-                                        "toolResult": {
-                                            "toolUseId": item.get("tool_call_id", ""),
-                                            "content": [{"json": json_content}],
-                                            "status": "success"
-                                        }
-                                    })
-                                except (json.JSONDecodeError, TypeError):
-                                    # Fall back to text format for non-JSON content
-                                    bedrock_message["content"].append({
-                                        "toolResult": {
-                                            "toolUseId": item.get("tool_call_id", ""),
-                                            "content": [{"text": str(tool_result_content)}],
-                                            "status": "success"
-                                        }
-                                    })
-                                continue
-            else:
-                message_text = str(content)
+                    item_type = item.get("type")
+                    if item_type == "text":
+                        bedrock_message["content"].append({"text": item.get("text", "")})
+                    elif item_type == "tool_use":
+                        bedrock_message["content"].append({
+                            "toolUse": {
+                                "toolUseId": item.get("id", ""),
+                                "name": item.get("name", ""),
+                                "input": item.get("input", {})
+                            }
+                        })
+                    elif item_type == "tool_result":
+                        tool_use_id = item.get("tool_use_id")
+                        raw_content = item.get("content", [])
+                        status = item.get("status", "success")
+
+                        bedrock_content_list = []
+                        if raw_content:
+                            for part in raw_content:
+                                # FIX: The content parts are dicts, not TextContent objects.
+                                if isinstance(part, dict) and "text" in part:
+                                    bedrock_content_list.append({"text": part.get("text", "")})
+                        
+                        # Bedrock requires content for error statuses.
+                        if not bedrock_content_list and status == "error":
+                            bedrock_content_list.append({"text": "Tool call failed with an error."})
+
+                        bedrock_message["content"].append({
+                            "toolResult": {
+                                "toolUseId": tool_use_id,
+                                "content": bedrock_content_list,
+                                "status": status,
+                            }
+                        })
             
-            # Normal message handling
-            if message_text:
-                bedrock_message["content"].append({"text": message_text})
+            # Only add the message if it has content
+            if bedrock_message["content"]:
+                bedrock_messages.append(bedrock_message)
             
-            bedrock_messages.append(bedrock_message)
-        
         return bedrock_messages
 
     async def _process_stream(self, stream_response, model: str) -> BedrockMessage:
@@ -1253,85 +1282,83 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                 self.logger.info(f"DEBUG: Parsed tools: {parsed_tools}")
                 
                 if parsed_tools:
-                    if not message_text:
-                        message_text = Text(
-                            "the assistant requested tool calls",
-                            style="dim green italic",
-                        )
-                    
-                    # Process tool calls
-                    tool_results = []
-                    for tool_idx, tool_info in enumerate(parsed_tools):
-                        self.logger.debug(f"Processing tool: {tool_info}")
+                    # We will comment out showing the assistant's intermediate message
+                    # to make the output less chatty, as requested by the user.
+                    # if not message_text:
+                    #     message_text = Text(
+                    #         "the assistant requested tool calls",
+                    #         style="dim green italic",
+                    #     )
+                    #
+                    # await self.show_assistant_message(message_text)
+
+                    # Process tool calls and collect results
+                    tool_results_for_batch = []
+                    for tool_idx, parsed_tool in enumerate(parsed_tools):
+                        # The original name is needed to call the tool, which is in tool_name_mapping.
+                        tool_name_from_model = parsed_tool["name"]
+                        tool_name = self.tool_name_mapping.get(tool_name_from_model, tool_name_from_model)
                         
-                        tool_name = tool_info["name"]
-                        tool_args = tool_info["arguments"]
-                        tool_id = tool_info["id"]
+                        tool_args = parsed_tool["arguments"]
+                        tool_use_id = parsed_tool["id"]
                         
-                        # Ensure tool_args is a dictionary
-                        if not isinstance(tool_args, dict):
-                            self.logger.debug(f"Converting tool_args from {type(tool_args)} to dict: {tool_args}")
-                            if tool_args == "":
-                                tool_args = {}
-                            elif isinstance(tool_args, str):
-                                try:
-                                    # Try to parse as JSON
-                                    tool_args = json.loads(tool_args)
-                                except json.JSONDecodeError:
-                                    self.logger.warning(f"Failed to parse tool_args as JSON: {tool_args}")
-                                    tool_args = {}
-                            else:
-                                tool_args = {}
+                        self.show_tool_call(tool_list.tools, tool_name, tool_args)
                         
-                        if tool_idx == 0:  # Only show message for first tool use
-                            await self.show_assistant_message(message_text, tool_name)
-                        
-                        # Show tool call with available tools
-                        if tool_list and tool_list.tools:
-                            self.show_tool_call(tool_list.tools, tool_name, tool_args)
-                        else:
-                            self.logger.warning(f"Tool list not available for displaying tool call: {tool_name}")
-                        
-                        # Map the tool name back to original MCP name if needed
-                        original_tool_name = getattr(self, 'tool_name_mapping', {}).get(tool_name, tool_name)
-                        self.logger.debug(f"Mapping tool name '{tool_name}' to '{original_tool_name}'")
-                        
-                        # Create tool call request
                         tool_call_request = CallToolRequest(
                             method="tools/call",
-                            params=CallToolRequestParams(
-                                name=original_tool_name,
-                                arguments=tool_args,
-                            ),
+                            params=CallToolRequestParams(name=tool_name, arguments=tool_args),
                         )
                         
-                        # Execute tool call
-                        self.logger.info(f"DEBUG: About to execute tool call: {tool_call_request}")
-                        tool_result = await self.call_tool(tool_call_request, tool_id)
-                        self.logger.info(f"DEBUG: Tool execution completed, result: {tool_result}")
-                        tool_results.append(tool_result)
+                        # Call the tool and get the result
+                        result = await self.call_tool(
+                            request=tool_call_request, tool_call_id=tool_use_id
+                        )
+                        # We will also comment out showing the raw tool result to reduce verbosity.
+                        # self.show_tool_result(result)
                         
-                        # Add tool result to messages
-                        tool_result_content = tool_result.content[0].text if tool_result.content else ""
+                        # Add each result to our collection
+                        tool_results_for_batch.append((tool_use_id, result))
+                        responses.extend(result.content)
+
+                    # After processing all tool calls for a turn, clear the intermediate
+                    # responses. This ensures that the final returned value only contains
+                    # the model's last message, not the reasoning or raw tool output.
+                    responses.clear()
+
+                    # Now, create the message with tool results.
+                    # For Anthropic models, the format is a user message with tool_result content blocks.
+                    tool_result_blocks = []
+                    for tool_id, tool_result in tool_results_for_batch:
+                        # Convert tool result content into a list of content blocks
+                        # This mimics the native Anthropic provider's approach.
+                        result_content_blocks = []
+                        if tool_result.content:
+                            for part in tool_result.content:
+                                if isinstance(part, TextContent):
+                                    result_content_blocks.append({"text": part.text})
+                                # Note: This can be extended to handle other content types like images
+                                # For now, we are focusing on making text-based tools work correctly.
                         
-                        # Debug: Log the actual tool result
-                        self.logger.info(f"DEBUG: Tool result for {tool_name}: '{tool_result_content}'")
-                        self.logger.info(f"DEBUG: Full tool result: {tool_result}")
-                        
-                        # Format tool result - use the original format for all models
-                        tool_result_message = {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "tool_result",
-                                    "tool_call_id": tool_id,
-                                    "content": tool_result_content,
-                                }
-                            ],
-                        }
-                        messages.append(tool_result_message)
+                        # If there's no content, provide a default message.
+                        if not result_content_blocks:
+                             result_content_blocks.append({"text": "[No content in tool result]"})
+
+                        # This is the format Bedrock expects for tool results in the Converse API
+                        tool_result_blocks.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_id,
+                            "content": result_content_blocks,
+                            "status": "error" if tool_result.isError else "success",
+                        })
                     
-                    continue  # Continue to next iteration for tool use
+                    if tool_result_blocks:
+                        # Append a single user message with all the tool results for this turn
+                        messages.append({
+                            "role": "user",
+                            "content": tool_result_blocks,
+                        })
+                    
+                    continue
                 else:
                     # No tool uses but stop_reason was tool_use/tool_calls, treat as end_turn
                     await self.show_assistant_message(message_text)
@@ -1364,6 +1391,13 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
 
 
             
+        # Strip leading whitespace from the *last* non-empty text block of the final response
+        # to ensure the output is clean.
+        if responses:
+            for item in reversed(responses):
+                if isinstance(item, TextContent) and item.text:
+                    item.text = item.text.lstrip()
+                    break
 
         return responses
 
