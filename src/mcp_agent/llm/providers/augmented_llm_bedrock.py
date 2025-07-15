@@ -41,6 +41,12 @@ BedrockMessage = Dict[str, Any]  # Bedrock message format
 BedrockMessageParam = Dict[str, Any]  # Bedrock message parameter format
 
 
+class ToolSchemaType(Enum):
+    """Enum for different tool schema formats used by different model families."""
+    DEFAULT = "default"    # Default toolSpec format used by most models (formerly Nova)
+    SYSTEM_PROMPT = "system_prompt"  # System prompt-based tool calling format
+
+
 class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
     """
     AWS Bedrock implementation of AugmentedLLM using the Converse API.
@@ -151,6 +157,44 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                 ) from e
         return self._bedrock_runtime_client
 
+    def _get_tool_schema_type(self, model_id: str) -> ToolSchemaType:
+        """
+        Determine which tool schema format to use based on model family.
+        
+        Args:
+            model_id: The model ID (e.g., "bedrock.meta.llama3-1-8b-instruct-v1:0")
+            
+        Returns:
+            ToolSchemaType indicating which format to use
+        """
+        # Remove any "bedrock." prefix for pattern matching
+        clean_model = model_id.replace("bedrock.", "")
+        
+        # Scout models use SYSTEM_PROMPT format
+        if re.search(r"meta\.llama4-scout", clean_model):
+            self.logger.debug(f"Model {model_id} detected as Scout - using SYSTEM_PROMPT format")
+            return ToolSchemaType.SYSTEM_PROMPT
+        
+        # Other Llama 4 models use default toolConfig format
+        if re.search(r"meta\.llama4", clean_model):
+            self.logger.debug(f"Model {model_id} detected as Llama 4 (non-Scout) - using default toolConfig format")
+            return ToolSchemaType.DEFAULT
+        
+        # Llama 3.x models use system prompt format
+        if re.search(r"meta\.llama3", clean_model):
+            self.logger.debug(f"Model {model_id} detected as Llama 3.x - using system prompt format")
+            return ToolSchemaType.SYSTEM_PROMPT
+        
+        # Future: Add other model-specific formats here
+        # if re.search(r"anthropic\.claude", clean_model):
+        #     return ToolSchemaType.ANTHROPIC
+        # if re.search(r"mistral\.", clean_model):
+        #     return ToolSchemaType.MISTRAL
+        
+        # Default to default format for all other models
+        self.logger.debug(f"Model {model_id} using default tool format")
+        return ToolSchemaType.DEFAULT
+
     def _supports_streaming_with_tools(self, model: str) -> bool:
         """
         Check if a model supports streaming with tools.
@@ -202,8 +246,10 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
             r"cohere\.command(?!-r)",        # Cohere Command (but not Command R/R+)
             r"cohere\.command-light",        # Cohere Command Light
             r"deepseek\.",                   # All DeepSeek models
-            r"meta\.llama[23](?!\.)",        # Meta Llama 2 and 3 (but not 3.1+)
+            r"meta\.llama[23](?![-.])",      # Meta Llama 2 and 3 (but not 3.1+, 3.2+, etc.)
+            r"meta\.llama3-1-8b",            # Meta Llama 3.1 8b - doesn't support tool calls
             r"meta\.llama3-2-[13]b",         # Meta Llama 3.2 1b and 3b (but not 11b/90b)
+            r"meta\.llama3-2-11b",           # Meta Llama 3.2 11b - doesn't support tool calls
             r"mistral\..*-instruct",         # Mistral AI Instruct (but not Mistral Large)
         ]
         
@@ -252,8 +298,8 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
 
 
 
-    def _convert_mcp_tools_to_bedrock(self, tools: "ListToolsResult") -> List[Dict[str, Any]]:
-        """Convert MCP tools to Bedrock tool format.
+    def _convert_tools_nova_format(self, tools: "ListToolsResult") -> List[Dict[str, Any]]:
+        """Convert MCP tools to Nova-specific toolSpec format.
         
         Note: Nova models have VERY strict JSON schema requirements:
         - Top level schema must be of type Object
@@ -267,7 +313,7 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         # Create mapping from cleaned names to original names for tool execution
         self.tool_name_mapping = {}
         
-        self.logger.debug(f"Converting {len(tools.tools)} MCP tools to Bedrock format")
+        self.logger.debug(f"Converting {len(tools.tools)} MCP tools to Nova format")
         
         for tool in tools.tools:
             self.logger.debug(f"Converting MCP tool: {tool.name}")
@@ -335,13 +381,316 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
             
             bedrock_tools.append(bedrock_tool)
             
-        self.logger.debug(f"Converted {len(bedrock_tools)} tools for Bedrock")
+        self.logger.debug(f"Converted {len(bedrock_tools)} tools for Nova format")
         return bedrock_tools
+
+
+
+    def _convert_tools_system_prompt_format(self, tools: "ListToolsResult") -> str:
+        """Convert MCP tools to system prompt format.
+        
+        Uses different formats based on the model:
+        - Scout models: Comprehensive system prompt format
+        - Other models: Minimal format
+        """
+        if not tools.tools:
+            return ""
+        
+        # Create mapping from tool names to original names (no cleaning needed for Llama)
+        self.tool_name_mapping = {}
+        
+        self.logger.debug(f"Converting {len(tools.tools)} MCP tools to Llama native system prompt format")
+        
+        # Check if this is a Scout model
+        model_id = self.default_request_params.model or DEFAULT_BEDROCK_MODEL
+        clean_model = model_id.replace("bedrock.", "")
+        is_scout = re.search(r"meta\.llama4-scout", clean_model)
+        
+        if is_scout:
+            # Use comprehensive system prompt format for Scout models
+            prompt_parts = [
+                "You are a helpful assistant with access to the following functions. Use them if required:",
+                ""
+            ]
+            
+            # Add each tool definition in JSON format
+            for tool in tools.tools:
+                self.logger.debug(f"Converting MCP tool: {tool.name}")
+                
+                # Use original tool name (no hyphen replacement for Llama)
+                tool_name = tool.name
+                
+                # Store mapping (identity mapping since no name cleaning)
+                self.tool_name_mapping[tool_name] = tool.name
+                
+                # Create tool definition in the format Llama expects
+                tool_def = {
+                    "type": "function",
+                    "function": {
+                        "name": tool_name,
+                        "description": tool.description or f"Tool: {tool.name}",
+                        "parameters": tool.inputSchema or {"type": "object", "properties": {}}
+                    }
+                }
+                
+                prompt_parts.append(json.dumps(tool_def))
+            
+            # Add comprehensive response format instructions for Scout
+            prompt_parts.extend([
+                "",
+                "## Rules for Function Calling:",
+                "1. When you need to call a function, use the following format:",
+                "   [function_name(arguments)]",
+                "2. You can call multiple functions in a single response if needed",
+                "3. Always provide the function results in your response to the user",
+                "4. If a function call fails, explain the error and try an alternative approach",
+                "5. Only call functions when necessary to answer the user's question",
+                "",
+                "## Response Rules:",
+                "- Always provide a complete answer to the user's question",
+                "- Include function results in your response",
+                "- Be helpful and informative",
+                "- If you cannot answer without calling a function, call the appropriate function first",
+                "",
+                "## Boundaries:",
+                "- Only call functions that are explicitly provided above",
+                "- Do not make up function names or parameters",
+                "- Follow the exact function signature provided",
+                "- Always validate your function calls before making them"
+            ])
+        else:
+            # Use minimal format for other Llama models
+            prompt_parts = [
+                "You have the following tools available to help answer the user's request. You can call one or more functions at a time. The functions are described here in JSON-schema format:",
+                ""
+            ]
+            
+            # Add each tool definition in JSON format
+            for tool in tools.tools:
+                self.logger.debug(f"Converting MCP tool: {tool.name}")
+                
+                # Use original tool name (no hyphen replacement for Llama)
+                tool_name = tool.name
+                
+                # Store mapping (identity mapping since no name cleaning)
+                self.tool_name_mapping[tool_name] = tool.name
+                
+                # Create tool definition in the format Llama expects
+                tool_def = {
+                    "type": "function",
+                    "function": {
+                        "name": tool_name,
+                        "description": tool.description or f"Tool: {tool.name}",
+                        "parameters": tool.inputSchema or {"type": "object", "properties": {}}
+                    }
+                }
+                
+                prompt_parts.append(json.dumps(tool_def))
+            
+            # Add the response format instructions based on community best practices
+            prompt_parts.extend([
+                "",
+                "To call one or more tools, provide the tool calls on a new line as a JSON-formatted array. Explain your steps in a neutral tone. Then, only call the tools you can for the first step, then end your turn. If you previously received an error, you can try to call the tool again. Give up after 3 errors.",
+                "",
+                "Conform precisely to the single-line format of this example:",
+                "Tool Call:",
+                '[{"name": "SampleTool", "arguments": {"foo": "bar"}},{"name": "SampleTool", "arguments": {"foo": "other"}}]'
+            ])
+        
+        system_prompt = "\n".join(prompt_parts)
+        self.logger.debug(f"Generated Llama native system prompt: {system_prompt}")
+        
+        return system_prompt
+
+    def _convert_mcp_tools_to_bedrock(self, tools: "ListToolsResult") -> Union[List[Dict[str, Any]], str]:
+        """Convert MCP tools to appropriate Bedrock format based on model type."""
+        model_id = self.default_request_params.model or DEFAULT_BEDROCK_MODEL
+        schema_type = self._get_tool_schema_type(model_id)
+        
+        if schema_type == ToolSchemaType.SYSTEM_PROMPT:
+            system_prompt = self._convert_tools_system_prompt_format(tools)
+            # Store the system prompt for later use in system message
+            self._system_prompt_tools = system_prompt
+            return system_prompt
+        else:
+            return self._convert_tools_nova_format(tools)
+
+    def _add_tools_to_request(self, converse_args: Dict[str, Any], available_tools: Union[List[Dict[str, Any]], str], model_id: str) -> None:
+        """Add tools to the request in the appropriate format based on model type."""
+        schema_type = self._get_tool_schema_type(model_id)
+        
+        if schema_type == ToolSchemaType.SYSTEM_PROMPT:
+            # System prompt models expect tools in the system prompt, not as API parameters
+            # Tools are already handled in the system prompt generation
+            self.logger.debug(f"System prompt tools handled in system prompt")
+        else:
+            # Nova models expect toolConfig with toolSpec format
+            converse_args["toolConfig"] = {
+                "tools": available_tools
+            }
+            self.logger.debug(f"Added {len(available_tools)} tools to Nova request in toolConfig format")
+
+    def _parse_nova_tool_response(self, processed_response: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Parse Nova-format tool response (toolUse format)."""
+        tool_uses = [
+            content_item for content_item in processed_response.get("content", [])
+            if "toolUse" in content_item
+        ]
+        
+        parsed_tools = []
+        for tool_use_item in tool_uses:
+            tool_use = tool_use_item["toolUse"]
+            parsed_tools.append({
+                "type": "nova",
+                "name": tool_use["name"],
+                "arguments": tool_use["input"],
+                "id": tool_use["toolUseId"]
+            })
+        
+        return parsed_tools
+
+
+
+    def _parse_system_prompt_tool_response(self, processed_response: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Parse system prompt tool response format: function calls in text."""
+        # Extract text content from the response
+        text_content = ""
+        for content_item in processed_response.get("content", []):
+            if isinstance(content_item, dict) and "text" in content_item:
+                text_content += content_item["text"]
+        
+        if not text_content:
+            return []
+        
+        # Look for different tool call formats
+        tool_calls = []
+        
+        # First try Scout format: [function_name(arguments)]
+        scout_pattern = r'\[([^(]+)\(([^)]*)\)\]'
+        scout_matches = re.findall(scout_pattern, text_content)
+        if scout_matches:
+            for i, (func_name, args_str) in enumerate(scout_matches):
+                func_name = func_name.strip()
+                args_str = args_str.strip()
+                
+                # Parse arguments - could be empty, JSON object, or simple values
+                arguments = {}
+                if args_str:
+                    try:
+                        # Try to parse as JSON object first
+                        if args_str.startswith('{') and args_str.endswith('}'):
+                            arguments = json.loads(args_str)
+                        else:
+                            # For simple values, create a basic structure
+                            arguments = {"value": args_str}
+                    except json.JSONDecodeError:
+                        # If JSON parsing fails, treat as string
+                        arguments = {"value": args_str}
+                
+                tool_calls.append({
+                    "type": "system_prompt",
+                    "name": func_name,
+                    "arguments": arguments,
+                    "id": f"system_prompt_{func_name}_{i}"
+                })
+            
+            if tool_calls:
+                return tool_calls
+        
+        # Second try: find the "Tool Call:" format
+        tool_call_match = re.search(r'Tool Call:\s*(\[.*?\])', text_content, re.DOTALL)
+        if tool_call_match:
+            json_str = tool_call_match.group(1)
+            try:
+                parsed_calls = json.loads(json_str)
+                if isinstance(parsed_calls, list):
+                    for i, call in enumerate(parsed_calls):
+                        if isinstance(call, dict) and "name" in call:
+                            tool_calls.append({
+                                "type": "system_prompt",
+                                "name": call["name"],
+                                "arguments": call.get("arguments", {}),
+                                "id": f"system_prompt_{call['name']}_{i}"
+                            })
+                    return tool_calls
+            except json.JSONDecodeError as e:
+                self.logger.warning(f"Failed to parse Tool Call JSON array: {json_str} - {e}")
+        
+        # Fallback: try to parse any JSON array in the text
+        array_match = re.search(r'\[.*?\]', text_content, re.DOTALL)
+        if array_match:
+            json_str = array_match.group(0)
+            try:
+                parsed_calls = json.loads(json_str)
+                if isinstance(parsed_calls, list):
+                    for i, call in enumerate(parsed_calls):
+                        if isinstance(call, dict) and "name" in call:
+                            tool_calls.append({
+                                "type": "system_prompt",
+                                "name": call["name"],
+                                "arguments": call.get("arguments", {}),
+                                "id": f"system_prompt_{call['name']}_{i}"
+                            })
+                    return tool_calls
+            except json.JSONDecodeError as e:
+                self.logger.warning(f"Failed to parse JSON array: {json_str} - {e}")
+        
+        # Fallback: try to parse as single JSON object (backward compatibility)
+        try:
+            json_match = re.search(r'\{[^}]*"name"[^}]*"arguments"[^}]*\}', text_content, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+                function_call = json.loads(json_str)
+                
+                if "name" in function_call:
+                    return [{
+                        "type": "system_prompt",
+                        "name": function_call["name"],
+                        "arguments": function_call.get("arguments", {}),
+                        "id": f"system_prompt_{function_call['name']}"
+                    }]
+                    
+        except json.JSONDecodeError as e:
+            self.logger.warning(f"Failed to parse system prompt tool response as JSON: {text_content} - {e}")
+            
+            # Fallback to old custom tag format in case some models still use it
+            function_regex = r"<function=([^>]+)>(.*?)</function>"
+            match = re.search(function_regex, text_content)
+            
+            if match:
+                function_name = match.group(1)
+                function_args_json = match.group(2)
+                
+                try:
+                    function_args = json.loads(function_args_json)
+                    return [{
+                        "type": "system_prompt",
+                        "name": function_name,
+                        "arguments": function_args,
+                        "id": f"system_prompt_{function_name}"
+                    }]
+                except json.JSONDecodeError:
+                    self.logger.warning(f"Failed to parse fallback custom tag format: {function_args_json}")
+        
+        return []
+
+    def _parse_tool_response(self, processed_response: Dict[str, Any], model_id: str) -> List[Dict[str, Any]]:
+        """Parse tool response based on model type."""
+        schema_type = self._get_tool_schema_type(model_id)
+        
+        if schema_type == ToolSchemaType.SYSTEM_PROMPT:
+            return self._parse_system_prompt_tool_response(processed_response)
+        else:
+            return self._parse_nova_tool_response(processed_response)
 
     def _convert_messages_to_bedrock(self, messages: List[BedrockMessageParam]) -> List[Dict[str, Any]]:
         """Convert message parameters to Bedrock format."""
         bedrock_messages = []
-        for message in messages:
+        
+
+        
+        for i, message in enumerate(messages):
+            
             bedrock_message = {
                 "role": message.get("role", "user"),
                 "content": []
@@ -350,14 +699,15 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
             # Handle different content types
             content = message.get("content", [])
             if isinstance(content, str):
-                bedrock_message["content"] = [{"text": content}]
+                message_text = content
             elif isinstance(content, list):
+                message_text = ""
                 for item in content:
                     if isinstance(item, str):
-                        bedrock_message["content"].append({"text": item})
+                        message_text += item
                     elif isinstance(item, dict):
                         if item.get("type") == "text":
-                            bedrock_message["content"].append({"text": item.get("text", "")})
+                            message_text += item.get("text", "")
                         elif item.get("type") == "tool_use":
                             bedrock_message["content"].append({
                                 "toolUse": {
@@ -366,42 +716,66 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                                     "input": item.get("input", {})
                                 }
                             })
+                            continue
                         elif item.get("type") == "tool_result":
-                            # Nova-specific tool result format
-                            tool_result_content = item.get("content", "")
+                            # Check if we're using Llama native format
+                            model_id = getattr(self.default_request_params, 'model', None) or DEFAULT_BEDROCK_MODEL
+                            schema_type = self._get_tool_schema_type(model_id)
                             
-                            # Try to parse as JSON for data
-                            try:
-                                # If content is already a dict, use it directly
+                            if schema_type == ToolSchemaType.SYSTEM_PROMPT:
+                                # For system prompt format, convert tool results to plain text
+                                tool_result_content = item.get("content", "")
                                 if isinstance(tool_result_content, dict):
-                                    json_content = tool_result_content
+                                    # Convert dict to readable format
+                                    result_text = json.dumps(tool_result_content, indent=2)
                                 else:
-                                    # Try to parse as JSON string
-                                    parsed_content = json.loads(tool_result_content)
-                                    
-                                    # Nova requires JSON content to be an object, not a primitive
-                                    # If we got a primitive value, wrap it in an object
-                                    if isinstance(parsed_content, (str, int, float, bool, list)):
-                                        json_content = {"result": parsed_content}
-                                    else:
-                                        json_content = parsed_content
+                                    result_text = str(tool_result_content)
                                 
-                                bedrock_message["content"].append({
-                                    "toolResult": {
-                                        "toolUseId": item.get("tool_call_id", ""),
-                                        "content": [{"json": json_content}],
-                                        "status": "success"
-                                    }
-                                })
-                            except (json.JSONDecodeError, TypeError):
-                                # Fall back to text format for non-JSON content
-                                bedrock_message["content"].append({
-                                    "toolResult": {
-                                        "toolUseId": item.get("tool_call_id", ""),
-                                        "content": [{"text": str(tool_result_content)}],
-                                        "status": "success"
-                                    }
-                                })
+                                # Add as plain text - no special tool result formatting
+                                message_text += f"\n\nTool Result: {result_text}"
+                            else:
+                                # Nova-specific tool result format
+                                tool_result_content = item.get("content", "")
+                                
+                                # Try to parse as JSON for data
+                                try:
+                                    # If content is already a dict, use it directly
+                                    if isinstance(tool_result_content, dict):
+                                        json_content = tool_result_content
+                                    else:
+                                        # Try to parse as JSON string
+                                        parsed_content = json.loads(tool_result_content)
+                                        
+                                        # Nova requires JSON content to be an object, not a primitive
+                                        # If we got a primitive value, wrap it in an object
+                                        if isinstance(parsed_content, (str, int, float, bool, list)):
+                                            json_content = {"result": parsed_content}
+                                        else:
+                                            json_content = parsed_content
+                                    
+                                    bedrock_message["content"].append({
+                                        "toolResult": {
+                                            "toolUseId": item.get("tool_call_id", ""),
+                                            "content": [{"json": json_content}],
+                                            "status": "success"
+                                        }
+                                    })
+                                except (json.JSONDecodeError, TypeError):
+                                    # Fall back to text format for non-JSON content
+                                    bedrock_message["content"].append({
+                                        "toolResult": {
+                                            "toolUseId": item.get("tool_call_id", ""),
+                                            "content": [{"text": str(tool_result_content)}],
+                                            "status": "success"
+                                        }
+                                    })
+                                continue
+            else:
+                message_text = str(content)
+            
+            # Normal message handling
+            if message_text:
+                bedrock_message["content"].append({"text": message_text})
             
             bedrock_messages.append(bedrock_message)
         
@@ -645,6 +1019,21 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         for i in range(params.max_iterations):
             self._log_chat_progress(self.chat_turn(), model=model)
 
+            # Process tools BEFORE message conversion for Llama native format
+            model_to_check = model or DEFAULT_BEDROCK_MODEL
+            schema_type = self._get_tool_schema_type(model_to_check)
+            
+            # For Llama native format, we need to store tools before message conversion
+            if schema_type == ToolSchemaType.SYSTEM_PROMPT and available_tools:
+                has_tools = bool(available_tools) and (
+                    (isinstance(available_tools, list) and len(available_tools) > 0) or
+                    (isinstance(available_tools, str) and available_tools.strip())
+                )
+                
+                if has_tools:
+                    self._add_tools_to_request({}, available_tools, model_to_check)
+                    self.logger.debug("Pre-processed Llama native tools for message injection")
+
             # Convert messages to Bedrock format
             bedrock_messages = self._convert_messages_to_bedrock(messages)
 
@@ -656,7 +1045,22 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
 
             # Add system prompt if available and supported by the model
             system_text = self.instruction or params.systemPrompt
-            model_to_check = model or DEFAULT_BEDROCK_MODEL
+            
+            # For Llama native format, inject tools into system prompt
+            if schema_type == ToolSchemaType.SYSTEM_PROMPT and hasattr(self, '_system_prompt_tools') and self._system_prompt_tools:
+                # Combine system prompt with tools for Llama native format
+                if system_text:
+                    system_text = f"{system_text}\n\n{self._system_prompt_tools}"
+                else:
+                    system_text = self._system_prompt_tools
+                self.logger.debug(f"Combined system prompt with system prompt tools")
+            elif hasattr(self, '_system_prompt_tools') and self._system_prompt_tools:
+                # For other formats, combine system prompt with tools
+                if system_text:
+                    system_text = f"{system_text}\n\n{self._system_prompt_tools}"
+                else:
+                    system_text = self._system_prompt_tools
+                self.logger.debug(f"Combined system prompt with tools system prompt")
             
             self.logger.info(f"DEBUG: BEFORE CHECK - model='{model_to_check}', has_system_text={bool(system_text)}")
             self.logger.info(f"DEBUG: self.instruction='{self.instruction}', params.systemPrompt='{params.systemPrompt}'")
@@ -682,14 +1086,17 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
             else:
                 self.logger.info(f"DEBUG: No system text provided for {model_to_check}")
 
-            # Add tools if available - Nova requires at least one tool if toolConfig is provided
-            if available_tools and len(available_tools) > 0:
-                converse_args["toolConfig"] = {
-                    "tools": available_tools
-                }
-                self.logger.debug(f"Added {len(available_tools)} tools to Nova request")
-            else:
-                self.logger.debug("No tools available - omitting toolConfig from Nova request")
+            # Add tools if available - format depends on model type (skip for Llama native as already processed)
+            if schema_type != ToolSchemaType.SYSTEM_PROMPT:
+                has_tools = bool(available_tools) and (
+                    (isinstance(available_tools, list) and len(available_tools) > 0) or
+                    (isinstance(available_tools, str) and available_tools.strip())
+                )
+                
+                if has_tools:
+                    self._add_tools_to_request(converse_args, available_tools, model_to_check)
+                else:
+                    self.logger.debug("No tools available - omitting tool configuration from request")
 
             # Add inference configuration
             inference_config = {}
@@ -712,6 +1119,18 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
 
             self.logger.debug(f"Bedrock converse args: {converse_args}")
             
+            # Debug: Print the actual messages being sent to Bedrock for Llama models
+            schema_type = self._get_tool_schema_type(model_to_check)
+            if schema_type == ToolSchemaType.SYSTEM_PROMPT:
+                self.logger.info("=== SYSTEM PROMPT DEBUG ===")
+                self.logger.info(f"Messages being sent to Bedrock:")
+                for i, msg in enumerate(converse_args.get("messages", [])):
+                    self.logger.info(f"Message {i} ({msg.get('role', 'unknown')}):")
+                    for j, content in enumerate(msg.get("content", [])):
+                        if "text" in content:
+                            self.logger.info(f"  Content {j}: {content['text'][:500]}...")
+                self.logger.info("=== END SYSTEM PROMPT DEBUG ===")
+            
             # Debug: Print the full tool config being sent
             if "toolConfig" in converse_args:
                 self.logger.debug(f"Tool config being sent to Bedrock: {json.dumps(converse_args['toolConfig'], indent=2)}")
@@ -722,14 +1141,19 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                 #   1. Tools are available (available_tools is not empty)
                 #   2. Model doesn't support streaming with tools
                 # Otherwise, always prefer streaming for better UX
-                if available_tools and not self._supports_streaming_with_tools(model or DEFAULT_BEDROCK_MODEL):
+                has_tools = bool(available_tools) and (
+                    (isinstance(available_tools, list) and len(available_tools) > 0) or
+                    (isinstance(available_tools, str) and available_tools.strip())
+                )
+                
+                if has_tools and not self._supports_streaming_with_tools(model or DEFAULT_BEDROCK_MODEL):
                     # Use non-streaming API: model requires it for tool calls
                     self.logger.debug(f"Using non-streaming API for {model} with tools (model limitation)")
                     response = client.converse(**converse_args)
                     processed_response = self._process_non_streaming_response(response, model or DEFAULT_BEDROCK_MODEL)
                 else:
                     # Use streaming API: either no tools OR model supports streaming with tools
-                    streaming_reason = "no tools present" if not available_tools else "model supports streaming with tools"
+                    streaming_reason = "no tools present" if not has_tools else "model supports streaming with tools"
                     self.logger.debug(f"Using streaming API for {model} ({streaming_reason})")
                     response = client.converse_stream(**converse_args)
                     processed_response = await self._process_stream(response, model or DEFAULT_BEDROCK_MODEL)
@@ -779,6 +1203,16 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
             # Handle different stop reasons
             stop_reason = processed_response.get("stop_reason", "end_turn")
             
+            # For Llama native format, check for tool calls even if stop_reason is "end_turn"
+            schema_type = self._get_tool_schema_type(model or DEFAULT_BEDROCK_MODEL)
+            if schema_type == ToolSchemaType.SYSTEM_PROMPT and stop_reason == "end_turn":
+                # Check if there's a tool call in the response
+                parsed_tools = self._parse_tool_response(processed_response, model or DEFAULT_BEDROCK_MODEL)
+                if parsed_tools:
+                    # Override stop_reason to handle as tool_use
+                    stop_reason = "tool_use"
+                    self.logger.debug(f"Detected system prompt tool call, overriding stop_reason to 'tool_use'")
+            
             if stop_reason == "end_turn":
                 # Extract text for display
                 message_text = ""
@@ -806,20 +1240,19 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                     )
                 await self.show_assistant_message(message_text)
                 break
-            elif stop_reason == "tool_use":
-                # Handle tool use
+            elif stop_reason in ["tool_use", "tool_calls"]:
+                # Handle tool use/calls - format depends on model type
                 message_text = ""
                 for content_item in processed_response.get("content", []):
                     if content_item.get("text"):
                         message_text += content_item["text"]
                 
-                # Collect tool uses
-                tool_uses = [
-                    content_item for content_item in processed_response.get("content", [])
-                    if "toolUse" in content_item
-                ]
+                # Parse tool calls using model-specific method
+                self.logger.info(f"DEBUG: About to parse tool response: {processed_response}")
+                parsed_tools = self._parse_tool_response(processed_response, model or DEFAULT_BEDROCK_MODEL)
+                self.logger.info(f"DEBUG: Parsed tools: {parsed_tools}")
                 
-                if tool_uses:
+                if parsed_tools:
                     if not message_text:
                         message_text = Text(
                             "the assistant requested tool calls",
@@ -828,13 +1261,12 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                     
                     # Process tool calls
                     tool_results = []
-                    for tool_idx, tool_use_item in enumerate(tool_uses):
-                        self.logger.debug(f"Processing tool use item: {tool_use_item}")
-                        tool_use = tool_use_item["toolUse"]
-                        self.logger.debug(f"Tool use object: {tool_use}")
-                        tool_name = tool_use["name"]
-                        tool_args = tool_use["input"]
-                        tool_use_id = tool_use["toolUseId"]
+                    for tool_idx, tool_info in enumerate(parsed_tools):
+                        self.logger.debug(f"Processing tool: {tool_info}")
+                        
+                        tool_name = tool_info["name"]
+                        tool_args = tool_info["arguments"]
+                        tool_id = tool_info["id"]
                         
                         # Ensure tool_args is a dictionary
                         if not isinstance(tool_args, dict):
@@ -874,19 +1306,25 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                         )
                         
                         # Execute tool call
-                        tool_result = await self.call_tool(tool_call_request, tool_use_id)
+                        self.logger.info(f"DEBUG: About to execute tool call: {tool_call_request}")
+                        tool_result = await self.call_tool(tool_call_request, tool_id)
+                        self.logger.info(f"DEBUG: Tool execution completed, result: {tool_result}")
                         tool_results.append(tool_result)
                         
                         # Add tool result to messages
                         tool_result_content = tool_result.content[0].text if tool_result.content else ""
                         
-                        # Format tool result for Nova compatibility
+                        # Debug: Log the actual tool result
+                        self.logger.info(f"DEBUG: Tool result for {tool_name}: '{tool_result_content}'")
+                        self.logger.info(f"DEBUG: Full tool result: {tool_result}")
+                        
+                        # Format tool result - use the original format for all models
                         tool_result_message = {
                             "role": "user",
                             "content": [
                                 {
                                     "type": "tool_result",
-                                    "tool_call_id": tool_use_id,
+                                    "tool_call_id": tool_id,
                                     "content": tool_result_content,
                                 }
                             ],
@@ -895,7 +1333,7 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                     
                     continue  # Continue to next iteration for tool use
                 else:
-                    # No tool uses but stop_reason was tool_use, treat as end_turn
+                    # No tool uses but stop_reason was tool_use/tool_calls, treat as end_turn
                     await self.show_assistant_message(message_text)
                     break
             else:
@@ -1129,6 +1567,8 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         
         # Use the parent class method with the cleaned multipart
         return super()._structured_from_multipart(cleaned_multipart, model)
+
+
 
     @classmethod
     def convert_message_to_message_param(
