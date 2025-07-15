@@ -193,6 +193,7 @@ def agent(
     human_input: bool = False,
     default: bool = False,
     elicitation_handler: Optional[ElicitationFnT] = None,
+    api_key: str | None = None,
 ) -> Callable[[AgentCallable[P, R]], DecoratedAgentProtocol[P, R]]:
     """
     Decorator to create and register a standard agent with type-safe signature.
@@ -211,6 +212,7 @@ def agent(
         human_input: Whether to enable human input capabilities
         default: Whether to mark this as the default agent
         elicitation_handler: Custom elicitation handler function (ElicitationFnT)
+        api_key: Optional API key for the LLM provider
 
     Returns:
         A decorator that registers the agent with proper type annotations
@@ -232,6 +234,7 @@ def agent(
         tools=tools,
         resources=resources,
         prompts=prompts,
+        api_key=api_key,
     )
 
 
