@@ -1317,7 +1317,7 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                         # self.show_tool_result(result)
                         
                         # Add each result to our collection
-                        tool_results_for_batch.append((tool_use_id, result))
+                        tool_results_for_batch.append((tool_use_id, result, tool_name))
                         responses.extend(result.content)
 
                     # After processing all tool calls for a turn, clear the intermediate
@@ -1325,38 +1325,66 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                     # the model's last message, not the reasoning or raw tool output.
                     responses.clear()
 
-                    # Now, create the message with tool results.
-                    # For Anthropic models, the format is a user message with tool_result content blocks.
-                    tool_result_blocks = []
-                    for tool_id, tool_result in tool_results_for_batch:
-                        # Convert tool result content into a list of content blocks
-                        # This mimics the native Anthropic provider's approach.
-                        result_content_blocks = []
-                        if tool_result.content:
-                            for part in tool_result.content:
-                                if isinstance(part, TextContent):
-                                    result_content_blocks.append({"text": part.text})
-                                # Note: This can be extended to handle other content types like images
-                                # For now, we are focusing on making text-based tools work correctly.
-                        
-                        # If there's no content, provide a default message.
-                        if not result_content_blocks:
-                             result_content_blocks.append({"text": "[No content in tool result]"})
+                    # Now, create the message with tool results based on the model's schema type.
+                    schema_type = self._get_tool_schema_type(model or DEFAULT_BEDROCK_MODEL)
 
-                        # This is the format Bedrock expects for tool results in the Converse API
-                        tool_result_blocks.append({
-                            "type": "tool_result",
-                            "tool_use_id": tool_id,
-                            "content": result_content_blocks,
-                            "status": "error" if tool_result.isError else "success",
-                        })
-                    
-                    if tool_result_blocks:
-                        # Append a single user message with all the tool results for this turn
-                        messages.append({
-                            "role": "user",
-                            "content": tool_result_blocks,
-                        })
+                    if schema_type == ToolSchemaType.SYSTEM_PROMPT:
+                        # For system prompt models (like Llama), format results as a simple text message.
+                        # The model expects to see the results in a human-readable format to continue.
+                        tool_result_parts = []
+                        for _, tool_result, tool_name in tool_results_for_batch:
+                            result_text = "".join(
+                                [part.text for part in tool_result.content if isinstance(part, TextContent)]
+                            )
+                            
+                            # Create a representation of the tool's output.
+                            # Using a JSON-like string is a robust way to present this.
+                            result_payload = {
+                                "tool_name": tool_name,
+                                "status": "error" if tool_result.isError else "success",
+                                "result": result_text,
+                            }
+                            tool_result_parts.append(json.dumps(result_payload))
+                        
+                        if tool_result_parts:
+                            # Combine all tool results into a single text block.
+                            full_result_text = f"Tool Results:\n{', '.join(tool_result_parts)}"
+                            messages.append({
+                                "role": "user",
+                                "content": [{"type": "text", "text": full_result_text}],
+                            })
+                    else:
+                        # For native tool-using models (Anthropic, Nova), use the structured 'tool_result' format.
+                        tool_result_blocks = []
+                        for tool_id, tool_result, _ in tool_results_for_batch:
+                            # Convert tool result content into a list of content blocks
+                            # This mimics the native Anthropic provider's approach.
+                            result_content_blocks = []
+                            if tool_result.content:
+                                for part in tool_result.content:
+                                    if isinstance(part, TextContent):
+                                        result_content_blocks.append({"text": part.text})
+                                    # Note: This can be extended to handle other content types like images
+                                    # For now, we are focusing on making text-based tools work correctly.
+                            
+                            # If there's no content, provide a default message.
+                            if not result_content_blocks:
+                                 result_content_blocks.append({"text": "[No content in tool result]"})
+
+                            # This is the format Bedrock expects for tool results in the Converse API
+                            tool_result_blocks.append({
+                                "type": "tool_result",
+                                "tool_use_id": tool_id,
+                                "content": result_content_blocks,
+                                "status": "error" if tool_result.isError else "success",
+                            })
+                        
+                        if tool_result_blocks:
+                            # Append a single user message with all the tool results for this turn
+                            messages.append({
+                                "role": "user",
+                                "content": tool_result_blocks,
+                            })
                     
                     continue
                 else:
