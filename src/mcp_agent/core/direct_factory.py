@@ -388,14 +388,19 @@ async def create_agents_in_dependency_order(
             agent_config = agents_dict[agent_name]
 
             # Check if any required servers for this agent are unavailable
-            agent_config_obj = agent_config.get("config")
-            required_servers = agent_config_obj.servers if agent_config_obj else []
-            if any(server in app_instance.fast_agent.unavailable_servers for server in required_servers):
-                logger.warning(
-                    f"Skipping agent '{agent_name}' because it depends on an unavailable server."
-                )
-                app_instance.fast_agent.deactivated_agents[agent_name] = agent_config
-                continue
+            # Only do this check if polling is enabled (mcp_polling_interval > 0)
+            if (hasattr(app_instance.fast_agent, 'mcp_polling_interval') and 
+                app_instance.fast_agent.mcp_polling_interval is not None and 
+                app_instance.fast_agent.mcp_polling_interval > 0):
+                
+                agent_config_obj = agent_config.get("config")
+                required_servers = agent_config_obj.servers if agent_config_obj else []
+                if any(server in app_instance.fast_agent.unavailable_servers for server in required_servers):
+                    logger.warning(
+                        f"Skipping agent '{agent_name}' because it depends on an unavailable server."
+                    )
+                    app_instance.fast_agent.deactivated_agents[agent_name] = agent_config
+                    continue
 
             try:
                 agent_type = AgentType(agent_config["type"])
@@ -410,31 +415,47 @@ async def create_agents_in_dependency_order(
                 active_agents.update(created_agents)
 
             except ServerInitializationError as e:
-                # The original error (e.g., ConnectError) is the cause
-                server_name = "unknown"
+                # Only handle graceful deactivation if polling is enabled
+                if (hasattr(app_instance.fast_agent, 'mcp_polling_interval') and 
+                    app_instance.fast_agent.mcp_polling_interval is not None and 
+                    app_instance.fast_agent.mcp_polling_interval > 0):
+                    
+                    # The original error (e.g., ConnectError) is the cause
+                    server_name = "unknown"
 
-                # We need to find the server name from the original exception text
-                # as ServerInitializationError doesn't carry it directly.
-                match = re.search(r"MCP Server: '([^']*)'", str(e))
-                if match:
-                    server_name = match.group(1)
+                    # We need to find the server name from the original exception text
+                    # as ServerInitializationError doesn't carry it directly.
+                    match = re.search(r"MCP Server: '([^']*)'", str(e))
+                    if match:
+                        server_name = match.group(1)
 
-                app_instance.fast_agent.unavailable_servers.add(server_name)
-                app_instance.fast_agent.deactivated_agents[agent_name] = agent_config
-                
-                logger.debug(f"MCP server '{server_name}' is not available. Agent '{agent_name}' will be deactivated.")
-                
-                logger.info(
-                    f"Agent '{agent_name}' deactivated",
-                    data={
-                        "progress_action": ProgressAction.DEACTIVATED,
-                        "agent_name": agent_name,
-                    },
-                )
+                    app_instance.fast_agent.unavailable_servers.add(server_name)
+                    app_instance.fast_agent.deactivated_agents[agent_name] = agent_config
+                    
+                    logger.debug(f"MCP server '{server_name}' is not available. Agent '{agent_name}' will be deactivated.")
+                    
+                    logger.info(
+                        f"Agent '{agent_name}' deactivated",
+                        data={
+                            "progress_action": ProgressAction.DEACTIVATED,
+                            "agent_name": agent_name,
+                        },
+                    )
+                else:
+                    # If polling is not enabled, let the error propagate normally (old behavior)
+                    raise
 
             except Exception as e:
-                logger.error(f"Failed to create agent '{agent_name}': {e}")
-                app_instance.fast_agent.deactivated_agents[agent_name] = agent_config
+                # Only handle graceful deactivation if polling is enabled
+                if (hasattr(app_instance.fast_agent, 'mcp_polling_interval') and 
+                    app_instance.fast_agent.mcp_polling_interval is not None and 
+                    app_instance.fast_agent.mcp_polling_interval > 0):
+                    
+                    logger.error(f"Failed to create agent '{agent_name}': {e}")
+                    app_instance.fast_agent.deactivated_agents[agent_name] = agent_config
+                else:
+                    # If polling is not enabled, let the error propagate normally (old behavior)
+                    raise
 
     return active_agents
 
