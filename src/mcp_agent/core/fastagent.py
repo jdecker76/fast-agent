@@ -300,6 +300,18 @@ class FastAgent:
 
                 # Start the background polling task to reactivate agents
                 polling_task = asyncio.create_task(self._poll_and_reactivate_servers(agent_app))
+                
+                # Add initial polling progress entry if there are unavailable servers
+                if self.unavailable_servers:
+                    logger.info(
+                        "Polling MCP Servers",
+                        data={
+                            "progress_action": ProgressAction.RUNNING,
+                            "agent_name": "MCP Server Polling",
+                            "target": "Polling MCP Servers",
+                            "details": f"{len(self.unavailable_servers)} unavailable"
+                        }
+                    )
 
                 yield agent_app
         finally:
@@ -319,19 +331,33 @@ class FastAgent:
             await asyncio.sleep(30)  # Poll every 30 seconds for faster testing
 
             if not self.unavailable_servers:
+                # Update progress to show we're waiting (no servers to poll)
+                logger.info(
+                    "Polling MCP Servers",
+                    data={
+                        "progress_action": ProgressAction.READY,
+                        "agent_name": "MCP Server Polling",
+                        "target": "Polling MCP Servers",
+                        "details": "All servers online"
+                    }
+                )
                 continue
 
-            logger.warning(f"Polling unavailable servers: {list(self.unavailable_servers)}")
+            # Update progress to show we're actively polling
+            logger.info(
+                "Polling MCP Servers",
+                data={
+                    "progress_action": ProgressAction.RUNNING,
+                    "agent_name": "MCP Server Polling", 
+                    "target": "Polling MCP Servers",
+                    "details": f"Checking {len(self.unavailable_servers)} servers"
+                }
+            )
 
             # Create a copy of the set to iterate over, as it may be modified
             for server_name in list(self.unavailable_servers):
-                # Show server configuration for debugging
-                server_config = self.context.server_registry.get_server_config(server_name)
-                if server_config:
-                    logger.info(f"Server '{server_name}' config: transport={server_config.transport}, command={getattr(server_config, 'command', None)}, url={getattr(server_config, 'url', None)}")
                 try:
                     # Use the connection manager to properly test server health
-                    logger.info(f"Attempting to connect to server '{server_name}'...")
                     async with asyncio.timeout(10):  # 10 second timeout
                         # Import here to avoid circular imports
                         from mcp_agent.mcp.mcp_agent_client_session import MCPAgentClientSession
@@ -363,16 +389,20 @@ class FastAgent:
                                         await self._reactivate_agent(agent_name, agent_config, agent_app)
 
                 except Exception as e:
-                    # Only log every 5th attempt to reduce noise
-                    if hasattr(self, '_poll_counter'):
-                        self._poll_counter += 1
-                    else:
-                        self._poll_counter = 1
-                    
-                    if self._poll_counter % 5 == 0:
-                        logger.warning(f"Server '{server_name}' still unavailable after {self._poll_counter} attempts: {str(e)[:100]}...")
-                    else:
-                        logger.debug(f"Server '{server_name}' still unavailable: {e}")
+                    # Only log debug messages to reduce noise - the progress display shows the status
+                    logger.debug(f"Server '{server_name}' still unavailable: {e}")
+            
+            # Update progress to show polling cycle is complete
+            if self.unavailable_servers:
+                logger.info(
+                    "Polling MCP Servers",
+                    data={
+                        "progress_action": ProgressAction.READY,
+                        "agent_name": "MCP Server Polling",
+                        "target": "Polling MCP Servers", 
+                        "details": f"Waiting ({len(self.unavailable_servers)} still offline)"
+                    }
+                )
 
     async def _reactivate_agent(self, agent_name: str, agent_config: Dict, agent_app: AgentApp):
         """
