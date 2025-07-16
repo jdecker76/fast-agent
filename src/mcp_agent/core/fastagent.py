@@ -10,6 +10,7 @@ import sys
 from contextlib import asynccontextmanager
 from importlib.metadata import version as get_version
 from pathlib import Path
+import re
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, TypeVar
 
 import yaml
@@ -201,6 +202,7 @@ class FastAgent:
                 name=name,
                 settings=config.Settings(**self.config) if hasattr(self, "config") else None,
             )
+            self.app.fast_agent = self
 
             # Stop progress display immediately if quiet mode is requested
             if self._programmatic_quiet:
@@ -218,6 +220,12 @@ class FastAgent:
 
         # Dictionary to store agent configurations from decorators
         self.agents: Dict[str, Dict[str, Any]] = {}
+
+        # Dictionary to store deactivated agents that failed to load
+        self.deactivated_agents: Dict[str, Dict[str, Any]] = {}
+        
+        # Set to store unavailable server names
+        self.unavailable_servers: set[str] = set()
 
     def _load_config(self) -> None:
         """Load configuration from YAML file including secrets using get_settings
@@ -257,199 +265,132 @@ class FastAgent:
     @asynccontextmanager
     async def run(self):
         """
-        Context manager for running the application.
-        Initializes all registered agents.
+        Run the application context, creating agents and handling their lifecycle.
+        This simplified version directly creates agent instances.
         """
-        active_agents: Dict[str, Agent] = {}
-        had_error = False
-        await self.app.initialize()
+        polling_task = None
+        try:
+            async with self.app.run() as running_app:
+                # Store the running app instance so agents can access it
+                self.app = running_app
 
-        # Handle quiet mode and CLI model override safely
-        # Define these *before* they are used, checking if self.args exists and has the attributes
-        quiet_mode = hasattr(self.args, "quiet") and self.args.quiet
-        cli_model_override = (
-            self.args.model if hasattr(self.args, "model") and self.args.model else None
-        )  # Define cli_model_override here
-        tracer = trace.get_tracer(__name__)
-        with tracer.start_as_current_span(self.name):
-            try:
-                async with self.app.run():
-                    # Apply quiet mode if requested
-                    if (
-                        quiet_mode
-                        and hasattr(self.app.context, "config")
-                        and hasattr(self.app.context.config, "logger")
-                    ):
-                        # Update our app's config directly
-                        self.app.context.config.logger.progress_display = False
-                        self.app.context.config.logger.show_chat = False
-                        self.app.context.config.logger.show_tools = False
-
-                        # Directly disable the progress display singleton
-                        from mcp_agent.progress_display import progress_display
-
-                        progress_display.stop()
-
-                    # Pre-flight validation
-                    if 0 == len(self.agents):
-                        raise AgentConfigError(
-                            "No agents defined. Please define at least one agent."
-                        )
-                    validate_server_references(self.context, self.agents)
-                    validate_workflow_references(self.agents)
-
-                    # Get a model factory function
-                    # Now cli_model_override is guaranteed to be defined
-                    def model_factory_func(model=None, request_params=None):
-                        return get_model_factory(
-                            self.context,
-                            model=model,
-                            request_params=request_params,
-                            cli_model=cli_model_override,  # Use the variable defined above
-                        )
-
-                    # Create all agents in dependency order
-                    active_agents = await create_agents_in_dependency_order(
-                        self.app,
-                        self.agents,
-                        model_factory_func,
+                # Define a model factory function that can be passed to agent creation
+                def model_factory_func(model=None, request_params=None):
+                    return get_model_factory(
+                        self.context,
+                        model=model,
+                        request_params=request_params,
+                        default_model=self.config.get("default_model"),
+                        cli_model=self.args.model if hasattr(self.args, "model") else None,
                     )
-                    
-                    # Validate API keys after agent creation
-                    validate_provider_keys_post_creation(active_agents)
 
-                    # Create a wrapper with all agents for simplified access
-                    wrapper = AgentApp(active_agents)
+                # Create agents in dependency order
+                active_agents = await create_agents_in_dependency_order(
+                    app_instance=self.app,
+                    agents_dict=self.agents,
+                    model_factory_func=model_factory_func,
+                )
 
-                    # Handle command line options that should be processed after agent initialization
+                # After attempting to load all agents, validate provider keys for active agents
+                validate_provider_keys_post_creation(active_agents)
 
-                    # Handle --server option
-                    # Check if parse_cli_args was True before checking self.args.server
-                    if hasattr(self.args, "server") and self.args.server:
-                        try:
-                            # Print info message if not in quiet mode
-                            if not quiet_mode:
-                                print(f"Starting FastAgent '{self.name}' in server mode")
-                                print(f"Transport: {self.args.transport}")
-                                if self.args.transport == "sse":
-                                    print(f"Listening on {self.args.host}:{self.args.port}")
-                                print("Press Ctrl+C to stop")
+                # Create the agent app with the successfully created agents
+                agent_app = AgentApp(agents=active_agents)
 
-                            # Create the MCP server
-                            from mcp_agent.mcp_server import AgentMCPServer
+                # Start the background polling task to reactivate agents
+                polling_task = asyncio.create_task(self._poll_and_reactivate_servers(agent_app))
 
-                            mcp_server = AgentMCPServer(
-                                agent_app=wrapper,
-                                server_name=f"{self.name}-MCP-Server",
-                            )
+                yield agent_app
+        finally:
+            if polling_task:
+                polling_task.cancel()
+                try:
+                    await polling_task
+                except asyncio.CancelledError:
+                    logger.info("Agent reactivation polling task cancelled.")
+            logger.info("FastAgent run context finished.")
 
-                            # Run the server directly (this is a blocking call)
-                            await mcp_server.run_async(
-                                transport=self.args.transport,
-                                host=self.args.host,
-                                port=self.args.port,
-                            )
-                        except KeyboardInterrupt:
-                            if not quiet_mode:
-                                print("\nServer stopped by user (Ctrl+C)")
-                        except Exception as e:
-                            if not quiet_mode:
-                                import traceback
+    async def _poll_and_reactivate_servers(self, agent_app: AgentApp):
+        """
+        Periodically poll unavailable servers and reactivate agents if they come online.
+        """
+        while True:
+            await asyncio.sleep(60)  # Poll every 60 seconds
 
-                                traceback.print_exc()
-                                print(f"\nServer stopped with error: {e}")
+            if not self.unavailable_servers:
+                continue
 
-                        # Exit after server shutdown
-                        raise SystemExit(0)
+            logger.info(f"Polling unavailable servers: {list(self.unavailable_servers)}")
 
-                    # Handle direct message sending if  --message is provided
-                    if hasattr(self.args, "message") and self.args.message:
-                        agent_name = self.args.agent
-                        message = self.args.message
+            # Create a copy of the set to iterate over, as it may be modified
+            for server_name in list(self.unavailable_servers):
+                try:
+                    # Use the server_registry to attempt a connection
+                    async with self.context.server_registry.start_server(server_name):
+                        logger.info(f"Server '{server_name}' is now available.")
+                        self.unavailable_servers.remove(server_name)
 
-                        if agent_name not in active_agents:
-                            available_agents = ", ".join(active_agents.keys())
-                            print(
-                                f"\n\nError: Agent '{agent_name}' not found. Available agents: {available_agents}"
-                            )
-                            raise SystemExit(1)
+                        # Check for agents that can be reactivated
+                        for agent_name, agent_config in list(self.deactivated_agents.items()):
+                            agent_config_obj = agent_config.get("config")
+                            required_servers = agent_config_obj.servers if agent_config_obj else []
+                            if server_name in required_servers:
+                                # Check if all required servers for this agent are now online
+                                if all(s not in self.unavailable_servers for s in required_servers):
+                                    await self._reactivate_agent(agent_name, agent_config, agent_app)
 
-                        try:
-                            # Get response from the agent
-                            agent = active_agents[agent_name]
-                            response = await agent.send(message)
+                except Exception as e:
+                    logger.debug(f"Server '{server_name}' still unavailable: {e}")
 
-                            # In quiet mode, just print the raw response
-                            # The chat display should already be turned off by the configuration
-                            if self.args.quiet:
-                                print(f"{response}")
+    async def _reactivate_agent(self, agent_name: str, agent_config: Dict, agent_app: AgentApp):
+        """
+        Reactivate a single agent that was previously offline.
+        """
+        logger.info(f"Attempting to reactivate agent: {agent_name}")
+        try:
+            # Define a model factory function for reactivation
+            def model_factory_func(model=None, request_params=None):
+                return get_model_factory(
+                    self.context,
+                    model=model,
+                    request_params=request_params,
+                    default_model=self.config.get("default_model"),
+                    cli_model=self.args.model if hasattr(self.args, "model") else None,
+                )
 
-                            raise SystemExit(0)
-                        except Exception as e:
-                            print(f"\n\nError sending message to agent '{agent_name}': {str(e)}")
-                            raise SystemExit(1)
+            # Create the agent
+            created_agents = await create_agents_in_dependency_order(
+                app_instance=self.app,
+                agents_dict={agent_name: agent_config},
+                model_factory_func=model_factory_func,
+            )
 
-                    if hasattr(self.args, "prompt_file") and self.args.prompt_file:
-                        agent_name = self.args.agent
-                        prompt: List[PromptMessageMultipart] = load_prompt_multipart(
-                            Path(self.args.prompt_file)
-                        )
-                        if agent_name not in active_agents:
-                            available_agents = ", ".join(active_agents.keys())
-                            print(
-                                f"\n\nError: Agent '{agent_name}' not found. Available agents: {available_agents}"
-                            )
-                            raise SystemExit(1)
+            if agent_name in created_agents:
+                # Add to the running agent_app
+                agent_app.add_agent(agent_name, created_agents[agent_name])
+                # Remove from deactivated list
+                del self.deactivated_agents[agent_name]
+                logger.info(f"Agent '{agent_name}' has been successfully reactivated.")
+            else:
+                logger.error(f"Failed to create agent '{agent_name}' during reactivation.")
 
-                        try:
-                            # Get response from the agent
-                            agent = active_agents[agent_name]
-                            response = await agent.generate(prompt)
+        except ServerInitializationError as e:
+            # This can happen if the server goes down again right as we try to reactivate
+            match = re.search(r"MCP Server: '([^']*)'", str(e))
+            if match:
+                server_name = match.group(1)
+                self.unavailable_servers.add(server_name)
+                logger.error(f"Server '{server_name}' became unavailable during reactivation of agent '{agent_name}'.")
+            else:
+                logger.error(f"Could not determine server name from reactivation error: {e}")
 
-                            # In quiet mode, just print the raw response
-                            # The chat display should already be turned off by the configuration
-                            if self.args.quiet:
-                                print(f"{response.last_text()}")
+        except Exception as e:
+            logger.error(f"Error reactivating agent '{agent_name}': {e}")
 
-                            raise SystemExit(0)
-                        except Exception as e:
-                            print(f"\n\nError sending message to agent '{agent_name}': {str(e)}")
-                            raise SystemExit(1)
-
-                    yield wrapper
-
-            except PromptExitError as e:
-                # User requested exit - not an error, show usage report
-                self._handle_error(e)
-                raise SystemExit(0)
-            except (
-                ServerConfigError,
-                ProviderKeyError,
-                AgentConfigError,
-                ServerInitializationError,
-                ModelConfigError,
-                CircularDependencyError,
-            ) as e:
-                had_error = True
-                self._handle_error(e)
-                raise SystemExit(1)
-
-            finally:
-                # Print usage report before cleanup (show for user exits too)
-                if active_agents and not had_error:
-                    self._print_usage_report(active_agents)
-
-                # Clean up any active agents (always cleanup, even on errors)
-                if active_agents:
-                    for agent in active_agents.values():
-                        try:
-                            await agent.shutdown()
-                        except Exception:
-                            pass
 
     def _handle_error(self, e: Exception, error_type: Optional[str] = None) -> None:
         """
-        Handle errors with consistent formatting and messaging.
+        Centralized error handling for the application.
 
         Args:
             e: The exception that was raised
