@@ -270,30 +270,30 @@ class FastAgent:
         This simplified version directly creates agent instances.
         """
         polling_task = None
-        try:
+            try:
             async with self.app.run() as running_app:
                 # Store the running app instance so agents can access it
                 self.app = running_app
 
                 # Define a model factory function that can be passed to agent creation
-                def model_factory_func(model=None, request_params=None):
-                    return get_model_factory(
-                        self.context,
-                        model=model,
-                        request_params=request_params,
+                    def model_factory_func(model=None, request_params=None):
+                        return get_model_factory(
+                            self.context,
+                            model=model,
+                            request_params=request_params,
                         default_model=self.config.get("default_model"),
                         cli_model=self.args.model if hasattr(self.args, "model") else None,
-                    )
+                        )
 
                 # Create agents in dependency order
-                active_agents = await create_agents_in_dependency_order(
+                    active_agents = await create_agents_in_dependency_order(
                     app_instance=self.app,
                     agents_dict=self.agents,
                     model_factory_func=model_factory_func,
-                )
-
+                    )
+                    
                 # After attempting to load all agents, validate provider keys for active agents
-                validate_provider_keys_post_creation(active_agents)
+                    validate_provider_keys_post_creation(active_agents)
 
                 # Create the agent app with the successfully created agents
                 agent_app = AgentApp(agents=active_agents)
@@ -319,37 +319,45 @@ class FastAgent:
             await asyncio.sleep(30)  # Poll every 30 seconds for faster testing
 
             if not self.unavailable_servers:
-                logger.debug("No unavailable servers to poll")
                 continue
 
             logger.warning(f"Polling unavailable servers: {list(self.unavailable_servers)}")
 
             # Create a copy of the set to iterate over, as it may be modified
             for server_name in list(self.unavailable_servers):
+                # Show server configuration for debugging
+                server_config = self.context.server_registry.get_server_config(server_name)
+                if server_config:
+                    logger.info(f"Server '{server_name}' config: transport={server_config.transport}, command={getattr(server_config, 'command', None)}, url={getattr(server_config, 'url', None)}")
                 try:
-                    # Use the server_registry to attempt a connection
-                    async with self.context.server_registry.start_server(server_name):
-                        logger.warning(f"Server '{server_name}' is now available!")
-                        self.unavailable_servers.remove(server_name)
+                    # Use the server_registry to attempt a connection with timeout
+                    logger.info(f"Attempting to connect to server '{server_name}'...")
+                    async with asyncio.timeout(10):  # 10 second timeout
+                        async with self.context.server_registry.start_server(server_name):
+                            logger.warning(f"Server '{server_name}' is now available!")
+                            self.unavailable_servers.remove(server_name)
 
                         # Check for agents that can be reactivated
-                        logger.debug(f"Checking deactivated agents for reactivation: {list(self.deactivated_agents.keys())}")
                         for agent_name, agent_config in list(self.deactivated_agents.items()):
                             agent_config_obj = agent_config.get("config")
                             required_servers = agent_config_obj.servers if agent_config_obj else []
-                            logger.debug(f"Agent '{agent_name}' requires servers: {required_servers}")
                             if server_name in required_servers:
-                                logger.debug(f"Server '{server_name}' is required by agent '{agent_name}'")
                                 # Check if all required servers for this agent are now online
                                 if all(s not in self.unavailable_servers for s in required_servers):
                                     logger.warning(f"All required servers available for agent '{agent_name}', attempting reactivation")
                                     await self._reactivate_agent(agent_name, agent_config, agent_app)
-                                else:
-                                    still_unavailable = [s for s in required_servers if s in self.unavailable_servers]
-                                    logger.debug(f"Agent '{agent_name}' still waiting for servers: {still_unavailable}")
 
-                except Exception as e:
-                    logger.debug(f"Server '{server_name}' still unavailable: {e}")
+                        except Exception as e:
+                    # Only log every 5th attempt to reduce noise
+                    if hasattr(self, '_poll_counter'):
+                        self._poll_counter += 1
+                    else:
+                        self._poll_counter = 1
+                    
+                    if self._poll_counter % 5 == 0:
+                        logger.warning(f"Server '{server_name}' still unavailable after {self._poll_counter} attempts: {str(e)[:100]}...")
+                    else:
+                        logger.debug(f"Server '{server_name}' still unavailable: {e}")
 
     async def _reactivate_agent(self, agent_name: str, agent_config: Dict, agent_app: AgentApp):
         """
@@ -397,7 +405,7 @@ class FastAgent:
             else:
                 logger.error(f"Could not determine server name from reactivation error: {e}")
 
-        except Exception as e:
+                        except Exception as e:
             logger.error(f"Error reactivating agent '{agent_name}': {e}")
 
 
