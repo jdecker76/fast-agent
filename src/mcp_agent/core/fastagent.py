@@ -330,22 +330,37 @@ class FastAgent:
                 if server_config:
                     logger.info(f"Server '{server_name}' config: transport={server_config.transport}, command={getattr(server_config, 'command', None)}, url={getattr(server_config, 'url', None)}")
                 try:
-                    # Use the server_registry to attempt a connection with timeout
+                    # Use the connection manager to properly test server health
                     logger.info(f"Attempting to connect to server '{server_name}'...")
                     async with asyncio.timeout(10):  # 10 second timeout
-                        async with self.context.server_registry.start_server(server_name):
+                        # Import here to avoid circular imports
+                        from mcp_agent.mcp.mcp_client_session import MCPAgentClientSession
+                        
+                        # Get the connection manager from context
+                        if not hasattr(self.context, '_connection_manager'):
+                            from mcp_agent.mcp.mcp_connection_manager import MCPConnectionManager
+                            self.context._connection_manager = MCPConnectionManager(self.context.server_registry)
+                            await self.context._connection_manager.__aenter__()
+                        
+                        # Try to get a healthy server connection
+                        server_conn = await self.context._connection_manager.get_server(
+                            server_name, 
+                            client_session_factory=MCPAgentClientSession
+                        )
+                        
+                        if server_conn.is_healthy():
                             logger.warning(f"Server '{server_name}' is now available!")
                             self.unavailable_servers.remove(server_name)
 
-                        # Check for agents that can be reactivated
-                        for agent_name, agent_config in list(self.deactivated_agents.items()):
-                            agent_config_obj = agent_config.get("config")
-                            required_servers = agent_config_obj.servers if agent_config_obj else []
-                            if server_name in required_servers:
-                                # Check if all required servers for this agent are now online
-                                if all(s not in self.unavailable_servers for s in required_servers):
-                                    logger.warning(f"All required servers available for agent '{agent_name}', attempting reactivation")
-                                    await self._reactivate_agent(agent_name, agent_config, agent_app)
+                            # Check for agents that can be reactivated
+                            for agent_name, agent_config in list(self.deactivated_agents.items()):
+                                agent_config_obj = agent_config.get("config")
+                                required_servers = agent_config_obj.servers if agent_config_obj else []
+                                if server_name in required_servers:
+                                    # Check if all required servers for this agent are now online
+                                    if all(s not in self.unavailable_servers for s in required_servers):
+                                        logger.warning(f"All required servers available for agent '{agent_name}', attempting reactivation")
+                                        await self._reactivate_agent(agent_name, agent_config, agent_app)
 
                 except Exception as e:
                     # Only log every 5th attempt to reduce noise
