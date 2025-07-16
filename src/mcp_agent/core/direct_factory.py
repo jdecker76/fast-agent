@@ -397,6 +397,30 @@ async def create_agents_in_dependency_order(
                 )
                 active_agents.update(created_agents)
 
+            except ExceptionGroup as eg:
+                # Handle cases where the error is wrapped in an ExceptionGroup (e.g., from anyio)
+                for e in eg.exceptions:
+                    if isinstance(e, ServerInitializationError):
+                        match = re.search(r"MCP Server: '([^']*)'", str(e))
+                        if match:
+                            server_name = match.group(1)
+                            app_instance.fast_agent.unavailable_servers.add(server_name)
+                            app_instance.fast_agent.deactivated_agents[agent_name] = agent_config
+                            logger.info(
+                                f"MCP server '{server_name}' is not available. Agent '{agent_name}' will be deactivated."
+                            )
+                            logger.info(
+                                f"Agent '{agent_name}' deactivated",
+                                data={
+                                    "progress_action": ProgressAction.DEACTIVATED,
+                                    "agent_name": agent_name,
+                                },
+                            )
+                        else:
+                            logger.error(f"Could not determine server name from error: {e}")
+                    else:
+                        logger.error(f"An unexpected error occurred in an agent task group: {e}")
+
             except ServerInitializationError as e:
                 # Extract server name from the exception message
                 match = re.search(r"MCP Server: '([^']*)'", str(e))
