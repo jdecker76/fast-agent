@@ -270,30 +270,30 @@ class FastAgent:
         This simplified version directly creates agent instances.
         """
         polling_task = None
-            try:
+        try:
             async with self.app.run() as running_app:
                 # Store the running app instance so agents can access it
                 self.app = running_app
 
                 # Define a model factory function that can be passed to agent creation
-                    def model_factory_func(model=None, request_params=None):
-                        return get_model_factory(
-                            self.context,
-                            model=model,
-                            request_params=request_params,
+                def model_factory_func(model=None, request_params=None):
+                    return get_model_factory(
+                        self.context,
+                        model=model,
+                        request_params=request_params,
                         default_model=self.config.get("default_model"),
                         cli_model=self.args.model if hasattr(self.args, "model") else None,
-                        )
+                    )
 
                 # Create agents in dependency order
-                    active_agents = await create_agents_in_dependency_order(
+                active_agents = await create_agents_in_dependency_order(
                     app_instance=self.app,
                     agents_dict=self.agents,
                     model_factory_func=model_factory_func,
-                    )
+                )
                     
                 # After attempting to load all agents, validate provider keys for active agents
-                    validate_provider_keys_post_creation(active_agents)
+                validate_provider_keys_post_creation(active_agents)
 
                 # Create the agent app with the successfully created agents
                 agent_app = AgentApp(agents=active_agents)
@@ -347,7 +347,7 @@ class FastAgent:
                                     logger.warning(f"All required servers available for agent '{agent_name}', attempting reactivation")
                                     await self._reactivate_agent(agent_name, agent_config, agent_app)
 
-                        except Exception as e:
+                except Exception as e:
                     # Only log every 5th attempt to reduce noise
                     if hasattr(self, '_poll_counter'):
                         self._poll_counter += 1
@@ -405,7 +405,7 @@ class FastAgent:
             else:
                 logger.error(f"Could not determine server name from reactivation error: {e}")
 
-                        except Exception as e:
+        except Exception as e:
             logger.error(f"Error reactivating agent '{agent_name}': {e}")
 
 
