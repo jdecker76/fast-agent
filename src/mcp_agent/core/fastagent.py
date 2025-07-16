@@ -61,6 +61,7 @@ from mcp_agent.core.validation import (
     validate_server_references,
     validate_workflow_references,
 )
+from mcp_agent.human_input.handler import console_input_callback
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.prompts.prompt_load import load_prompt_multipart
 
@@ -380,7 +381,10 @@ class FastAgent:
             if match:
                 server_name = match.group(1)
                 self.unavailable_servers.add(server_name)
-                logger.error(f"Server '{server_name}' became unavailable during reactivation of agent '{agent_name}'.")
+                logger.warning(
+                    f"Server '{server_name}' became unavailable during reactivation of agent '{agent_name}'. "
+                    "Reactivation will be re-attempted later."
+                )
             else:
                 logger.error(f"Could not determine server name from reactivation error: {e}")
 
