@@ -340,7 +340,8 @@ class MCPAggregator(ContextDependent):
         for result in results:
             if isinstance(result, BaseException):
                 logger.error(f"Error loading server data: {result}")
-                continue
+                # Re-raise the exception to propagate it up to the agent creation logic
+                raise result
 
             server_name, tools, prompts = result
 

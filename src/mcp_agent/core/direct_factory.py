@@ -397,9 +397,13 @@ async def create_agents_in_dependency_order(
                 )
                 active_agents.update(created_agents)
 
-            except (ServerInitializationError, ExceptionGroup) as e:
-                # This block now correctly catches the error thanks to the MCPConnectionManager fix
+            except ServerInitializationError as e:
+                # The original error (e.g., ConnectError) is the cause
+                original_exc = e.__cause__
                 server_name = "unknown"
+
+                # We need to find the server name from the original exception text
+                # as ServerInitializationError doesn't carry it directly.
                 match = re.search(r"MCP Server: '([^']*)'", str(e))
                 if match:
                     server_name = match.group(1)
