@@ -202,6 +202,8 @@ class FastAgent:
             self.app = MCPApp(
                 name=name,
                 settings=config.Settings(**self.config) if hasattr(self, "config") else None,
+                # Disable human input when running as a server
+                human_input_callback=None if not parse_cli_args else console_input_callback,
             )
             self.app.fast_agent = self
 
@@ -381,7 +383,7 @@ class FastAgent:
             if match:
                 server_name = match.group(1)
                 self.unavailable_servers.add(server_name)
-                logger.warning(
+                logger.info(
                     f"Server '{server_name}' became unavailable during reactivation of agent '{agent_name}'. "
                     "Reactivation will be re-attempted later."
                 )
