@@ -191,12 +191,13 @@ async def _server_lifecycle_task(server_conn: ServerConnection) -> None:
                 await server_conn.wait_for_shutdown_request()
 
     except HTTPStatusError as http_exc:
-        logger.error(
-            f"{server_name}: Lifecycle task encountered HTTP error: {http_exc}",
-            exc_info=True,
+        logger.info(
+            f"{server_name}: MCP server unavailable",
             data={
-                "progress_action": ProgressAction.FATAL_ERROR,
+                "progress_action": ProgressAction.DEACTIVATED,
                 "server_name": server_name,
+                "agent_name": server_name,
+                "target": server_name,
             },
         )
         server_conn._error_occurred = True
@@ -205,12 +206,13 @@ async def _server_lifecycle_task(server_conn: ServerConnection) -> None:
         # No raise - let get_server handle it with a friendly message
 
     except Exception as exc:
-        logger.error(
-            f"{server_name}: Lifecycle task encountered an error: {exc}",
-            exc_info=True,
+        logger.info(
+            f"{server_name}: MCP server unavailable",
             data={
-                "progress_action": ProgressAction.FATAL_ERROR,
+                "progress_action": ProgressAction.DEACTIVATED,
                 "server_name": server_name,
+                "agent_name": server_name,
+                "target": server_name,
             },
         )
         server_conn._error_occurred = True
