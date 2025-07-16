@@ -334,7 +334,7 @@ class FastAgent:
                     logger.info(f"Attempting to connect to server '{server_name}'...")
                     async with asyncio.timeout(10):  # 10 second timeout
                         # Import here to avoid circular imports
-                        from mcp_agent.mcp.mcp_client_session import MCPAgentClientSession
+                        from mcp_agent.mcp.mcp_agent_client_session import MCPAgentClientSession
                         
                         # Get the connection manager from context
                         if not hasattr(self.context, '_connection_manager'):
