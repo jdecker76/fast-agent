@@ -36,7 +36,7 @@ from mcp_agent.llm.sampling_format_converter import (
     BasicFormatConverter,
     ProviderFormatConverter,
 )
-from mcp_agent.llm.usage_tracking import UsageAccumulator
+from mcp_agent.llm.usage_tracking import TurnUsage, UsageAccumulator
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.content_helpers import get_text
 from mcp_agent.mcp.interfaces import (
@@ -123,6 +123,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         ] = BasicFormatConverter,
         context: Optional["Context"] = None,
         model: Optional[str] = None,
+        api_key: Optional[str] = None,
         **kwargs: dict[str, Any],
     ) -> None:
         """
@@ -158,6 +159,9 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         # Initialize the display component
         self.display = ConsoleDisplay(config=self.context.config)
 
+        # Tool call counter for current turn
+        self._current_turn_tool_calls = 0
+
         # Initialize default parameters, passing model info
         model_kwargs = kwargs.copy()
         if model:
@@ -172,6 +176,8 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
 
         self.type_converter = type_converter
         self.verb = kwargs.get("verb")
+
+        self._init_api_key = api_key
 
         # Initialize usage tracking
         self.usage_accumulator = UsageAccumulator()
@@ -440,15 +446,25 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
 
     def show_tool_result(self, result: CallToolResult) -> None:
         """Display a tool result in a formatted panel."""
-        self.display.show_tool_result(result)
+        self.display.show_tool_result(result, name=self.name)
 
     def show_oai_tool_result(self, result: str) -> None:
         """Display a tool result in a formatted panel."""
-        self.display.show_oai_tool_result(result)
+        self.display.show_oai_tool_result(result, name=self.name)
 
     def show_tool_call(self, available_tools, tool_name, tool_args) -> None:
         """Display a tool call in a formatted panel."""
-        self.display.show_tool_call(available_tools, tool_name, tool_args)
+        self._current_turn_tool_calls += 1
+        self.display.show_tool_call(available_tools, tool_name, tool_args, name=self.name)
+
+    def _reset_turn_tool_calls(self) -> None:
+        """Reset tool call counter for new turn."""
+        self._current_turn_tool_calls = 0
+
+    def _finalize_turn_usage(self, turn_usage: "TurnUsage") -> None:
+        """Set tool call count on TurnUsage and add to accumulator."""
+        turn_usage.set_tool_calls(self._current_turn_tool_calls)
+        self.usage_accumulator.add_turn(turn_usage)
 
     async def show_assistant_message(
         self,
@@ -556,12 +572,12 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
 
     def _update_streaming_progress(self, content: str, model: str, estimated_tokens: int) -> int:
         """Update streaming progress with token estimation and formatting.
-        
+
         Args:
             content: The text content from the streaming event
             model: The model name
             estimated_tokens: Current token count to update
-            
+
         Returns:
             Updated estimated token count
         """
@@ -569,10 +585,10 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         text_length = len(content)
         additional_tokens = max(1, text_length // 4)
         new_total = estimated_tokens + additional_tokens
-        
+
         # Format token count for display
         token_str = str(new_total).rjust(5)
-        
+
         # Emit progress event
         data = {
             "progress_action": ProgressAction.STREAMING,
@@ -582,7 +598,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             "details": token_str.strip(),  # Token count goes in details for STREAMING action
         }
         self.logger.info("Streaming progress", data=data)
-        
+
         return new_total
 
     def _log_chat_finished(self, model: Optional[str] = None) -> None:
@@ -692,6 +708,9 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         return self._message_history
 
     def _api_key(self):
+        if self._init_api_key:
+            return self._init_api_key
+
         from mcp_agent.llm.provider_key_manager import ProviderKeyManager
 
         assert self.provider

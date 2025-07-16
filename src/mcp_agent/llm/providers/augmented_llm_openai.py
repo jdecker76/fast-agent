@@ -108,6 +108,7 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
     def _openai_client(self) -> AsyncOpenAI:
         try:
             return AsyncOpenAI(api_key=self._api_key(), base_url=self._base_url())
+
         except AuthenticationError as e:
             raise ProviderKeyError(
                 "Invalid OpenAI API key",
@@ -355,7 +356,7 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
                 try:
                     model_name = self.default_request_params.model or DEFAULT_OPENAI_MODEL
                     turn_usage = TurnUsage.from_openai(response.usage, model_name)
-                    self.usage_accumulator.add_turn(turn_usage)
+                    self._finalize_turn_usage(turn_usage)
                 except Exception as e:
                     self.logger.warning(f"Failed to track usage: {e}")
 
@@ -389,7 +390,7 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
             messages.append(message)
 
             message_text = message.content
-            if choice.finish_reason in ["tool_calls", "function_call"] and message.tool_calls:
+            if await self._is_tool_stop_reason(choice.finish_reason) and message.tool_calls:
                 if message_text:
                     await self.show_assistant_message(
                         message_text,
@@ -477,12 +478,18 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
 
         return responses
 
+    async def _is_tool_stop_reason(self, finish_reason: str) -> bool:
+        return True
+
     async def _apply_prompt_provider_specific(
         self,
         multipart_messages: List["PromptMessageMultipart"],
         request_params: RequestParams | None = None,
         is_template: bool = False,
     ) -> PromptMessageMultipart:
+        # Reset tool call counter for new turn
+        self._reset_turn_tool_calls()
+
         last_message = multipart_messages[-1]
 
         # Add all previous messages to history (or all messages if last is from assistant)

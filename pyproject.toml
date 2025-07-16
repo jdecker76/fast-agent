@@ -1,6 +1,6 @@
 [project]
 name = "fast-agent-mcp"
-version = "0.2.40"
+version = "0.2.41"
 description = "Define, Prompt and Test MCP enabled Agents and Workflows"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -109,8 +109,8 @@ dev = [
 ]
 
 [project.scripts]
-fast-agent = "mcp_agent.cli.__main__:app"
-fast-agent-mcp = "mcp_agent.cli.__main__:app"
+fast-agent = "mcp_agent.cli.__main__:main"
+fast-agent-mcp = "mcp_agent.cli.__main__:main"
 fastagent = "mcp_agent.cli.__main__:app"
 silsila = "mcp_agent.cli.__main__:app"
 prompt-server = "mcp_agent.mcp.prompts.__main__:main"

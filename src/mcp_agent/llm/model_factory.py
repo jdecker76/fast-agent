@@ -8,6 +8,7 @@ from mcp_agent.core.exceptions import ModelConfigError
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.llm.augmented_llm_passthrough import PassthroughLLM
 from mcp_agent.llm.augmented_llm_playback import PlaybackLLM
+from mcp_agent.llm.augmented_llm_silent import SilentLLM
 from mcp_agent.llm.augmented_llm_slow import SlowLLM
 from mcp_agent.llm.provider_types import Provider
 from mcp_agent.llm.providers.augmented_llm_aliyun import AliyunAugmentedLLM
@@ -21,6 +22,7 @@ from mcp_agent.llm.providers.augmented_llm_google_oai import GoogleOaiAugmentedL
 from mcp_agent.llm.providers.augmented_llm_openai import OpenAIAugmentedLLM
 from mcp_agent.llm.providers.augmented_llm_openrouter import OpenRouterAugmentedLLM
 from mcp_agent.llm.providers.augmented_llm_tensorzero import TensorZeroAugmentedLLM
+from mcp_agent.llm.providers.augmented_llm_xai import XAIAugmentedLLM
 from mcp_agent.mcp.interfaces import AugmentedLLMProtocol
 
 # from mcp_agent.workflows.llm.augmented_llm_deepseek import DeekSeekAugmentedLLM
@@ -32,6 +34,7 @@ LLMClass = Union[
     Type[OpenAIAugmentedLLM],
     Type[PassthroughLLM],
     Type[PlaybackLLM],
+    Type[SilentLLM],
     Type[SlowLLM],
     Type[DeepSeekAugmentedLLM],
     Type[OpenRouterAugmentedLLM],
@@ -77,6 +80,7 @@ class ModelFactory:
     """
     DEFAULT_PROVIDERS = {
         "passthrough": Provider.FAST_AGENT,
+        "silent": Provider.FAST_AGENT,
         "playback": Provider.FAST_AGENT,
         "slow": Provider.FAST_AGENT,
         "gpt-4o": Provider.OPENAI,
@@ -108,6 +112,12 @@ class ModelFactory:
         "gemini-2.0-flash": Provider.GOOGLE,
         "gemini-2.5-flash-preview-05-20": Provider.GOOGLE,
         "gemini-2.5-pro-preview-05-06": Provider.GOOGLE,
+        "grok-4": Provider.XAI,
+        "grok-4-0709": Provider.XAI,
+        "grok-3": Provider.XAI,
+        "grok-3-mini": Provider.XAI,
+        "grok-3-fast": Provider.XAI,
+        "grok-3-mini-fast": Provider.XAI,
         "qwen-turbo": Provider.ALIYUN,
         "qwen-plus": Provider.ALIYUN,
         "qwen-max": Provider.ALIYUN,
@@ -143,6 +153,7 @@ class ModelFactory:
         Provider.GENERIC: GenericAugmentedLLM,
         Provider.GOOGLE_OAI: GoogleOaiAugmentedLLM,
         Provider.GOOGLE: GoogleNativeAugmentedLLM,
+        Provider.XAI: XAIAugmentedLLM,
         Provider.OPENROUTER: OpenRouterAugmentedLLM,
         Provider.TENSORZERO: TensorZeroAugmentedLLM,
         Provider.AZURE: AzureOpenAIAugmentedLLM,
@@ -154,6 +165,7 @@ class ModelFactory:
     # This overrides the provider-based class selection
     MODEL_SPECIFIC_CLASSES: Dict[str, LLMClass] = {
         "playback": PlaybackLLM,
+        "silent": SilentLLM,
         "slow": SlowLLM,
     }
 

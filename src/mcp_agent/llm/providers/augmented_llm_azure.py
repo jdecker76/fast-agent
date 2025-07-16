@@ -69,7 +69,7 @@ class AzureOpenAIAugmentedLLM(OpenAIAugmentedLLM):
 
             self.get_azure_token = get_azure_token
         else:
-            self.api_key = getattr(azure_cfg, "api_key", None)
+            self.api_key = self._api_key()
             self.resource_name = getattr(azure_cfg, "resource_name", None)
             self.base_url = getattr(azure_cfg, "base_url", None) or (
                 f"https://{self.resource_name}.openai.azure.com/" if self.resource_name else None
@@ -92,6 +92,12 @@ class AzureOpenAIAugmentedLLM(OpenAIAugmentedLLM):
             # If resource_name was missing, try to extract it from base_url
             if not self.resource_name and self.base_url:
                 self.resource_name = _extract_resource_name(self.base_url)
+
+    def _api_key(self):
+        """Override to return 'AzureCredential' when using DefaultAzureCredential"""
+        if self.use_default_cred:
+            return "AzureCredential"
+        return super()._api_key()
 
     def _openai_client(self) -> AsyncOpenAI:
         """

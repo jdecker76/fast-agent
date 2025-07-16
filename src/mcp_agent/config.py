@@ -6,7 +6,7 @@ for the application configuration.
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -175,6 +175,17 @@ class GoogleSettings(BaseModel):
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
 
 
+class XAISettings(BaseModel):
+    """
+    Settings for using xAI Grok models in the fast-agent application.
+    """
+
+    api_key: str | None = None
+    base_url: str | None = "https://api.x.ai/v1"
+
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
+
+
 class GenericSettings(BaseModel):
     """
     Settings for using OpenAI models in the fast-agent application.
@@ -310,6 +321,57 @@ class LoggerSettings(BaseModel):
     """Enable markup in console output. Disable for outputs that may conflict with rich console formatting"""
 
 
+def find_fastagent_config_files(start_path: Path) -> Tuple[Optional[Path], Optional[Path]]:
+    """
+    Find FastAgent configuration files with standardized behavior.
+
+    Returns:
+        Tuple of (config_path, secrets_path) where either can be None if not found.
+
+    Strategy:
+    1. Find config file recursively from start_path upward
+    2. Prefer secrets file in same directory as config file
+    3. If no secrets file next to config, search recursively from start_path
+    """
+    config_path = None
+    secrets_path = None
+
+    # First, find the config file with recursive search
+    current = start_path.resolve()
+    while current != current.parent:
+        potential_config = current / "fastagent.config.yaml"
+        if potential_config.exists():
+            config_path = potential_config
+            break
+        current = current.parent
+
+    # If config file found, prefer secrets file in the same directory
+    if config_path:
+        potential_secrets = config_path.parent / "fastagent.secrets.yaml"
+        if potential_secrets.exists():
+            secrets_path = potential_secrets
+        else:
+            # If no secrets file next to config, do recursive search from start
+            current = start_path.resolve()
+            while current != current.parent:
+                potential_secrets = current / "fastagent.secrets.yaml"
+                if potential_secrets.exists():
+                    secrets_path = potential_secrets
+                    break
+                current = current.parent
+    else:
+        # No config file found, just search for secrets file
+        current = start_path.resolve()
+        while current != current.parent:
+            potential_secrets = current / "fastagent.secrets.yaml"
+            if potential_secrets.exists():
+                secrets_path = potential_secrets
+                break
+            current = current.parent
+
+    return config_path, secrets_path
+
+
 class Settings(BaseSettings):
     """
     Settings class for the fast-agent application.
@@ -352,6 +414,9 @@ class Settings(BaseSettings):
 
     google: GoogleSettings | None = None
     """Settings for using DeepSeek models in the fast-agent application"""
+
+    xai: XAISettings | None = None
+    """Settings for using xAI Grok models in the fast-agent application"""
 
     openrouter: OpenRouterSettings | None = None
     """Settings for using OpenRouter models in the fast-agent application"""
@@ -462,51 +527,36 @@ def get_settings(config_path: str | None = None) -> Settings:
             resolved_path = Path.cwd() / config_file.name
             if resolved_path.exists():
                 config_file = resolved_path
+
+        # When config path is explicitly provided, find secrets using standardized logic
+        secrets_file = None
+        if config_file.exists():
+            _, secrets_file = find_fastagent_config_files(config_file.parent)
     else:
-        config_file = Settings.find_config()
+        # Use standardized discovery for both config and secrets
+        config_file, secrets_file = find_fastagent_config_files(Path.cwd())
 
     merged_settings = {}
 
-    if config_file:
-        if not config_file.exists():
-            print(f"Warning: Specified config file does not exist: {config_file}")
-        else:
-            import yaml  # pylint: disable=C0415
+    import yaml  # pylint: disable=C0415
 
-            # Load main config
-            with open(config_file, "r", encoding="utf-8") as f:
-                yaml_settings = yaml.safe_load(f) or {}
-                # Resolve environment variables in the loaded YAML settings
-                resolved_yaml_settings = resolve_env_vars(yaml_settings)
-                merged_settings = resolved_yaml_settings
-            # Look for secrets files recursively up the directory tree
-            # but stop after finding the first one
-            current_dir = config_file.parent
-            found_secrets = False
-            # Start with the absolute path of the config file\'s directory
-            current_dir = config_file.parent.resolve()
+    # Load main config if it exists
+    if config_file and config_file.exists():
+        with open(config_file, "r", encoding="utf-8") as f:
+            yaml_settings = yaml.safe_load(f) or {}
+            # Resolve environment variables in the loaded YAML settings
+            resolved_yaml_settings = resolve_env_vars(yaml_settings)
+            merged_settings = resolved_yaml_settings
+    elif config_file and not config_file.exists():
+        print(f"Warning: Specified config file does not exist: {config_file}")
 
-            while current_dir != current_dir.parent and not found_secrets:
-                for secrets_filename in [
-                    "fastagent.secrets.yaml",
-                ]:
-                    secrets_file = current_dir / secrets_filename
-                    if secrets_file.exists():
-                        with open(secrets_file, "r", encoding="utf-8") as f:
-                            yaml_secrets = yaml.safe_load(f) or {}
-                            # Resolve environment variables in the loaded secrets YAML
-                            resolved_secrets_yaml = resolve_env_vars(yaml_secrets)
-                            merged_settings = deep_merge(merged_settings, resolved_secrets_yaml)
-                            found_secrets = True
-                            break
-                if not found_secrets:
-                    # Get the absolute path of the parent directory
-                    current_dir = current_dir.parent.resolve()
+    # Load secrets file if found (regardless of whether config file exists)
+    if secrets_file and secrets_file.exists():
+        with open(secrets_file, "r", encoding="utf-8") as f:
+            yaml_secrets = yaml.safe_load(f) or {}
+            # Resolve environment variables in the loaded secrets YAML
+            resolved_secrets_yaml = resolve_env_vars(yaml_secrets)
+            merged_settings = deep_merge(merged_settings, resolved_secrets_yaml)
 
-            _settings = Settings(**merged_settings)
-            return _settings
-    else:
-        pass
-
-    _settings = Settings()
+    _settings = Settings(**merged_settings)
     return _settings
