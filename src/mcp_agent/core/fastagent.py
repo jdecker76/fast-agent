@@ -321,6 +321,9 @@ class FastAgent:
             if not self.unavailable_servers:
                 continue
 
+            # Print to console directly to ensure visibility
+            from mcp_agent.console import console
+            console.print(f"🔄 Polling unavailable servers: {list(self.unavailable_servers)}", style="dim cyan")
             logger.info(f"Polling unavailable servers: {list(self.unavailable_servers)}")
 
             # Create a copy of the set to iterate over, as it may be modified
@@ -328,6 +331,9 @@ class FastAgent:
                 try:
                     # Use the server_registry to attempt a connection
                     async with self.context.server_registry.start_server(server_name):
+                        # Print to console directly to ensure visibility
+                        from mcp_agent.console import console
+                        console.print(f"✅ Server '{server_name}' is now available!", style="green")
                         logger.info(f"Server '{server_name}' is now available.")
                         self.unavailable_servers.remove(server_name)
 
@@ -371,6 +377,10 @@ class FastAgent:
                 agent_app.add_agent(agent_name, created_agents[agent_name])
                 # Remove from deactivated list
                 del self.deactivated_agents[agent_name]
+                
+                # Print to console directly to ensure visibility
+                from mcp_agent.console import console
+                console.print(f"🔄 Agent '{agent_name}' has been successfully reactivated!", style="green")
                 logger.info(f"Agent '{agent_name}' has been successfully reactivated.")
             else:
                 logger.error(f"Failed to create agent '{agent_name}' during reactivation.")
