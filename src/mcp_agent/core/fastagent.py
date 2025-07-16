@@ -87,7 +87,7 @@ class FastAgent:
         ignore_unknown_args: bool = False,
         parse_cli_args: bool = True,
         quiet: bool = False,  # Add quiet parameter
-        mcp_polling_interval: int = 60,  # Add MCP polling interval parameter
+        mcp_polling_interval: int = None,  # Add MCP polling interval parameter
     ) -> None:
         """
         Initialize the fast-agent application.
@@ -101,7 +101,7 @@ class FastAgent:
                             Set to False when embedding FastAgent in another framework
                             (like FastAPI/Uvicorn) that handles its own arguments.
             quiet: If True, disable progress display, tool and message logging for cleaner output
-            mcp_polling_interval: Interval in seconds for checking unavailable MCP servers (default: 60)
+            mcp_polling_interval: Interval in seconds for checking unavailable MCP servers (default: None - no polling)
         """
         self.args = argparse.Namespace()  # Initialize args always
         self._programmatic_quiet = quiet
@@ -281,15 +281,20 @@ class FastAgent:
 
                 # Add initial polling progress entry after app runs to control display order
                 # This makes it appear 2nd (after FastAgent process, before agents)
-                if self.unavailable_servers:
+                if self.mcp_polling_interval is None or self.mcp_polling_interval <= 0:
+                    details = "Disabled"
+                    progress_action = ProgressAction.DEACTIVATED
+                elif self.unavailable_servers:
                     details = f"{len(self.unavailable_servers)} unavailable"
+                    progress_action = ProgressAction.READY
                 else:
                     details = "All servers online"
+                    progress_action = ProgressAction.READY
                 
                 logger.info(
                     "Polling MCP Servers",
                     data={
-                        "progress_action": ProgressAction.READY,
+                        "progress_action": progress_action,
                         "agent_name": "MCP Server Polling",
                         "target": "Polling MCP Servers",
                         "details": details
@@ -297,11 +302,11 @@ class FastAgent:
                 )
 
                 # Define a model factory function that can be passed to agent creation
-                def model_factory_func(model=None, request_params=None):
-                    return get_model_factory(
-                        self.context,
-                        model=model,
-                        request_params=request_params,
+                    def model_factory_func(model=None, request_params=None):
+                        return get_model_factory(
+                            self.context,
+                            model=model,
+                            request_params=request_params,
                         default_model=self.config.get("default_model"),
                         cli_model=self.args.model if hasattr(self.args, "model") else None,
                     )
@@ -314,13 +319,15 @@ class FastAgent:
                 )
                     
                 # After attempting to load all agents, validate provider keys for active agents
-                validate_provider_keys_post_creation(active_agents)
+                    validate_provider_keys_post_creation(active_agents)
 
                 # Create the agent app with the successfully created agents
                 agent_app = AgentApp(agents=active_agents)
 
-                # Start the background polling task to reactivate agents
-                polling_task = asyncio.create_task(self._poll_and_reactivate_servers(agent_app))
+                # Start the background polling task to reactivate agents (only if polling is enabled)
+                polling_task = None
+                if self.mcp_polling_interval is not None and self.mcp_polling_interval > 0:
+                    polling_task = asyncio.create_task(self._poll_and_reactivate_servers(agent_app))
 
                 yield agent_app
         finally:
@@ -334,20 +341,37 @@ class FastAgent:
 
     async def _poll_and_reactivate_servers(self, agent_app: AgentApp):
         """
-        Periodically poll unavailable servers and reactivate agents if they come online.
+        Periodically poll ALL MCP servers and set agent status based on server availability.
         """
         while True:
             await asyncio.sleep(self.mcp_polling_interval)  # Poll at configurable interval
 
-            if not self.unavailable_servers:
-                # Update progress to show we're waiting (no servers to poll)
+            # Get all servers used by all agents (active and deactivated)
+            all_servers = set()
+            
+            # Get servers from active agents
+            for agent in agent_app._agents.values():
+                if hasattr(agent, 'server_names'):
+                    all_servers.update(agent.server_names)
+            
+            # Get servers from deactivated agents
+            for agent_config in self.deactivated_agents.values():
+                if hasattr(agent_config, 'servers'):
+                    all_servers.update(agent_config.servers)
+                elif isinstance(agent_config, dict) and 'config' in agent_config:
+                    config_obj = agent_config['config']
+                    if hasattr(config_obj, 'servers'):
+                        all_servers.update(config_obj.servers)
+
+            if not all_servers:
+                # No servers to poll
                 logger.info(
                     "Polling MCP Servers",
                     data={
                         "progress_action": ProgressAction.READY,
                         "agent_name": "MCP Server Polling",
                         "target": "Polling MCP Servers",
-                        "details": "All servers online"
+                        "details": "No servers to monitor"
                     }
                 )
                 continue
@@ -359,52 +383,47 @@ class FastAgent:
                     "progress_action": ProgressAction.RUNNING,
                     "agent_name": "MCP Server Polling", 
                     "target": "Polling MCP Servers",
-                    "details": f"Checking {len(self.unavailable_servers)} servers"
+                    "details": f"Checking {len(all_servers)} servers"
                 }
             )
 
             # Record start time for minimum display duration
             polling_start_time = asyncio.get_event_loop().time()
-            servers_reactivated = False
-
-            # Create a copy of the set to iterate over, as it may be modified
-            for server_name in list(self.unavailable_servers):
+            
+            # Check health of all servers by directly testing connectivity
+            server_status = {}  # server_name -> is_healthy (bool)
+            
+            for server_name in all_servers:
                 try:
-                    # Use the connection manager to properly test server health
+                    # Test server connectivity directly
                     async with asyncio.timeout(10):  # 10 second timeout
                         # Import here to avoid circular imports
                         from mcp_agent.mcp.mcp_agent_client_session import MCPAgentClientSession
+                        from mcp_agent.mcp.gen_client import gen_client
                         
-                        # Get the connection manager from context
-                        if not hasattr(self.context, '_connection_manager'):
-                            from mcp_agent.mcp.mcp_connection_manager import MCPConnectionManager
-                            self.context._connection_manager = MCPConnectionManager(self.context.server_registry)
-                            await self.context._connection_manager.__aenter__()
-                        
-                        # Try to get a healthy server connection
-                        server_conn = await self.context._connection_manager.get_server(
-                            server_name, 
+                        # Create a temporary connection to test server health
+                        async with gen_client(
+                            server_name,
+                            server_registry=self.context.server_registry,
                             client_session_factory=MCPAgentClientSession
-                        )
+                        ) as client:
+                            # Try to make a simple request to test connectivity
+                            await client.list_tools()
+                            server_status[server_name] = True
+                            logger.debug(f"Server '{server_name}' health check: HEALTHY")
                         
-                        if server_conn.is_healthy():
-                            logger.debug(f"Server '{server_name}' is now available!")
-                            self.unavailable_servers.remove(server_name)
-                            servers_reactivated = True
-
-                            # Check for agents that can be reactivated
-                            for agent_name, agent_config in list(self.deactivated_agents.items()):
-                                agent_config_obj = agent_config.get("config")
-                                required_servers = agent_config_obj.servers if agent_config_obj else []
-                                if server_name in required_servers:
-                                    # Check if all required servers for this agent are now online
-                                    if all(s not in self.unavailable_servers for s in required_servers):
-                                        logger.debug(f"All required servers available for agent '{agent_name}', attempting reactivation")
-                                        await self._reactivate_agent(agent_name, agent_config, agent_app)
-
                 except Exception as e:
-                    # Only log debug messages to reduce noise - the progress display shows the status
-                    logger.debug(f"Server '{server_name}' still unavailable: {e}")
+                    server_status[server_name] = False
+                    logger.debug(f"Server '{server_name}' health check: UNHEALTHY ({e})")
+            
+            # Update unavailable_servers set based on current server status
+            self.unavailable_servers.clear()
+            for server_name, is_healthy in server_status.items():
+                if not is_healthy:
+                    self.unavailable_servers.add(server_name)
+            
+            # Update agent status based on server availability
+            await self._update_agent_status_from_servers(server_status, agent_app)
             
             # Ensure minimum 1 second display time for "Running" status
             elapsed_time = asyncio.get_event_loop().time() - polling_start_time
@@ -412,18 +431,18 @@ class FastAgent:
                 await asyncio.sleep(1.0 - elapsed_time)
             
             # Update progress to show polling cycle is complete
-            if self.unavailable_servers:
+            offline_servers = [name for name, healthy in server_status.items() if not healthy]
+            if offline_servers:
                 logger.info(
                     "Polling MCP Servers",
                     data={
                         "progress_action": ProgressAction.READY,
                         "agent_name": "MCP Server Polling",
                         "target": "Polling MCP Servers", 
-                        "details": f"Waiting ({len(self.unavailable_servers)} still offline)"
+                        "details": f"Waiting ({len(offline_servers)} offline: {', '.join(offline_servers)})"
                     }
                 )
-            elif servers_reactivated:
-                # If servers were reactivated, show completion status
+            else:
                 logger.info(
                     "Polling MCP Servers",
                     data={
@@ -433,6 +452,69 @@ class FastAgent:
                         "details": "All servers online"
                     }
                 )
+
+    async def _update_agent_status_from_servers(self, server_status: Dict[str, bool], agent_app: AgentApp):
+        """
+        Simple logic: 
+        - If server is offline and agent is active -> deactivate agent
+        - If server is online and agent is deactivated -> reactivate agent
+        
+        Args:
+            server_status: Dictionary mapping server_name -> is_healthy (bool)
+            agent_app: The agent application instance
+        """
+        # Check active agents - deactivate if any required server is offline
+        for agent_name, agent in list(agent_app._agents.items()):
+            if hasattr(agent, 'server_names'):
+                required_servers = agent.server_names
+                # If any required server is offline, deactivate the agent
+                if any(not server_status.get(server_name, False) for server_name in required_servers):
+                    offline_servers = [s for s in required_servers if not server_status.get(s, False)]
+                    
+                    # Get agent config in the same format as stored in self.agents
+                    # We need to reconstruct the agent configuration dictionary
+                    if agent_name in self.agents:
+                        # Use the original agent configuration from self.agents
+                        agent_config = self.agents[agent_name]
+                    else:
+                        # Fallback: create a minimal config structure
+                        agent_config = {
+                            "config": getattr(agent, 'config', {}),
+                            "type": "basic",  # Default type
+                        }
+                    
+                    # Move to deactivated agents
+                    self.deactivated_agents[agent_name] = agent_config
+                    
+                    # Remove from active agents
+                    del agent_app._agents[agent_name]
+                    
+                    logger.debug(f"Agent '{agent_name}' deactivated due to offline servers: {', '.join(offline_servers)}")
+                    
+                    # Log progress update
+                    logger.info(
+                        f"Agent '{agent_name}' deactivated",
+                        data={
+                            "progress_action": ProgressAction.DEACTIVATED,
+                            "agent_name": agent_name,
+                        },
+                    )
+        
+        # Check deactivated agents - reactivate if all required servers are online
+        for agent_name, agent_config in list(self.deactivated_agents.items()):
+            # Get required servers for this agent
+            required_servers = []
+            if hasattr(agent_config, 'servers'):
+                required_servers = agent_config.servers
+            elif isinstance(agent_config, dict) and 'config' in agent_config:
+                config_obj = agent_config['config']
+                if hasattr(config_obj, 'servers'):
+                    required_servers = config_obj.servers
+            
+            # If all required servers are online, reactivate the agent
+            if required_servers and all(server_status.get(server_name, False) for server_name in required_servers):
+                logger.debug(f"All required servers available for agent '{agent_name}', attempting reactivation")
+                await self._reactivate_agent(agent_name, agent_config, agent_app)
 
     async def _reactivate_agent(self, agent_name: str, agent_config: Dict, agent_app: AgentApp):
         """
