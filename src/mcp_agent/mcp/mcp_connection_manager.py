@@ -105,6 +105,7 @@ class ServerConnection:
         # Track error state
         self._error_occurred = False
         self._original_exception: Optional[Exception] = None
+        self._init_attempt_event = Event()
 
     def is_healthy(self) -> bool:
         """Check if the server connection is healthy and ready to use."""
@@ -148,7 +149,9 @@ class ServerConnection:
         """
         Wait until the session is fully initialized.
         """
-        await self._initialized_event.wait()
+        await self._init_attempt_event.wait()
+        if self._error_occurred:
+            raise self._original_exception
 
     def create_session(
         self,
@@ -185,6 +188,8 @@ async def _server_lifecycle_task(server_conn: ServerConnection) -> None:
 
         async with transport_context as (read_stream, write_stream, _):
             server_conn.create_session(read_stream, write_stream)
+            # Signal that the transport is up, but session isn't initialized yet
+            server_conn._init_attempt_event.set()
 
             async with server_conn.session:
                 await server_conn.initialize_session()
@@ -215,7 +220,7 @@ async def _server_lifecycle_task(server_conn: ServerConnection) -> None:
         )
         server_conn._error_occurred = True
         server_conn._original_exception = exc
-        server_conn._initialized_event.set()
+        server_conn._init_attempt_event.set()
         # No raise - allow graceful exit
 
 
