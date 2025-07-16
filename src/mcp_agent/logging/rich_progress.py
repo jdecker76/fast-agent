@@ -82,6 +82,7 @@ class RichProgressDisplay:
             ProgressAction.SHUTDOWN: "black on red",
             ProgressAction.AGGREGATOR_INITIALIZED: "bold green",
             ProgressAction.FATAL_ERROR: "black on red",
+            ProgressAction.DEACTIVATED: "dim yellow",
         }.get(action, "white")
 
     def update(self, event: ProgressEvent) -> None:

@@ -127,13 +127,6 @@ async def create_agents_by_type(
 
     # Get all agents of the specified type
     for name, agent_data in agents_dict.items():
-        logger.info(
-            f"Loaded {name}",
-            data={
-                "progress_action": ProgressAction.LOADED,
-                "agent_name": name,
-            },
-        )
 
         # Compare type string from config with Enum value
         if agent_data["type"] == agent_type.value:
@@ -158,6 +151,16 @@ async def create_agents_by_type(
                     api_key=config.api_key
                 )
                 result_agents[name] = agent
+                
+                # Log successful agent creation
+                logger.info(
+                    f"Loaded {name}",
+                    data={
+                        "progress_action": ProgressAction.LOADED,
+                        "agent_name": name,
+                        "target": name,
+                    },
+                )
 
             elif agent_type == AgentType.CUSTOM:
                 # Get the class to instantiate
@@ -177,6 +180,16 @@ async def create_agents_by_type(
                     api_key=config.api_key
                 )
                 result_agents[name] = agent
+                
+                # Log successful agent creation
+                logger.info(
+                    f"Loaded {name}",
+                    data={
+                        "progress_action": ProgressAction.LOADED,
+                        "agent_name": name,
+                        "target": name,
+                    },
+                )
 
             elif agent_type == AgentType.ORCHESTRATOR:
                 # Get base params configured with model settings
