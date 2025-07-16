@@ -3,7 +3,6 @@ Manages the lifecycle of multiple MCP server connections.
 """
 
 import asyncio
-import traceback
 from datetime import timedelta
 from typing import (
     TYPE_CHECKING,
@@ -32,7 +31,6 @@ from mcp_agent.core.exceptions import ServerInitializationError
 from mcp_agent.event_progress import ProgressAction
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.logger_textio import get_stderr_handler
-from mcp_agent.mcp.mcp_agent_client_session import MCPAgentClientSession
 
 if TYPE_CHECKING:
     from mcp_agent.context import Context
