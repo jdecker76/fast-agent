@@ -21,10 +21,13 @@ class ProgressAction(str, Enum):
     READY = "Ready"
     CALLING_TOOL = "Calling Tool"
     UPDATED = "Updated"
+    RUNNING = "Running"
     FINISHED = "Finished"
     SHUTDOWN = "Shutdown"
     AGGREGATOR_INITIALIZED = "Running"
     FATAL_ERROR = "Error"
+    ERROR = "Error"
+    DEACTIVATED = "Deactivated"
 
 
 class ProgressEvent(BaseModel):

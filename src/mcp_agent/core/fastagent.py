@@ -381,7 +381,7 @@ class FastAgent:
             if match:
                 server_name = match.group(1)
                 self.unavailable_servers.add(server_name)
-                logger.warning(
+                logger.info(
                     f"Server '{server_name}' became unavailable during reactivation of agent '{agent_name}'. "
                     "Reactivation will be re-attempted later."
                 )

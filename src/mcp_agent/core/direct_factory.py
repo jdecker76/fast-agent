@@ -404,8 +404,15 @@ async def create_agents_in_dependency_order(
                     server_name = match.group(1)
                     app_instance.fast_agent.unavailable_servers.add(server_name)
                     app_instance.fast_agent.deactivated_agents[agent_name] = agent_config
-                    logger.warning(
+                    logger.info(
                         f"MCP server '{server_name}' is not available. Agent '{agent_name}' will be deactivated."
+                    )
+                    logger.info(
+                        f"Agent '{agent_name}' deactivated",
+                        data={
+                            "progress_action": ProgressAction.DEACTIVATED,
+                            "agent_name": agent_name,
+                        },
                     )
                 else:
                     logger.error(f"Could not determine server name from error: {e}")
