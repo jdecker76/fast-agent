@@ -1224,7 +1224,6 @@ class MCPAggregator(ContextDependent):
         """
         # Check for common connection-related exceptions
         import httpx
-        from mcp.client.session import ClientSession
         
         connection_error_types = (
             ConnectionError,

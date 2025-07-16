@@ -6,19 +6,16 @@ directly creates Agent instances without proxies.
 
 import argparse
 import asyncio
+import re
 import sys
 from contextlib import asynccontextmanager
 from importlib.metadata import version as get_version
-from pathlib import Path
-import re
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, TypeVar
+from typing import Any, Callable, Dict, Optional, TypeVar
 
 import yaml
-from opentelemetry import trace
 
 from mcp_agent import config
 from mcp_agent.app import MCPApp
-from mcp_agent.event_progress import ProgressAction
 from mcp_agent.context import Context
 from mcp_agent.core.agent_app import AgentApp
 from mcp_agent.core.direct_decorators import (
@@ -59,16 +56,9 @@ from mcp_agent.core.exceptions import (
 from mcp_agent.core.usage_display import display_usage_report
 from mcp_agent.core.validation import (
     validate_provider_keys_post_creation,
-    validate_server_references,
-    validate_workflow_references,
 )
-from mcp_agent.human_input.handler import console_input_callback
+from mcp_agent.event_progress import ProgressAction
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.prompts.prompt_load import load_prompt_multipart
-
-if TYPE_CHECKING:
-    from mcp_agent.agents.agent import Agent
-    from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 F = TypeVar("F", bound=Callable[..., Any])  # For decorated functions
 logger = get_logger(__name__)
@@ -302,11 +292,11 @@ class FastAgent:
                 )
 
                 # Define a model factory function that can be passed to agent creation
-                    def model_factory_func(model=None, request_params=None):
-                        return get_model_factory(
-                            self.context,
-                            model=model,
-                            request_params=request_params,
+                def model_factory_func(model=None, request_params=None):
+                    return get_model_factory(
+                        self.context,
+                        model=model,
+                        request_params=request_params,
                         default_model=self.config.get("default_model"),
                         cli_model=self.args.model if hasattr(self.args, "model") else None,
                     )
@@ -319,7 +309,7 @@ class FastAgent:
                 )
                     
                 # After attempting to load all agents, validate provider keys for active agents
-                    validate_provider_keys_post_creation(active_agents)
+                validate_provider_keys_post_creation(active_agents)
 
                 # Create the agent app with the successfully created agents
                 agent_app = AgentApp(agents=active_agents)
@@ -398,8 +388,8 @@ class FastAgent:
                     # Test server connectivity directly
                     async with asyncio.timeout(10):  # 10 second timeout
                         # Import here to avoid circular imports
-                        from mcp_agent.mcp.mcp_agent_client_session import MCPAgentClientSession
                         from mcp_agent.mcp.gen_client import gen_client
+                        from mcp_agent.mcp.mcp_agent_client_session import MCPAgentClientSession
                         
                         # Create a temporary connection to test server health
                         async with gen_client(
