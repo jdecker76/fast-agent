@@ -87,6 +87,7 @@ class FastAgent:
         ignore_unknown_args: bool = False,
         parse_cli_args: bool = True,
         quiet: bool = False,  # Add quiet parameter
+        mcp_polling_interval: int = 60,  # Add MCP polling interval parameter
     ) -> None:
         """
         Initialize the fast-agent application.
@@ -100,9 +101,11 @@ class FastAgent:
                             Set to False when embedding FastAgent in another framework
                             (like FastAPI/Uvicorn) that handles its own arguments.
             quiet: If True, disable progress display, tool and message logging for cleaner output
+            mcp_polling_interval: Interval in seconds for checking unavailable MCP servers (default: 60)
         """
         self.args = argparse.Namespace()  # Initialize args always
-        self._programmatic_quiet = quiet  # Store the programmatic quiet setting
+        self._programmatic_quiet = quiet
+        self.mcp_polling_interval = mcp_polling_interval  # Store the programmatic quiet setting
 
         # --- Wrap argument parsing logic ---
         if parse_cli_args:
@@ -334,7 +337,7 @@ class FastAgent:
         Periodically poll unavailable servers and reactivate agents if they come online.
         """
         while True:
-            await asyncio.sleep(30)  # Poll every 30 seconds for faster testing
+            await asyncio.sleep(self.mcp_polling_interval)  # Poll at configurable interval
 
             if not self.unavailable_servers:
                 # Update progress to show we're waiting (no servers to poll)
