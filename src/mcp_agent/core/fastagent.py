@@ -346,14 +346,20 @@ class FastAgent:
                 if hasattr(self, 'args'):
                     # Handle --server argument (start server mode)
                     if hasattr(self.args, 'server') and self.args.server:
-                        from mcp_agent.mcp.server import start_mcp_server
-                        await start_mcp_server(
+                        from mcp_agent.mcp_server import AgentMCPServer
+                        
+                        # Create and start the MCP server
+                        server = AgentMCPServer(
                             agent_app=agent_app,
+                            server_name=self.name,
+                            server_description=f"MCP Server for {self.name}",
+                        )
+                        
+                        # Run the server with the specified transport
+                        await server.run_async(
                             transport=self.args.transport,
                             host=self.args.host,
                             port=self.args.port,
-                            server_name=self.name,
-                            server_description=f"MCP Server for {self.name}",
                         )
                         sys.exit(0)
                     
