@@ -423,9 +423,11 @@ async def create_agents_in_dependency_order(
 
                 app_instance.fast_agent.unavailable_servers.add(server_name)
                 app_instance.fast_agent.deactivated_agents[agent_name] = agent_config
-                logger.info(
-                    f"MCP server '{server_name}' is not available. Agent '{agent_name}' will be deactivated."
-                )
+                
+                # Print to console directly to ensure visibility
+                from mcp_agent.console import console
+                console.print(f"🔒 MCP server '{server_name}' is not available. Agent '{agent_name}' will be deactivated.", style="dim yellow")
+                
                 logger.info(
                     f"Agent '{agent_name}' deactivated",
                     data={

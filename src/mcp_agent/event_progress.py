@@ -72,6 +72,11 @@ def convert_log_event(event: Event) -> Optional[ProgressEvent]:
     progress_action = event_data.get("progress_action")
     if not progress_action:
         return None
+    
+    # Filter out MCP server lifecycle events - only show agent events
+    if "mcp_connection_manager" in event.namespace and progress_action == ProgressAction.DEACTIVATED:
+        # Skip MCP server lifecycle events, only show agent deactivation events
+        return None
 
     # Build target string based on the event type.
     # Progress display is currently [time] [event] --- [target] [details]
