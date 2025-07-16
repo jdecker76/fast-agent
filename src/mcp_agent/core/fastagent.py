@@ -10,6 +10,7 @@ import re
 import sys
 from contextlib import asynccontextmanager
 from importlib.metadata import version as get_version
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional, TypeVar
 
 import yaml
@@ -56,6 +57,8 @@ from mcp_agent.core.exceptions import (
 from mcp_agent.core.usage_display import display_usage_report
 from mcp_agent.core.validation import (
     validate_provider_keys_post_creation,
+    validate_server_references,
+    validate_workflow_references,
 )
 from mcp_agent.event_progress import ProgressAction
 from mcp_agent.logging.logger import get_logger
@@ -66,7 +69,7 @@ logger = get_logger(__name__)
 
 class FastAgent:
     """
-    A simplified FastAgent implementation that directly creates Agent instances
+    A simplified FastAgent implementation that directly creates agent instances
     without using proxies.
     """
 
@@ -192,6 +195,14 @@ class FastAgent:
                 self.config["logger"]["show_chat"] = False
                 self.config["logger"]["show_tools"] = False
 
+            # Apply CLI quiet flag to config if it was set
+            if hasattr(self.args, 'quiet') and self.args.quiet and hasattr(self, "config"):
+                if "logger" not in self.config:
+                    self.config["logger"] = {}
+                self.config["logger"]["progress_display"] = False
+                self.config["logger"]["show_chat"] = False
+                self.config["logger"]["show_tools"] = False
+
             # Create the app with our local settings
             self.app = MCPApp(
                 name=name,
@@ -201,6 +212,12 @@ class FastAgent:
 
             # Stop progress display immediately if quiet mode is requested
             if self._programmatic_quiet:
+                from mcp_agent.progress_display import progress_display
+
+                progress_display.stop()
+
+            # Also stop progress display if CLI quiet flag is set
+            if hasattr(self.args, 'quiet') and self.args.quiet:
                 from mcp_agent.progress_display import progress_display
 
                 progress_display.stop()
@@ -264,6 +281,9 @@ class FastAgent:
         This simplified version directly creates agent instances.
         """
         polling_task = None
+        active_agents = {}
+        had_error = False
+        
         try:
             async with self.app.run() as running_app:
                 # Store the running app instance so agents can access it
@@ -291,6 +311,14 @@ class FastAgent:
                     }
                 )
 
+                # Pre-flight validation
+                if 0 == len(self.agents):
+                    raise AgentConfigError(
+                        "No agents defined. Please define at least one agent."
+                    )
+                validate_server_references(self.context, self.agents)
+                validate_workflow_references(self.agents)
+
                 # Define a model factory function that can be passed to agent creation
                 def model_factory_func(model=None, request_params=None):
                     return get_model_factory(
@@ -307,12 +335,68 @@ class FastAgent:
                     agents_dict=self.agents,
                     model_factory_func=model_factory_func,
                 )
-                    
+
                 # After attempting to load all agents, validate provider keys for active agents
                 validate_provider_keys_post_creation(active_agents)
 
                 # Create the agent app with the successfully created agents
                 agent_app = AgentApp(agents=active_agents)
+
+                # Handle CLI arguments if they were provided
+                if hasattr(self, 'args'):
+                    # Handle --server argument (start server mode)
+                    if hasattr(self.args, 'server') and self.args.server:
+                        from mcp_agent.mcp.server import start_mcp_server
+                        await start_mcp_server(
+                            agent_app=agent_app,
+                            transport=self.args.transport,
+                            host=self.args.host,
+                            port=self.args.port,
+                            server_name=self.name,
+                            server_description=f"MCP Server for {self.name}",
+                        )
+                        sys.exit(0)
+                    
+                    # Handle --message argument
+                    if hasattr(self.args, 'message') and self.args.message:
+                        agent_name = self.args.agent if hasattr(self.args, 'agent') and self.args.agent != "default" else None
+                        
+                        # Validate agent exists if specific agent was requested
+                        if agent_name and agent_name not in active_agents:
+                            available_agents = ", ".join(active_agents.keys())
+                            print(f"\n\nError: Agent '{agent_name}' not found. Available agents: {available_agents}")
+                            sys.exit(1)
+                        
+                        try:
+                            response = await agent_app.send(self.args.message, agent_name=agent_name)
+                            if hasattr(self.args, 'quiet') and self.args.quiet:
+                                print(f"{response}")
+                            sys.exit(0)
+                        except Exception as e:
+                            print(f"\n\nError sending message to agent '{agent_name}': {str(e)}")
+                            sys.exit(1)
+                    
+                    # Handle --prompt-file argument
+                    if hasattr(self.args, 'prompt_file') and self.args.prompt_file:
+                        from mcp_agent.mcp.prompts.prompt_load import load_prompt_multipart
+                        
+                        agent_name = self.args.agent if hasattr(self.args, 'agent') and self.args.agent != "default" else None
+                        
+                        # Validate agent exists if specific agent was requested
+                        if agent_name and agent_name not in active_agents:
+                            available_agents = ", ".join(active_agents.keys())
+                            print(f"\n\nError: Agent '{agent_name}' not found. Available agents: {available_agents}")
+                            sys.exit(1)
+                        
+                        try:
+                            prompt = load_prompt_multipart(Path(self.args.prompt_file))
+                            response = await agent_app._agent(agent_name).generate(prompt)
+                            if hasattr(self.args, 'quiet') and self.args.quiet:
+                                print(f"{response.last_text()}")
+                            sys.exit(0)
+                        except Exception as e:
+                            print(f"\n\nError sending message to agent '{agent_name}': {str(e)}")
+                            sys.exit(1)
 
                 # Start the background polling task to reactivate agents (only if polling is enabled)
                 polling_task = None
@@ -320,6 +404,23 @@ class FastAgent:
                     polling_task = asyncio.create_task(self._poll_and_reactivate_servers(agent_app))
 
                 yield agent_app
+        
+        except PromptExitError as e:
+            # User requested exit - not an error, show usage report
+            self._handle_error(e)
+            raise SystemExit(0)
+        except (
+            ServerConfigError,
+            ProviderKeyError,
+            AgentConfigError,
+            ServerInitializationError,
+            ModelConfigError,
+            CircularDependencyError,
+        ) as e:
+            had_error = True
+            self._handle_error(e)
+            raise SystemExit(1)
+        
         finally:
             if polling_task:
                 polling_task.cancel()
@@ -327,6 +428,19 @@ class FastAgent:
                     await polling_task
                 except asyncio.CancelledError:
                     logger.info("Agent reactivation polling task cancelled.")
+            
+            # Print usage report before cleanup (show for user exits too)
+            if active_agents and not had_error:
+                self._print_usage_report(active_agents)
+            
+            # Clean up any active agents (always cleanup, even on errors)
+            if active_agents:
+                for agent in active_agents.values():
+                    try:
+                        await agent.shutdown()
+                    except Exception:
+                        pass
+            
             logger.info("FastAgent run context finished.")
 
     async def _poll_and_reactivate_servers(self, agent_app: AgentApp):
