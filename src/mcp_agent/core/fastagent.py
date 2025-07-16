@@ -316,35 +316,37 @@ class FastAgent:
         Periodically poll unavailable servers and reactivate agents if they come online.
         """
         while True:
-            await asyncio.sleep(60)  # Poll every 60 seconds
+            await asyncio.sleep(30)  # Poll every 30 seconds for faster testing
 
             if not self.unavailable_servers:
+                logger.debug("No unavailable servers to poll")
                 continue
 
-            # Print to console directly to ensure visibility
-            from mcp_agent.console import console
-            console.print(f"🔄 Polling unavailable servers: {list(self.unavailable_servers)}", style="dim cyan")
-            logger.info(f"Polling unavailable servers: {list(self.unavailable_servers)}")
+            logger.warning(f"Polling unavailable servers: {list(self.unavailable_servers)}")
 
             # Create a copy of the set to iterate over, as it may be modified
             for server_name in list(self.unavailable_servers):
                 try:
                     # Use the server_registry to attempt a connection
                     async with self.context.server_registry.start_server(server_name):
-                        # Print to console directly to ensure visibility
-                        from mcp_agent.console import console
-                        console.print(f"✅ Server '{server_name}' is now available!", style="green")
-                        logger.info(f"Server '{server_name}' is now available.")
+                        logger.warning(f"Server '{server_name}' is now available!")
                         self.unavailable_servers.remove(server_name)
 
                         # Check for agents that can be reactivated
+                        logger.debug(f"Checking deactivated agents for reactivation: {list(self.deactivated_agents.keys())}")
                         for agent_name, agent_config in list(self.deactivated_agents.items()):
                             agent_config_obj = agent_config.get("config")
                             required_servers = agent_config_obj.servers if agent_config_obj else []
+                            logger.debug(f"Agent '{agent_name}' requires servers: {required_servers}")
                             if server_name in required_servers:
+                                logger.debug(f"Server '{server_name}' is required by agent '{agent_name}'")
                                 # Check if all required servers for this agent are now online
                                 if all(s not in self.unavailable_servers for s in required_servers):
+                                    logger.warning(f"All required servers available for agent '{agent_name}', attempting reactivation")
                                     await self._reactivate_agent(agent_name, agent_config, agent_app)
+                                else:
+                                    still_unavailable = [s for s in required_servers if s in self.unavailable_servers]
+                                    logger.debug(f"Agent '{agent_name}' still waiting for servers: {still_unavailable}")
 
                 except Exception as e:
                     logger.debug(f"Server '{server_name}' still unavailable: {e}")
@@ -353,7 +355,7 @@ class FastAgent:
         """
         Reactivate a single agent that was previously offline.
         """
-        logger.info(f"Attempting to reactivate agent: {agent_name}")
+        logger.warning(f"Attempting to reactivate agent: {agent_name}")
         try:
             # Define a model factory function for reactivation
             def model_factory_func(model=None, request_params=None):
@@ -378,10 +380,7 @@ class FastAgent:
                 # Remove from deactivated list
                 del self.deactivated_agents[agent_name]
                 
-                # Print to console directly to ensure visibility
-                from mcp_agent.console import console
-                console.print(f"🔄 Agent '{agent_name}' has been successfully reactivated!", style="green")
-                logger.info(f"Agent '{agent_name}' has been successfully reactivated.")
+                logger.warning(f"Agent '{agent_name}' has been successfully reactivated!")
             else:
                 logger.error(f"Failed to create agent '{agent_name}' during reactivation.")
 
