@@ -246,6 +246,9 @@ def custom(
     *,
     instruction: str = "You are a helpful agent.",
     servers: List[str] = [],
+    tools: Optional[Dict[str, List[str]]] = None,
+    resources: Optional[Dict[str, List[str]]] = None,
+    prompts: Optional[Dict[str, List[str]]] = None,
     model: Optional[str] = None,
     use_history: bool = True,
     request_params: RequestParams | None = None,
@@ -287,6 +290,9 @@ def custom(
         default=default,
         elicitation_handler=elicitation_handler,
         api_key=api_key,
+        tools=tools,
+        resources=resources,
+        prompts=prompts,
     )
 
 
@@ -361,6 +367,9 @@ def router(
     agents: List[str],
     instruction: Optional[str] = None,
     servers: List[str] = [],
+    tools: Optional[Dict[str, List[str]]] = None,
+    resources: Optional[Dict[str, List[str]]] = None,
+    prompts: Optional[Dict[str, List[str]]] = None,
     model: Optional[str] = None,
     use_history: bool = False,
     request_params: RequestParams | None = None,
@@ -409,6 +418,9 @@ def router(
             router_agents=agents,
             elicitation_handler=elicitation_handler,
             api_key=api_key,
+            tools=tools,
+            prompts=prompts,
+            resources=resources,
         ),
     )
 
