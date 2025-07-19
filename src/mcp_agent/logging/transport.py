@@ -269,17 +269,9 @@ class AsyncEventBus:
     def __init__(self, transport: EventTransport | None = None) -> None:
         self.transport: EventTransport = transport or NoOpTransport()
         self.listeners: Dict[str, EventListener] = {}
-        self._queue = asyncio.Queue()
+        self._queue: asyncio.Queue | None = None
         self._task: asyncio.Task | None = None
         self._running = False
-        self._stop_event = asyncio.Event()
-
-        # Store the loop we're created on
-        try:
-            self._loop = asyncio.get_running_loop()
-        except RuntimeError:
-            self._loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._loop)
 
     @classmethod
     def get(cls, transport: EventTransport | None = None) -> "AsyncEventBus":
@@ -301,7 +293,6 @@ class AsyncEventBus:
         if cls._instance:
             # Signal shutdown
             cls._instance._running = False
-            cls._instance._stop_event.set()
 
             # Clear the singleton instance
             cls._instance = None
@@ -311,13 +302,20 @@ class AsyncEventBus:
         if self._running:
             return
 
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        self._queue = asyncio.Queue()
+
         # Start each lifecycle-aware listener
         for listener in self.listeners.values():
             if isinstance(listener, LifecycleAwareListener):
                 await listener.start()
 
-        # Clear stop event and start processing
-        self._stop_event.clear()
+        # Start processing
         self._running = True
         self._task = asyncio.create_task(self._process_events())
 
@@ -328,7 +326,6 @@ class AsyncEventBus:
 
         # Signal processing to stop
         self._running = False
-        self._stop_event.set()
 
         # Try to process remaining items with a timeout
         if not self._queue.empty():
@@ -345,6 +342,7 @@ class AsyncEventBus:
                         break
             except Exception as e:
                 print(f"Error during queue cleanup: {e}")
+        self._queue = None
 
         # Cancel and wait for task with timeout
         if self._task and not self._task.done():
@@ -356,8 +354,7 @@ class AsyncEventBus:
                 pass  # Task was cancelled or timed out
             except Exception as e:
                 print(f"Error cancelling process task: {e}")
-            finally:
-                self._task = None
+        self._task = None
 
         # Stop each lifecycle-aware listener
         for listener in self.listeners.values():
@@ -371,6 +368,9 @@ class AsyncEventBus:
 
     async def emit(self, event: Event) -> None:
         """Emit an event to all listeners and transport."""
+        if not self._running:
+            return
+
         # Inject current tracing info if available
         span = trace.get_current_span()
         if span.is_recording():
@@ -402,15 +402,8 @@ class AsyncEventBus:
             try:
                 # Use wait_for with a timeout to allow checking running state
                 try:
-                    # Check if we should be stopping first
-                    if not self._running or self._stop_event.is_set():
-                        break
-
                     event = await asyncio.wait_for(self._queue.get(), timeout=0.1)
                 except asyncio.TimeoutError:
-                    # Check again before continuing
-                    if not self._running or self._stop_event.is_set():
-                        break
                     continue
 
                 # Process the event through all listeners
@@ -443,20 +436,21 @@ class AsyncEventBus:
                     self._queue.task_done()
 
         # Process remaining events in queue
-        while not self._queue.empty():
-            try:
-                event = self._queue.get_nowait()
-                tasks = []
-                for listener in self.listeners.values():
-                    try:
-                        tasks.append(listener.handle_event(event))
-                    except Exception:
-                        pass
-                if tasks:
-                    await asyncio.gather(*tasks, return_exceptions=True)
-                self._queue.task_done()
-            except asyncio.QueueEmpty:
-                break
+        if self._queue:
+            while not self._queue.empty():
+                try:
+                    event = self._queue.get_nowait()
+                    tasks = []
+                    for listener in self.listeners.values():
+                        try:
+                            tasks.append(listener.handle_event(event))
+                        except Exception:
+                            pass
+                    if tasks:
+                        await asyncio.gather(*tasks, return_exceptions=True)
+                    self._queue.task_done()
+                except asyncio.QueueEmpty:
+                    break
 
 
 def create_transport(
