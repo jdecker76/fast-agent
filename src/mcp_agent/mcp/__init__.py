@@ -23,13 +23,14 @@ from .interfaces import (
     ServerConnection,
     ServerRegistryProtocol,
 )
-from .prompt_message_multipart import PromptMessageMultipart
+from .prompt_message_multipart import LlmStopReason, PromptMessageMultipart
 
 __all__ = [
     # Types from mcp.types
     "PromptMessage",
     # Multipart message handling
     "PromptMessageMultipart",
+    "LlmStopReason",
     # Protocol interfaces
     "AugmentedLLMProtocol",
     "AgentProtocol",

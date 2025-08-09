@@ -1,5 +1,6 @@
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
+from mcp import StopReason
 from mcp.types import (
     CallToolRequest,
     CallToolResult,
@@ -13,6 +14,9 @@ from pydantic import BaseModel
 
 from mcp_agent.mcp.helpers.content_helpers import get_text
 
+# Extended StopReason that includes 'toolUse' in addition to the standard MCP StopReason
+LlmStopReason = Union[StopReason, Literal["toolUse"]]
+
 
 class PromptMessageMultipart(BaseModel):
     """
@@ -25,6 +29,7 @@ class PromptMessageMultipart(BaseModel):
     tool_calls: Dict[str, CallToolRequest] | None = None
     tool_results: Dict[str, CallToolResult] | None = None
     channels: Dict[str, ContentBlock] | None = None
+    stopReason: LlmStopReason | None = None
 
     @classmethod
     def to_multipart(cls, messages: List[PromptMessage]) -> List["PromptMessageMultipart"]:
@@ -53,7 +58,6 @@ class PromptMessageMultipart(BaseModel):
             result.append(current_group)
 
         return result
-
 
     def from_multipart(self) -> List[PromptMessage]:
         """Convert this PromptMessageMultipart to a sequence of standard PromptMessages."""
