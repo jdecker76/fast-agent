@@ -221,35 +221,10 @@ class BaseAgent(MCPAggregator, AgentProtocol):
         Returns:
             The agent's response as a string
         """
-        # Convert the input to a PromptMessageMultipart
-        prompt = self._normalize_message_input(message)
-
-        # Use the LLM to generate a response
-        response = await self.generate([prompt], None)
+        # generate() now handles normalization internally, so we can pass the message directly
+        response = await self.generate(message, None)
         return response.all_text()
 
-    def _normalize_message_input(
-        self, message: Union[str, PromptMessage, PromptMessageMultipart]
-    ) -> PromptMessageMultipart:
-        """
-        Convert a message of any supported type to PromptMessageMultipart.
-
-        Args:
-            message: Message in various formats (string, PromptMessage, or PromptMessageMultipart)
-
-        Returns:
-            A PromptMessageMultipart object
-        """
-        # Handle single message
-        if isinstance(message, str):
-            return Prompt.user(message)
-        elif isinstance(message, PromptMessage):
-            return PromptMessageMultipart(role=message.role, content=[message.content])
-        elif isinstance(message, PromptMessageMultipart):
-            return message
-        else:
-            # Try to convert to string as fallback
-            return Prompt.user(str(message))
 
     async def prompt(self, default_prompt: str = "") -> str:
         """
@@ -640,7 +615,7 @@ class BaseAgent(MCPAggregator, AgentProtocol):
 
     async def generate(
         self,
-        multipart_messages: List[PromptMessageMultipart],
+        multipart_messages: List[PromptMessageMultipart | PromptMessage],
         request_params: RequestParams | None = None,
     ) -> PromptMessageMultipart:
         """
@@ -676,7 +651,7 @@ class BaseAgent(MCPAggregator, AgentProtocol):
 
     async def structured(
         self,
-        multipart_messages: List[PromptMessageMultipart],
+        multipart_messages: List[PromptMessageMultipart | PromptMessage],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
@@ -801,17 +776,16 @@ class BaseAgent(MCPAggregator, AgentProtocol):
             skills.append(await self.convert(tool))
 
         return AgentCard(
+            skills=skills,
             name=self.name,
             description=self.instruction,
             url=f"fast-agent://agents/{self.name}/",
             version="0.1",
             capabilities=DEFAULT_CAPABILITIES,
-            defaultInputModes=["text/plain"],
-            defaultOutputModes=["text/plain"],
+            default_input_modes=["text/plain"],
+            default_output_modes=["text/plain"],
             provider=None,
-            documentationUrl=None,
-            authentication=None,
-            skills=skills,
+            documentation_url=None,
         )
 
     async def convert(self, tool: Tool) -> AgentSkill:

@@ -39,7 +39,7 @@ from mcp_agent.llm.sampling_format_converter import (
 )
 from mcp_agent.llm.usage_tracking import TurnUsage, UsageAccumulator
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.helpers.content_helpers import get_text
+from mcp_agent.mcp.helpers.content_helpers import get_text, normalize_to_multipart_list
 from mcp_agent.mcp.interfaces import (
     AugmentedLLMProtocol,
     ModelT,
@@ -204,17 +204,33 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
 
     async def generate(
         self,
-        multipart_messages: List[Union[PromptMessageMultipart, PromptMessage]],
+        messages: Union[
+            str,
+            PromptMessage,
+            PromptMessageMultipart,
+            List[Union[str, PromptMessage, PromptMessageMultipart]]
+        ],
         request_params: RequestParams | None = None,
     ) -> PromptMessageMultipart:
         """
         Create a completion with the LLM using the provided messages.
+        
+        Args:
+            messages: Message(s) in various formats:
+                - String: Converted to a user PromptMessageMultipart
+                - PromptMessage: Converted to PromptMessageMultipart
+                - PromptMessageMultipart: Used directly
+                - List of any combination of the above
+            request_params: Optional parameters to configure the LLM request
+            
+        Returns:
+            A PromptMessageMultipart containing the Assistant response
         """
         # note - check changes here are mirrored in structured(). i've thought hard about
         # a strategy to reduce duplication etc, but aiming for simple but imperfect for the moment
 
-        # Convert any PromptMessage objects to PromptMessageMultipart
-        multipart_messages = PromptMessageMultipart.ensure_multipart(multipart_messages)
+        # Normalize all input types to a list of PromptMessageMultipart
+        multipart_messages = normalize_to_multipart_list(messages)
 
         # TODO -- create a "fast-agent" control role rather than magic strings
 
@@ -263,14 +279,33 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
 
     async def structured(
         self,
-        multipart_messages: List[Union[PromptMessageMultipart, PromptMessage]],
+        messages: Union[
+            str,
+            PromptMessage,
+            PromptMessageMultipart,
+            List[Union[str, PromptMessage, PromptMessageMultipart]]
+        ],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
-        """Return a structured response from the LLM using the provided messages."""
+        """
+        Return a structured response from the LLM using the provided messages.
+        
+        Args:
+            messages: Message(s) in various formats:
+                - String: Converted to a user PromptMessageMultipart
+                - PromptMessage: Converted to PromptMessageMultipart
+                - PromptMessageMultipart: Used directly
+                - List of any combination of the above
+            model: The Pydantic model class to parse the response into
+            request_params: Optional parameters to configure the LLM request
+            
+        Returns:
+            Tuple of (parsed model instance or None, assistant response message)
+        """
 
-        # Convert any PromptMessage objects to PromptMessageMultipart
-        multipart_messages = PromptMessageMultipart.ensure_multipart(multipart_messages)
+        # Normalize all input types to a list of PromptMessageMultipart
+        multipart_messages = normalize_to_multipart_list(messages)
 
         self._precall(multipart_messages)
         result, assistant_response = await self._apply_prompt_provider_specific_structured(

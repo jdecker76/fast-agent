@@ -1,6 +1,8 @@
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from mcp.types import (
+    CallToolRequest,
+    CallToolResult,
     ContentBlock,
     GetPromptResult,
     PromptMessage,
@@ -9,7 +11,7 @@ from mcp.types import (
 )
 from pydantic import BaseModel
 
-from mcp_agent.mcp.helpers.content_helpers import ensure_multipart_messages, get_text
+from mcp_agent.mcp.helpers.content_helpers import get_text
 
 
 class PromptMessageMultipart(BaseModel):
@@ -20,6 +22,9 @@ class PromptMessageMultipart(BaseModel):
 
     role: Role
     content: List[ContentBlock]
+    tool_calls: Dict[str, CallToolRequest] | None = None
+    tool_results: Dict[str, CallToolResult] | None = None
+    channels: Dict[str, ContentBlock] | None = None
 
     @classmethod
     def to_multipart(cls, messages: List[PromptMessage]) -> List["PromptMessageMultipart"]:
@@ -49,24 +54,6 @@ class PromptMessageMultipart(BaseModel):
 
         return result
 
-    @classmethod
-    def ensure_multipart(
-        cls, messages: List[Union["PromptMessageMultipart", PromptMessage]]
-    ) -> List["PromptMessageMultipart"]:
-        """
-        Ensure all messages in a list are PromptMessageMultipart objects.
-        
-        This method delegates to the ensure_multipart_messages utility function
-        to handle mixed-type lists where some messages may be PromptMessage
-        and others may be PromptMessageMultipart.
-        
-        Args:
-            messages: List containing either PromptMessage or PromptMessageMultipart objects
-            
-        Returns:
-            List of PromptMessageMultipart objects
-        """
-        return ensure_multipart_messages(messages)
 
     def from_multipart(self) -> List[PromptMessage]:
         """Convert this PromptMessageMultipart to a sequence of standard PromptMessages."""

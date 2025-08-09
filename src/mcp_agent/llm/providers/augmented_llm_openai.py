@@ -43,12 +43,6 @@ DEFAULT_REASONING_EFFORT = "medium"
 
 
 class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletionMessage]):
-    """
-    The basic building block of agentic systems is an LLM enhanced with augmentations
-    such as retrieval, tools, and memory provided from a collection of MCP servers.
-    This implementation uses OpenAI's ChatCompletion as the LLM.
-    """
-
     # OpenAI-specific parameter exclusions
     OPENAI_EXCLUDE_FIELDS = {
         AugmentedLLM.PARAM_MESSAGES,

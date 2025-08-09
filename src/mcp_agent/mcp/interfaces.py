@@ -112,7 +112,12 @@ class AugmentedLLMProtocol(Protocol):
 
     async def structured(
         self,
-        multipart_messages: List[Union[PromptMessageMultipart, PromptMessage]],
+        messages: Union[
+            str,
+            PromptMessage,
+            PromptMessageMultipart,
+            List[Union[str, PromptMessage, PromptMessageMultipart]]
+        ],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
@@ -121,15 +126,23 @@ class AugmentedLLMProtocol(Protocol):
 
     async def generate(
         self,
-        multipart_messages: List[Union[PromptMessageMultipart, PromptMessage]],
+        messages: Union[
+            str,
+            PromptMessage,
+            PromptMessageMultipart,
+            List[Union[str, PromptMessage, PromptMessageMultipart]]
+        ],
         request_params: RequestParams | None = None,
     ) -> PromptMessageMultipart:
         """
-        Apply a list of PromptMessageMultipart messages directly to the LLM.
-
+        Apply messages directly to the LLM.
 
         Args:
-            multipart_messages: List of PromptMessageMultipart objects
+            messages: Message(s) in various formats:
+                - String: Converted to a user PromptMessageMultipart
+                - PromptMessage: Converted to PromptMessageMultipart
+                - PromptMessageMultipart: Used directly
+                - List of any combination of the above
             request_params: Optional parameters to configure the LLM request
 
         Returns:
