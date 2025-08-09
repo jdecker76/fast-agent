@@ -213,9 +213,8 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         # note - check changes here are mirrored in structured(). i've thought hard about
         # a strategy to reduce duplication etc, but aiming for simple but imperfect for the moment
 
-        # Convert PromptMessage to PromptMessageMultipart if needed
-        if multipart_messages and isinstance(multipart_messages[0], PromptMessage):
-            multipart_messages = PromptMessageMultipart.to_multipart(multipart_messages)
+        # Convert any PromptMessage objects to PromptMessageMultipart
+        multipart_messages = PromptMessageMultipart.ensure_multipart(multipart_messages)
 
         # TODO -- create a "fast-agent" control role rather than magic strings
 
@@ -270,9 +269,8 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
         """Return a structured response from the LLM using the provided messages."""
 
-        # Convert PromptMessage to PromptMessageMultipart if needed
-        if multipart_messages and isinstance(multipart_messages[0], PromptMessage):
-            multipart_messages = PromptMessageMultipart.to_multipart(multipart_messages)
+        # Convert any PromptMessage objects to PromptMessageMultipart
+        multipart_messages = PromptMessageMultipart.ensure_multipart(multipart_messages)
 
         self._precall(multipart_messages)
         result, assistant_response = await self._apply_prompt_provider_specific_structured(
@@ -357,6 +355,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
 
     def _precall(self, multipart_messages: List[PromptMessageMultipart]) -> None:
         """Pre-call hook to modify the message before sending it to the provider."""
+        # Ensure all messages are PromptMessageMultipart before extending history
         self._message_history.extend(multipart_messages)
         if multipart_messages[-1].role == "user":
             self.show_user_message(

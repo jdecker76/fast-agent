@@ -5,13 +5,14 @@ These utilities simplify extracting content from content structures
 without repetitive type checking.
 """
 
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from mcp.types import (
     BlobResourceContents,
     ContentBlock,
     EmbeddedResource,
     ImageContent,
+    PromptMessage,
     ReadResourceResult,
     ResourceLink,
     TextContent,
@@ -185,3 +186,38 @@ def split_thinking_content(message: str) -> tuple[Optional[str], str]:
     else:
         # No thinking block found or parsing failed
         return (None, message)
+
+
+def ensure_multipart_messages(
+    messages: List[Union["PromptMessageMultipart", PromptMessage]]
+) -> List["PromptMessageMultipart"]:
+    """
+    Ensure all messages in a list are PromptMessageMultipart objects.
+    
+    This function handles mixed-type lists where some messages may be PromptMessage
+    and others may be PromptMessageMultipart. Each PromptMessage is converted to
+    PromptMessageMultipart individually, preserving any existing PromptMessageMultipart
+    objects.
+    
+    Args:
+        messages: List containing either PromptMessage or PromptMessageMultipart objects
+        
+    Returns:
+        List of PromptMessageMultipart objects
+    """
+    # Import here to avoid circular dependency
+    from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+    
+    if not messages:
+        return []
+    
+    result = []
+    for message in messages:
+        if isinstance(message, PromptMessage):
+            # Convert single PromptMessage to PromptMessageMultipart
+            result.append(PromptMessageMultipart(role=message.role, content=[message.content]))
+        else:
+            # Already a PromptMessageMultipart, keep as-is
+            result.append(message)
+    
+    return result
