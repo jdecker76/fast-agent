@@ -8,6 +8,7 @@ and delegates operations to an attached AugmentedLLMProtocol instance.
 import asyncio
 import fnmatch
 import uuid
+from abc import ABC
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -47,6 +48,7 @@ from mcp_agent.human_input.types import (
     HumanInputResponse,
 )
 from mcp_agent.logging.logger import get_logger
+from mcp_agent.mcp.helpers.content_helpers import normalize_to_multipart_list
 from mcp_agent.mcp.interfaces import AgentProtocol, AugmentedLLMProtocol
 from mcp_agent.mcp.mcp_aggregator import MCPAggregator
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
@@ -68,7 +70,7 @@ DEFAULT_CAPABILITIES = AgentCapabilities(
 )
 
 
-class BaseAgent(MCPAggregator, AgentProtocol):
+class BaseAgent(ABC, MCPAggregator, AgentProtocol):
     """
     A base Agent class that implements the AgentProtocol interface.
 
@@ -224,7 +226,6 @@ class BaseAgent(MCPAggregator, AgentProtocol):
         # generate() now handles normalization internally, so we can pass the message directly
         response = await self.generate(message, None)
         return response.all_text()
-
 
     async def prompt(self, default_prompt: str = "") -> str:
         """
@@ -615,23 +616,58 @@ class BaseAgent(MCPAggregator, AgentProtocol):
 
     async def generate(
         self,
-        multipart_messages: List[PromptMessageMultipart | PromptMessage],
+        messages: Union[
+            str,
+            PromptMessage,
+            PromptMessageMultipart,
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
+        ],
         request_params: RequestParams | None = None,
     ) -> PromptMessageMultipart:
         """
         Create a completion with the LLM using the provided messages.
-        Delegates to the attached LLM.
+
+        Template Method pattern: This method normalizes inputs and delegates
+        to the abstract _generate_impl() method that subclasses must implement.
 
         Args:
-            multipart_messages: List of multipart messages to send to the LLM
+            messages: Message(s) in various formats:
+                - String: Converted to a user PromptMessageMultipart
+                - PromptMessage: Converted to PromptMessageMultipart
+                - PromptMessageMultipart: Used directly
+                - List of any combination of the above
             request_params: Optional parameters to configure the request
 
         Returns:
             The LLM's response as a PromptMessageMultipart
         """
-        assert self._llm
+        # Normalize all input types to a list of PromptMessageMultipart (Template Method pattern)
+        normalized_messages = normalize_to_multipart_list(messages)
+
         with self.tracer.start_as_current_span(f"Agent: '{self.name}' generate"):
-            return await self._llm.generate(multipart_messages, request_params)
+            return await self._generate_impl(normalized_messages, request_params)
+
+    async def _generate_impl(
+        self,
+        normalized_messages: List[PromptMessageMultipart],
+        request_params: RequestParams | None = None,
+    ) -> PromptMessageMultipart:
+        """
+        Default implementation for regular agents - delegates to attached LLM.
+
+        Workflow agents should override this method to implement custom logic.
+
+        Args:
+            normalized_messages: Already normalized list of PromptMessageMultipart
+            request_params: Optional parameters to configure the request
+
+        Returns:
+            The LLM's response as a PromptMessageMultipart
+        """
+        assert self._llm, (
+            "No LLM attached to agent. Workflow agents should override _generate_impl()."
+        )
+        return await self._llm.generate(normalized_messages, request_params)
 
     async def apply_prompt_template(self, prompt_result: GetPromptResult, prompt_name: str) -> str:
         """
@@ -651,7 +687,12 @@ class BaseAgent(MCPAggregator, AgentProtocol):
 
     async def structured(
         self,
-        multipart_messages: List[PromptMessageMultipart | PromptMessage],
+        messages: Union[
+            str,
+            PromptMessage,
+            PromptMessageMultipart,
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
+        ],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
@@ -660,7 +701,11 @@ class BaseAgent(MCPAggregator, AgentProtocol):
         Delegates to the attached LLM.
 
         Args:
-            prompt: List of PromptMessageMultipart objects
+            messages: Message(s) in various formats:
+                - String: Converted to a user PromptMessageMultipart
+                - PromptMessage: Converted to PromptMessageMultipart
+                - PromptMessageMultipart: Used directly
+                - List of any combination of the above
             model: The Pydantic model class to parse the result into
             request_params: Optional parameters to configure the LLM request
 
@@ -669,7 +714,7 @@ class BaseAgent(MCPAggregator, AgentProtocol):
         """
         assert self._llm
         with self.tracer.start_as_current_span(f"Agent: '{self.name}' structured"):
-            return await self._llm.structured(multipart_messages, model, request_params)
+            return await self._llm.structured(messages, model, request_params)
 
     async def apply_prompt_messages(
         self, prompts: List[PromptMessageMultipart], request_params: RequestParams | None = None

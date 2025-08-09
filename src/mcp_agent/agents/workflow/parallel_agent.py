@@ -48,16 +48,16 @@ class ParallelAgent(BaseAgent):
         self.fan_out_agents = fan_out_agents
         self.include_request = include_request
 
-    async def generate(
+    async def _generate_impl(
         self,
-        multipart_messages: List[PromptMessageMultipart],
+        normalized_messages: List[PromptMessageMultipart],
         request_params: Optional[RequestParams] = None,
     ) -> PromptMessageMultipart:
         """
         Execute fan-out agents in parallel and aggregate their results with the fan-in agent.
 
         Args:
-            multipart_messages: List of messages to send to the fan-out agents
+            normalized_messages: Already normalized list of PromptMessageMultipart
             request_params: Optional parameters to configure the request
 
         Returns:
@@ -69,14 +69,14 @@ class ParallelAgent(BaseAgent):
             # Execute all fan-out agents in parallel
             responses: List[PromptMessageMultipart] = await asyncio.gather(
                 *[
-                    agent.generate(multipart_messages, request_params)
+                    agent.generate(normalized_messages, request_params)
                     for agent in self.fan_out_agents
                 ]
             )
 
             # Extract the received message from the input
             received_message: Optional[str] = (
-                multipart_messages[-1].all_text() if multipart_messages else None
+                normalized_messages[-1].all_text() if normalized_messages else None
             )
 
             # Convert responses to strings for aggregation
@@ -123,7 +123,7 @@ class ParallelAgent(BaseAgent):
 
     async def structured(
         self,
-        multipart_messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageMultipart],
         model: type[ModelT],
         request_params: Optional[RequestParams] = None,
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
@@ -133,7 +133,7 @@ class ParallelAgent(BaseAgent):
         This implementation delegates to the fan-in agent's structured method.
 
         Args:
-            prompt: List of PromptMessageMultipart objects
+            messages: List of PromptMessageMultipart objects
             model: The Pydantic model class to parse the result into
             request_params: Optional parameters to configure the LLM request
 
@@ -146,14 +146,14 @@ class ParallelAgent(BaseAgent):
             # Generate parallel responses first
             responses: List[PromptMessageMultipart] = await asyncio.gather(
                 *[
-                    agent.generate(multipart_messages, request_params)
+                    agent.generate(messages, request_params)
                     for agent in self.fan_out_agents
                 ]
             )
 
             # Extract the received message
             received_message: Optional[str] = (
-                multipart_messages[-1].all_text() if multipart_messages else None
+                messages[-1].all_text() if messages else None
             )
 
             # Convert responses to strings
