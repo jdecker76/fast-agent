@@ -49,7 +49,7 @@ from mcp_agent.human_input.types import (
 )
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.content_helpers import normalize_to_multipart_list
-from mcp_agent.mcp.interfaces import AgentProtocol, AugmentedLLMProtocol
+from mcp_agent.mcp.interfaces import AgentProtocol, AugmentedLLMProtocol, LLMFactoryProtocol
 from mcp_agent.mcp.mcp_aggregator import MCPAggregator
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
@@ -130,7 +130,7 @@ class BaseAgent(ABC, MCPAggregator, AgentProtocol):
 
     async def attach_llm(
         self,
-        llm_factory: Union[Type[AugmentedLLMProtocol], Callable[..., AugmentedLLMProtocol]],
+        llm_factory: LLMFactoryProtocol,
         model: Optional[str] = None,
         request_params: Optional[RequestParams] = None,
         **additional_kwargs,
@@ -144,7 +144,7 @@ class BaseAgent(ABC, MCPAggregator, AgentProtocol):
         3. LLM's default values
 
         Args:
-            llm_factory: A class or callable that constructs an AugmentedLLM
+            llm_factory: A factory function that constructs an AugmentedLLM
             model: Optional model name override
             request_params: Optional request parameters override
             **additional_kwargs: Additional parameters passed to the LLM constructor

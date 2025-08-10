@@ -5,7 +5,10 @@ These utilities simplify extracting content from content structures
 without repetitive type checking.
 """
 
-from typing import List, Optional, Union
+from typing import TYPE_CHECKING, List, Optional, Union
+
+if TYPE_CHECKING:
+    from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 from mcp.types import (
     BlobResourceContents,

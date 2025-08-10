@@ -3,10 +3,7 @@ Direct factory functions for creating agent and workflow instances without proxi
 Implements type-safe factories with improved error handling.
 """
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Protocol, TypeVar
-
-if TYPE_CHECKING:
-    from mcp_agent.mcp.interfaces import AugmentedLLMProtocol
+from typing import Any, Dict, Optional, Protocol, TypeVar
 
 from mcp_agent.agents.agent import Agent, AgentConfig
 from mcp_agent.agents.workflow.evaluator_optimizer import (
@@ -25,20 +22,16 @@ from mcp_agent.event_progress import ProgressAction
 from mcp_agent.llm.augmented_llm import RequestParams
 from mcp_agent.llm.model_factory import ModelFactory
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.interfaces import AgentProtocol
+from mcp_agent.mcp.interfaces import (
+    AgentProtocol,
+    LLMFactoryProtocol,
+    ModelFactoryFunctionProtocol,
+)
 
 # Type aliases for improved readability and IDE support
 AgentDict = Dict[str, AgentProtocol]
 AgentConfigDict = Dict[str, Dict[str, Any]]
 T = TypeVar("T")  # For generic types
-
-# Type for model factory functions
-# This is a function that takes (model, request_params) and returns an LLM factory
-# The LLM factory itself takes (agent, request_params, **kwargs) and returns an AugmentedLLMProtocol
-ModelFactoryFn = Callable[
-    [Optional[str], Optional[RequestParams]], 
-    Callable[..., "AugmentedLLMProtocol"]
-]
 
 
 logger = get_logger(__name__)
@@ -53,7 +46,7 @@ class AgentCreatorProtocol(Protocol):
         agents_dict: AgentConfigDict,
         agent_type: AgentType,
         active_agents: Optional[AgentDict] = None,
-        model_factory_func: Optional[ModelFactoryFn] = None,
+        model_factory_func: Optional[ModelFactoryFunctionProtocol] = None,
         **kwargs: Any,
     ) -> AgentDict: ...
 
@@ -64,7 +57,7 @@ def get_model_factory(
     request_params: Optional[RequestParams] = None,
     default_model: Optional[str] = None,
     cli_model: Optional[str] = None,
-) -> Callable:
+) -> LLMFactoryProtocol:
     """
     Get model factory using specified or default model.
     Model string is parsed by ModelFactory to determine provider and reasoning effort.
@@ -97,15 +90,15 @@ def get_model_factory(
         request_params = RequestParams(model=model_spec)
 
     # Let model factory handle the model string parsing and setup
-    return ModelFactory.create_factory(model_spec, request_params=request_params)
+    return ModelFactory.create_factory(model_spec)
 
 
 async def create_agents_by_type(
     app_instance: MCPApp,
     agents_dict: AgentConfigDict,
     agent_type: AgentType,
+    model_factory_func: Optional[ModelFactoryFunctionProtocol],
     active_agents: Optional[AgentDict] = None,
-    model_factory_func: Optional[ModelFactoryFn] = None,
     **kwargs: Any,
 ) -> AgentDict:
     """
@@ -124,11 +117,6 @@ async def create_agents_by_type(
     """
     if active_agents is None:
         active_agents = {}
-
-    if model_factory_func is None:
-        # Default factory that just returns the inputs - should be overridden
-        def model_factory_func(model=None, request_params=None):
-            return lambda: None
 
     # Create a dictionary to store the initialized agents
     result_agents: AgentDict = {}
@@ -368,7 +356,7 @@ async def create_agents_by_type(
 async def create_agents_in_dependency_order(
     app_instance: MCPApp,
     agents_dict: AgentConfigDict,
-    model_factory_func: ModelFactoryFn,
+    model_factory_func: ModelFactoryFunctionProtocol,
     allow_cycles: bool = False,
 ) -> AgentDict:
     """
@@ -402,8 +390,8 @@ async def create_agents_in_dependency_order(
                     if agents_dict[name]["type"] == AgentType.BASIC.value
                 },
                 AgentType.BASIC,
-                active_agents,
                 model_factory_func,
+                active_agents,
             )
             active_agents.update(basic_agents)
 
@@ -417,8 +405,8 @@ async def create_agents_in_dependency_order(
                     if agents_dict[name]["type"] == AgentType.CUSTOM.value
                 },
                 AgentType.CUSTOM,
-                active_agents,
                 model_factory_func,
+                active_agents,
             )
             active_agents.update(basic_agents)
 
@@ -432,8 +420,8 @@ async def create_agents_in_dependency_order(
                     if agents_dict[name]["type"] == AgentType.PARALLEL.value
                 },
                 AgentType.PARALLEL,
-                active_agents,
                 model_factory_func,
+                active_agents,
             )
             active_agents.update(parallel_agents)
 
@@ -447,8 +435,8 @@ async def create_agents_in_dependency_order(
                     if agents_dict[name]["type"] == AgentType.ROUTER.value
                 },
                 AgentType.ROUTER,
-                active_agents,
                 model_factory_func,
+                active_agents,
             )
             active_agents.update(router_agents)
 
@@ -462,8 +450,8 @@ async def create_agents_in_dependency_order(
                     if agents_dict[name]["type"] == AgentType.CHAIN.value
                 },
                 AgentType.CHAIN,
-                active_agents,
                 model_factory_func,
+                active_agents,
             )
             active_agents.update(chain_agents)
 
@@ -477,8 +465,8 @@ async def create_agents_in_dependency_order(
                     if agents_dict[name]["type"] == AgentType.EVALUATOR_OPTIMIZER.value
                 },
                 AgentType.EVALUATOR_OPTIMIZER,
-                active_agents,
                 model_factory_func,
+                active_agents,
             )
             active_agents.update(evaluator_agents)
 
@@ -491,8 +479,8 @@ async def create_agents_in_dependency_order(
                     if agents_dict[name]["type"] == AgentType.ORCHESTRATOR.value
                 },
                 AgentType.ORCHESTRATOR,
-                active_agents,
                 model_factory_func,
+                active_agents,
             )
             active_agents.update(orchestrator_agents)
 
@@ -506,8 +494,8 @@ async def create_agents_in_dependency_order(
                     if agents_dict[name]["type"] == AgentType.ITERATIVE_PLANNER.value
                 },
                 AgentType.ITERATIVE_PLANNER,
-                active_agents,
                 model_factory_func,
+                active_agents,
             )
             active_agents.update(orchestrator2_agents)
 
@@ -517,7 +505,7 @@ async def create_agents_in_dependency_order(
 async def _create_default_fan_in_agent(
     fan_in_name: str,
     context,
-    model_factory_func: ModelFactoryFn,
+    model_factory_func: ModelFactoryFunctionProtocol,
 ) -> Agent:
     """
     Create a default fan-in agent for parallel workflows when none is specified.

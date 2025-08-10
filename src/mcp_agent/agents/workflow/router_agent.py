@@ -5,7 +5,7 @@ This provides a simplified implementation that routes messages to agents
 by determining the best agent for a request and dispatching to it.
 """
 
-from typing import TYPE_CHECKING, Callable, List, Optional, Tuple, Type
+from typing import TYPE_CHECKING, List, Optional, Tuple, Type
 
 from opentelemetry import trace
 from pydantic import BaseModel
@@ -17,7 +17,7 @@ from mcp_agent.core.exceptions import AgentConfigError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.interfaces import AugmentedLLMProtocol, ModelT
+from mcp_agent.mcp.interfaces import AugmentedLLMProtocol, LLMFactoryProtocol, ModelT
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 if TYPE_CHECKING:
@@ -177,7 +177,7 @@ class RouterAgent(BaseAgent):
 
     async def attach_llm(
         self,
-        llm_factory: type[AugmentedLLMProtocol] | Callable[..., AugmentedLLMProtocol],
+        llm_factory: LLMFactoryProtocol,
         model: str | None = None,
         request_params: RequestParams | None = None,
         **additional_kwargs,

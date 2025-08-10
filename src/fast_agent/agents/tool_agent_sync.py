@@ -1,5 +1,3 @@
-
-
 from mcp_agent.mcp.interfaces import LlmAgentProtocol
 
 
@@ -13,13 +11,13 @@ class ToolAgentSynchronous(LlmAgentProtocol):
 
     def __init__(
         self,
-        config: AgentConfig,
-        functions: Optional[List[Callable]] = None,
-        connection_persistence: bool = True,
-        human_input_callback: Optional[HumanInputCallback] = None,
-        context: Optional["Context"] = None,
-        **kwargs: Dict[str, Any],
+        # config: AgentConfig,
+        # functions: Optional[List[Callable]] = None,
+        # connection_persistence: bool = True,
+        # human_input_callback: Optional[HumanInputCallback] = None,
+        # context: Optional["Context"] = None,
+        # **kwargs: Dict[str, Any],
     ) -> None:
-        self.config = config
+        #        self.config = config
 
-        super().__init__(
+        super().__init__()

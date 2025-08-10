@@ -1,7 +1,8 @@
 import json
-from typing import TYPE_CHECKING, Any, List, Tuple, Type
+from typing import TYPE_CHECKING, Any, List, Tuple, Type, Union
 
-from mcp.types import TextContent
+from mcp import Tool
+from mcp.types import PromptMessage, TextContent
 
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.event_progress import ProgressAction
@@ -553,6 +554,236 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         self._log_chat_finished(model=model)
 
         return responses
+
+    async def completion(
+        self,
+        messages: Union[
+            str,
+            PromptMessage,
+            PromptMessageMultipart,
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
+        ],
+        request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
+    ) -> PromptMessageMultipart:
+        # api_key = self._api_key()
+        # base_url = self._base_url()
+        # if base_url and base_url.endswith("/v1"):
+        #     base_url = base_url.rstrip("/v1")
+
+        # try:
+        #     anthropic = AsyncAnthropic(api_key=api_key, base_url=base_url)
+        #     provider_messages: List[MessageParam] = []
+        #     params = self.get_request_params(request_params)
+        # except AuthenticationError as e:
+        #     raise ProviderKeyError(
+        #         "Invalid Anthropic API key",
+        #         "The configured Anthropic API key was rejected.\nPlease check that your API key is valid and not expired.",
+        #     ) from e
+
+        # # Always include prompt messages, but only include conversation history
+        # # if use_history is True
+        # provider_messages.extend(self.history.get(include_completion_history=params.use_history))
+
+        # provider_messages.append(message_param)  # message_param is the current user turn
+
+        # # Get cache mode configuration
+        # cache_mode = self._get_cache_mode()
+        # self.logger.debug(f"Anthropic cache_mode: {cache_mode}")
+
+        # available_tools = await self._prepare_tools(structured_model)
+
+        # responses: List[ContentBlock] = []
+
+        # model = self.default_request_params.model
+
+        # # Note: We'll cache tools+system together by putting cache_control only on system prompt
+
+        # for i in range(params.max_iterations):
+        #     self._log_chat_progress(self.chat_turn(), model=model)
+
+        #     # Create base arguments dictionary
+        #     base_args = {
+        #         "model": model,
+        #         "messages": provider_messages,
+        #         "system": self.instruction or params.systemPrompt,
+        #         "stop_sequences": params.stopSequences,
+        #         "tools": available_tools,
+        #     }
+
+        #     # Add tool_choice for structured output mode
+        #     if structured_model:
+        #         base_args["tool_choice"] = {"type": "tool", "name": "return_structured_output"}
+
+        #     # Apply cache control to system prompt
+        #     self._apply_system_cache(base_args, cache_mode)
+
+        #     # Apply conversation caching
+        #     applied_count = await self._apply_conversation_cache(provider_messages, cache_mode)
+
+        #     # Verify we don't exceed Anthropic's 4 cache block limit
+        #     if applied_count > 0:
+        #         total_cache_blocks = applied_count
+        #         if cache_mode != "off" and base_args["system"]:
+        #             total_cache_blocks += 1  # tools+system cache block
+        #         if total_cache_blocks > 4:
+        #             self.logger.warning(
+        #                 f"Total cache blocks ({total_cache_blocks}) exceeds Anthropic limit of 4"
+        #             )
+
+        #     if params.maxTokens is not None:
+        #         base_args["max_tokens"] = params.maxTokens
+
+        #     # Use the base class method to prepare all arguments with Anthropic-specific exclusions
+        #     arguments = self.prepare_provider_arguments(
+        #         base_args, params, self.ANTHROPIC_EXCLUDE_FIELDS
+        #     )
+
+        #     self.logger.debug(f"{arguments}")
+
+        #     # Use streaming API with helper
+        #     async with anthropic.messages.stream(**arguments) as stream:
+        #         # Process the stream
+        #         response = await self._process_stream(stream, model)
+
+        #     # Track usage if response is valid and has usage data
+        #     if (
+        #         hasattr(response, "usage")
+        #         and response.usage
+        #         and not isinstance(response, BaseException)
+        #     ):
+        #         try:
+        #             turn_usage = TurnUsage.from_anthropic(
+        #                 response.usage, model or DEFAULT_ANTHROPIC_MODEL
+        #             )
+        #             self._finalize_turn_usage(turn_usage)
+        #         #                    self._show_usage(response.usage, turn_usage)
+        #         except Exception as e:
+        #             self.logger.warning(f"Failed to track usage: {e}")
+
+        #     if isinstance(response, AuthenticationError):
+        #         raise ProviderKeyError(
+        #             "Invalid Anthropic API key",
+        #             "The configured Anthropic API key was rejected.\nPlease check that your API key is valid and not expired.",
+        #         ) from response
+        #     elif isinstance(response, BaseException):
+        #         error_details = str(response)
+        #         self.logger.error(f"Error: {error_details}", data=BaseException)
+
+        #         # Try to extract more useful information for API errors
+        #         if hasattr(response, "status_code") and hasattr(response, "response"):
+        #             try:
+        #                 error_json = response.response.json()
+        #                 error_details = f"Error code: {response.status_code} - {error_json}"
+        #             except:  # noqa: E722
+        #                 error_details = f"Error code: {response.status_code} - {str(response)}"
+
+        #         # Convert other errors to text response
+        #         error_message = f"Error during generation: {error_details}"
+        #         response = Message(
+        #             id="error",
+        #             model="error",
+        #             role="assistant",
+        #             type="message",
+        #             content=[TextBlock(type="text", text=error_message)],
+        #             stop_reason="end_turn",
+        #             usage=Usage(input_tokens=0, output_tokens=0),
+        #         )
+
+        #     self.logger.debug(
+        #         f"{model} response:",
+        #         data=response,
+        #     )
+
+        #     response_as_message = self.convert_message_to_message_param(response)
+        #     provider_messages.append(response_as_message)
+        #     if response.content and response.content[0].type == "text":
+        #         responses.append(TextContent(type="text", text=response.content[0].text))
+
+        #     if response.stop_reason == "end_turn":
+        #         message_text = ""
+        #         for block in response_as_message["content"]:
+        #             if isinstance(block, dict) and block.get("type") == "text":
+        #                 message_text += block.get("text", "")
+        #             elif hasattr(block, "type") and block.type == "text":
+        #                 message_text += block.text
+
+        #         await self.show_assistant_message(message_text)
+
+        #         self.logger.debug(f"Iteration {i}: Stopping because finish_reason is 'end_turn'")
+        #         break
+        #     elif response.stop_reason == "stop_sequence":
+        #         # We have reached a stop sequence
+        #         self.logger.debug(
+        #             f"Iteration {i}: Stopping because finish_reason is 'stop_sequence'"
+        #         )
+        #         break
+        #     elif response.stop_reason == "max_tokens":
+        #         # We have reached the max tokens limit
+
+        #         self.logger.debug(f"Iteration {i}: Stopping because finish_reason is 'max_tokens'")
+        #         if params.maxTokens is not None:
+        #             message_text = Text(
+        #                 f"the assistant has reached the maximum token limit ({params.maxTokens})",
+        #                 style="dim green italic",
+        #             )
+        #         else:
+        #             message_text = Text(
+        #                 "the assistant has reached the maximum token limit",
+        #                 style="dim green italic",
+        #             )
+
+        #         await self.show_assistant_message(message_text)
+
+        #         break
+        #     else:
+        #         message_text = ""
+        #         for block in response_as_message["content"]:
+        #             if isinstance(block, dict) and block.get("type") == "text":
+        #                 message_text += block.get("text", "")
+        #             elif hasattr(block, "type") and block.type == "text":
+        #                 message_text += block.text
+
+        #         # response.stop_reason == "tool_use":
+        #         # First, collect all tool uses in this turn
+        #         tool_uses = [c for c in response.content if c.type == "tool_use"]
+
+        #         if tool_uses:
+        #             if message_text == "":
+        #                 message_text = Text(
+        #                     "the assistant requested tool calls",
+        #                     style="dim green italic",
+        #                 )
+
+        #             # Process all tool calls using the helper method
+        #             tool_results, tool_responses = await self._process_tool_calls(
+        #                 tool_uses, available_tools, message_text, structured_model
+        #             )
+        #             responses.extend(tool_responses)
+
+        #             # Always add tool_results_message first (required by Anthropic API)
+        #             provider_messages.append(
+        #                 AnthropicConverter.create_tool_results_message(tool_results)
+        #             )
+
+        #             # For structured output, we have our result and should exit after sending tool_result
+        #             if structured_model and any(
+        #                 tool.name == "return_structured_output" for tool in tool_uses
+        #             ):
+        #                 self.logger.debug("Structured output received, breaking iteration loop")
+        #                 break
+
+        # # Only save the new conversation messages to history if use_history is true
+        # # Keep the prompt messages separate
+        # if params.use_history:
+        #     # Get current prompt messages
+        #     prompt_messages = self.history.get(include_completion_history=False)
+        #     new_messages = provider_messages[len(prompt_messages) :]
+        #     self.history.set(new_messages)
+
+        # self._log_chat_finished(model=model)
+        return None
+        # return responses
 
     async def generate_messages(
         self,

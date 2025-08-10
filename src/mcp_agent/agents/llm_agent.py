@@ -8,11 +8,9 @@ and delegates operations to an attached AugmentedLLMProtocol instance.
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
     Dict,
     List,
     Optional,
-    Protocol,
     Tuple,
     Type,
     TypeVar,
@@ -28,9 +26,10 @@ from pydantic import BaseModel
 
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.request_params import RequestParams
+from mcp_agent.llm.usage_tracking import UsageAccumulator
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.content_helpers import normalize_to_multipart_list
-from mcp_agent.mcp.interfaces import AugmentedLLMProtocol, LlmAgentProtocol
+from mcp_agent.mcp.interfaces import AugmentedLLMProtocol, LlmAgentProtocol, LLMFactoryProtocol
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 # Define a TypeVar for models
@@ -40,21 +39,7 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 LLM = TypeVar("LLM", bound=AugmentedLLMProtocol)
 
 if TYPE_CHECKING:
-    from mcp_agent.agents.agent import Agent
     from mcp_agent.context import Context
-    from mcp_agent.llm.usage_tracking import UsageAccumulator
-
-
-class LLMFactoryProtocol(Protocol):
-    """Protocol for LLM factory functions that create AugmentedLLM instances."""
-    
-    def __call__(
-        self,
-        agent: "Agent",
-        request_params: Optional[RequestParams] = None,
-        **kwargs: Any
-    ) -> AugmentedLLMProtocol:
-        ...
 
 
 class LlmAgent(LlmAgentProtocol):
@@ -107,7 +92,7 @@ class LlmAgent(LlmAgentProtocol):
 
     async def attach_llm(
         self,
-        llm_factory: Union[Type[AugmentedLLMProtocol], LLMFactoryProtocol],
+        llm_factory: LLMFactoryProtocol,
         model: Optional[str] = None,
         request_params: Optional[RequestParams] = None,
         **additional_kwargs,
@@ -121,7 +106,7 @@ class LlmAgent(LlmAgentProtocol):
         3. LLM's default values
 
         Args:
-            llm_factory: A class or callable that constructs an AugmentedLLM
+            llm_factory: A factory function that constructs an AugmentedLLM
             model: Optional model name override
             request_params: Optional request parameters override
             **additional_kwargs: Additional parameters passed to the LLM constructor
@@ -296,7 +281,7 @@ class LlmAgent(LlmAgentProtocol):
         return []
 
     @property
-    def usage_accumulator(self) -> Optional["UsageAccumulator"]:
+    def usage_accumulator(self) -> UsageAccumulator | None:
         """
         Return the usage accumulator for tracking token usage across turns.
 

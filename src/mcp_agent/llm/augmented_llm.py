@@ -184,7 +184,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         self._init_api_key = api_key
 
         # Initialize usage tracking
-        self.usage_accumulator = UsageAccumulator()
+        self._usage_accumulator = UsageAccumulator()
 
     def _initialize_default_params(self, kwargs: dict) -> RequestParams:
         """Initialize default parameters for the LLM.
@@ -208,13 +208,13 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             str,
             PromptMessage,
             PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]]
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
         ],
         request_params: RequestParams | None = None,
     ) -> PromptMessageMultipart:
         """
         Create a completion with the LLM using the provided messages.
-        
+
         Args:
             messages: Message(s) in various formats:
                 - String: Converted to a user PromptMessageMultipart
@@ -222,7 +222,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
                 - PromptMessageMultipart: Used directly
                 - List of any combination of the above
             request_params: Optional parameters to configure the LLM request
-            
+
         Returns:
             A PromptMessageMultipart containing the Assistant response
         """
@@ -283,14 +283,14 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             str,
             PromptMessage,
             PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]]
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
         ],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
         """
         Return a structured response from the LLM using the provided messages.
-        
+
         Args:
             messages: Message(s) in various formats:
                 - String: Converted to a user PromptMessageMultipart
@@ -299,7 +299,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
                 - List of any combination of the above
             model: The Pydantic model class to parse the response into
             request_params: Optional parameters to configure the LLM request
-            
+
         Returns:
             Tuple of (parsed model instance or None, assistant response message)
         """
@@ -505,7 +505,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
     def _finalize_turn_usage(self, turn_usage: "TurnUsage") -> None:
         """Set tool call count on TurnUsage and add to accumulator."""
         turn_usage.set_tool_calls(self._current_turn_tool_calls)
-        self.usage_accumulator.add_turn(turn_usage)
+        self._usage_accumulator.add_turn(turn_usage)
 
     async def show_assistant_message(
         self,
@@ -757,6 +757,10 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         assert self.provider
         return ProviderKeyManager.get_api_key(self.provider.value, self.context.config)
 
+    @property
+    def usage_accumulator(self):
+        return self._usage_accumulator
+
     def get_usage_summary(self) -> dict:
         """
         Get a summary of usage statistics for this LLM instance.
@@ -765,4 +769,4 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             Dictionary containing usage statistics including tokens, cache metrics,
             and context window utilization.
         """
-        return self.usage_accumulator.get_summary()
+        return self._usage_accumulator.get_summary()

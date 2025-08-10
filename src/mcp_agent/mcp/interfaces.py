@@ -5,7 +5,6 @@ This module defines protocols (interfaces) that can be used to break circular de
 
 from datetime import timedelta
 from typing import (
-    TYPE_CHECKING,
     Any,
     AsyncContextManager,
     Callable,
@@ -23,18 +22,14 @@ from typing import (
 
 from a2a.types import AgentCard
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-from deprecated import deprecated
-from mcp import ClientSession
+from mcp import ClientSession, Tool
 from mcp.types import GetPromptResult, Prompt, PromptMessage, ReadResourceResult
 from pydantic import BaseModel
 
 from mcp_agent.core.agent_types import AgentType
 from mcp_agent.core.request_params import RequestParams
+from mcp_agent.llm.usage_tracking import UsageAccumulator
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
-
-if TYPE_CHECKING:
-    from mcp_agent.llm.usage_tracking import UsageAccumulator
-
 
 __all__ = [
     "MCPConnectionManagerProtocol",
@@ -43,6 +38,8 @@ __all__ = [
     "AugmentedLLMProtocol",
     "AgentProtocol",
     "ModelFactoryClassProtocol",
+    "LLMFactoryProtocol",
+    "ModelFactoryFunctionProtocol",
     "ModelT",
 ]
 
@@ -107,6 +104,47 @@ class ServerConnection(Protocol):
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
+class LLMFactoryProtocol(Protocol):
+    """Protocol for LLM factory functions that create AugmentedLLM instances.
+
+    This protocol defines the standard signature for factory functions that
+    create LLM instances for agents. The factory takes an agent, optional
+    request parameters, and additional keyword arguments, and returns an
+    AugmentedLLMProtocol instance.
+    """
+
+    def __call__(self, agent: "LlmAgentProtocol", **kwargs: Any) -> "AugmentedLLMProtocol":
+        """Create and return an AugmentedLLM instance.
+
+        Args:
+            agent: The agent that will use this LLM
+            request_params: Optional parameters to configure the LLM
+            **kwargs: Additional implementation-specific parameters
+
+        Returns:
+            An instance implementing AugmentedLLMProtocol
+        """
+        ...
+
+
+class ModelFactoryFunctionProtocol(Protocol):
+    """
+    Returns an LLM Model Factory for the specified model string
+
+    """
+
+    def __call__(self, model: str | None = None) -> LLMFactoryProtocol:
+        """Create and return an LLM factory.
+
+        Args:
+            model: Optional model specification string
+
+        Returns:
+            An LLMFactoryProtocol that can create LLM instances
+        """
+        ...
+
+
 class AugmentedLLMProtocol(Protocol):
     """Protocol defining the interface for augmented LLMs"""
 
@@ -150,6 +188,18 @@ class AugmentedLLMProtocol(Protocol):
         """
         ...
 
+    async def completion(
+        self,
+        messages: Union[
+            str,
+            PromptMessage,
+            PromptMessageMultipart,
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
+        ],
+        request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
+    ) -> PromptMessageMultipart: ...
+
     # TODO -- prompt_name and display should probably be at agent level.
     async def apply_prompt_template(
         self, prompt_result: "GetPromptResult", prompt_name: str
@@ -176,7 +226,12 @@ class AugmentedLLMProtocol(Protocol):
         """
         ...
 
-    usage_accumulator: "UsageAccumulator"
+    @property
+    def usage_accumulator(self) -> UsageAccumulator | None:
+        """
+        Return the LLM's usage information
+        """
+        ...
 
 
 class LlmAgentProtocol(AugmentedLLMProtocol, Protocol):
