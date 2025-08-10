@@ -26,7 +26,6 @@ from mcp_agent.mcp.mime_utils import (
     is_text_mime_type,
 )
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
-from mcp_agent.mcp.resource_utils import extract_title_from_uri
 
 _logger = get_logger("multipart_converter_openai")
 
@@ -263,6 +262,7 @@ class OpenAIConverter:
         uri_str = get_resource_uri(resource)
         uri = getattr(resource_content, "uri", None)
         is_url = uri and str(uri).startswith(("http://", "https://"))
+        from mcp_agent.mcp.resource_utils import extract_title_from_uri
         title = extract_title_from_uri(uri) if uri else "resource"
         mime_type = OpenAIConverter._determine_mime_type(resource_content)
 

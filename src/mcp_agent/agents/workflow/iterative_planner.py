@@ -188,7 +188,7 @@ class IterativePlanner(BaseAgent):
         # Store agents by name for easier lookup
         self.agents: Dict[str, Agent] = {}
         for agent in agents:
-            agent_name = agent.name
+            agent_name = agent._name
             self.agents[agent_name] = agent
 
         super().__init__(config, context=context, **kwargs)

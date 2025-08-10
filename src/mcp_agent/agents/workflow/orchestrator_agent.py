@@ -81,7 +81,7 @@ class OrchestratorAgent(BaseAgent):
         # Store agents by name for easier lookup
         self.agents: Dict[str, Agent] = {}
         for agent in agents:
-            agent_name = agent.name
+            agent_name = agent._name
             self.logger.info(f"Adding agent '{agent_name}' to orchestrator")
             self.agents[agent_name] = agent
         self.plan_iterations = plan_iterations

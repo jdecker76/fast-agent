@@ -17,6 +17,7 @@ from typing import (
     Union,
 )
 
+from mcp import ListToolsResult
 from mcp.types import (
     GetPromptResult,
     PromptMessage,
@@ -44,8 +45,6 @@ if TYPE_CHECKING:
 
 class LlmAgent(LlmAgentProtocol):
     """
-    A base Agent class that implements the AgentProtocol interface.
-
     This class provides default implementations of the standard agent methods
     and delegates LLM operations to an attached AugmentedLLMProtocol instance.
     """
@@ -54,7 +53,7 @@ class LlmAgent(LlmAgentProtocol):
         self,
         config: AgentConfig,
         context: Optional["Context"] = None,
-        **kwargs: Dict[str, Any],
+        **kwargs: Any,
     ) -> None:
         self.config = config
 
@@ -62,7 +61,7 @@ class LlmAgent(LlmAgentProtocol):
         self._name = self.config.name
         self.tracer = trace.get_tracer(__name__)
         self.instruction = self.config.instruction
-        self.logger = get_logger(f"{__name__}.{self.name}")
+        self.logger = get_logger(f"{__name__}.{self._name}")
 
         # Store the default request params from config
         self._default_request_params = self.config.default_request_params
@@ -194,7 +193,7 @@ class LlmAgent(LlmAgentProtocol):
         # Normalize all input types to a list of PromptMessageMultipart (Template Method pattern)
         normalized_messages = normalize_to_multipart_list(messages)
 
-        with self.tracer.start_as_current_span(f"Agent: '{self.name}' generate"):
+        with self.tracer.start_as_current_span(f"Agent: '{self._name}' generate"):
             return await self._generate_impl(normalized_messages, request_params)
 
     async def _generate_impl(
@@ -262,7 +261,7 @@ class LlmAgent(LlmAgentProtocol):
             An instance of the specified model, or None if coercion fails
         """
         assert self._llm
-        with self.tracer.start_as_current_span(f"Agent: '{self.name}' structured"):
+        with self.tracer.start_as_current_span(f"Agent: '{self._name}' structured"):
             return await self._llm.structured(messages, model, request_params)
 
     @property
@@ -291,3 +290,9 @@ class LlmAgent(LlmAgentProtocol):
         if self._llm:
             return self._llm.usage_accumulator
         return None
+
+    async def list_tools(self) -> ListToolsResult | None:
+        return ListToolsResult(tools=[])
+
+    async def list_servers(self) -> List[str]:
+        return ["foo"]

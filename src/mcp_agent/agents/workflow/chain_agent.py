@@ -101,7 +101,7 @@ class ChainAgent(BaseAgent):
 
             response_text = current_response.all_text()
             attributed_response = (
-                f"<fastagent:response agent='{agent.name}'>{response_text}</fastagent:response>"
+                f"<fastagent:response agent='{agent._name}'>{response_text}</fastagent:response>"
             )
             final_results.append(attributed_response)
 

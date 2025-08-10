@@ -37,6 +37,7 @@ from mcp.types import (
 from opentelemetry import trace
 from pydantic import BaseModel
 
+from mcp_agent.agents.llm_agent import LlmAgent
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.exceptions import PromptExitError
 from mcp_agent.core.prompt import Prompt
@@ -70,7 +71,7 @@ DEFAULT_CAPABILITIES = AgentCapabilities(
 )
 
 
-class BaseAgent(ABC, MCPAggregator, AgentProtocol):
+class BaseAgent(ABC, MCPAggregator, LlmAgent):
     """
     A base Agent class that implements the AgentProtocol interface.
 
@@ -85,25 +86,34 @@ class BaseAgent(ABC, MCPAggregator, AgentProtocol):
         connection_persistence: bool = True,
         human_input_callback: Optional[HumanInputCallback] = None,
         context: Optional["Context"] = None,
-        **kwargs: Dict[str, Any],
+        **kwargs,
     ) -> None:
         self.config = config
 
-        super().__init__(
+        MCPAggregator.__init__(
+            self,
             context=context,
             server_names=self.config.servers,
             connection_persistence=connection_persistence,
             name=self.config.name,
+            config=config,
+            **kwargs,
+        )
+
+        LlmAgent.__init__(
+            self,
+            config=config,
+            context=context,
             **kwargs,
         )
 
         self._context = context
         self.tracer = trace.get_tracer(__name__)
-        self.name = self.config.name
+        self._name = self.config.name
         self.instruction = self.config.instruction
         self.functions = functions or []
         self.executor = self.context.executor if context and hasattr(context, "executor") else None
-        self.logger = get_logger(f"{__name__}.{self.name}")
+        self.logger = get_logger(f"{__name__}.{self._name}")
 
         # Store the default request params from config
         self._default_request_params = self.config.default_request_params
@@ -256,10 +266,10 @@ class BaseAgent(ABC, MCPAggregator, AgentProtocol):
             raise ValueError("Human input callback not set")
 
         # Generate a unique ID for this request to avoid signal collisions
-        request_id = f"{HUMAN_INPUT_SIGNAL_NAME}_{self.name}_{uuid.uuid4()}"
+        request_id = f"{HUMAN_INPUT_SIGNAL_NAME}_{self._name}_{uuid.uuid4()}"
         request.request_id = request_id
         # Use metadata as a dictionary to pass agent name
-        request.metadata = {"agent_name": self.name}
+        request.metadata = {"agent_name": self._name}
         self.logger.debug("Requesting human input:", data=request)
 
         if not self.executor:
@@ -644,7 +654,7 @@ class BaseAgent(ABC, MCPAggregator, AgentProtocol):
         # Normalize all input types to a list of PromptMessageMultipart (Template Method pattern)
         normalized_messages = normalize_to_multipart_list(messages)
 
-        with self.tracer.start_as_current_span(f"Agent: '{self.name}' generate"):
+        with self.tracer.start_as_current_span(f"Agent: '{self._name}' generate"):
             return await self._generate_impl(normalized_messages, request_params)
 
     async def _generate_impl(
@@ -682,7 +692,7 @@ class BaseAgent(ABC, MCPAggregator, AgentProtocol):
             String representation of the assistant's response if generated
         """
         assert self._llm
-        with self.tracer.start_as_current_span(f"Agent: '{self.name}' apply_prompt_template"):
+        with self.tracer.start_as_current_span(f"Agent: '{self._name}' apply_prompt_template"):
             return await self._llm.apply_prompt_template(prompt_result, prompt_name)
 
     async def structured(
@@ -713,7 +723,7 @@ class BaseAgent(ABC, MCPAggregator, AgentProtocol):
             An instance of the specified model, or None if coercion fails
         """
         assert self._llm
-        with self.tracer.start_as_current_span(f"Agent: '{self.name}' structured"):
+        with self.tracer.start_as_current_span(f"Agent: '{self._name}' structured"):
             return await self._llm.structured(messages, model, request_params)
 
     async def apply_prompt_messages(
@@ -822,9 +832,9 @@ class BaseAgent(ABC, MCPAggregator, AgentProtocol):
 
         return AgentCard(
             skills=skills,
-            name=self.name,
+            name=self._name,
             description=self.instruction,
-            url=f"fast-agent://agents/{self.name}/",
+            url=f"fast-agent://agents/{self._name}/",
             version="0.1",
             capabilities=DEFAULT_CAPABILITIES,
             default_input_modes=["text/plain"],

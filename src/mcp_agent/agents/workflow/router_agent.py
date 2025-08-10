@@ -98,7 +98,7 @@ class RouterAgent(BaseAgent):
 
         self.agents = agents
         self.routing_instruction = routing_instruction
-        self.agent_map = {agent.name: agent for agent in agents}
+        self.agent_map = {agent._name: agent for agent in agents}
 
         # Set up base router request parameters with just the base instruction for now
         base_params = {"systemPrompt": ROUTING_SYSTEM_INSTRUCTION, "use_history": False}
@@ -202,7 +202,7 @@ class RouterAgent(BaseAgent):
             The response from the selected agent
         """
         tracer = trace.get_tracer(__name__)
-        with tracer.start_as_current_span(f"Routing: '{self.name}' generate"):
+        with tracer.start_as_current_span(f"Routing: '{self._name}' generate"):
             route, warn = await self._route_request(normalized_messages[-1])
 
             if not route:
@@ -233,7 +233,7 @@ class RouterAgent(BaseAgent):
         """
 
         tracer = trace.get_tracer(__name__)
-        with tracer.start_as_current_span(f"Routing: '{self.name}' structured"):
+        with tracer.start_as_current_span(f"Routing: '{self._name}' structured"):
             route, warn = await self._route_request(messages[-1])
 
             if not route:
@@ -266,7 +266,7 @@ class RouterAgent(BaseAgent):
         # If only one agent is available, use it directly
         if len(self.agents) == 1:
             return RoutingResponse(
-                agent=self.agents[0].name, confidence="high", reasoning="Only one agent available"
+                agent=self.agents[0]._name, confidence="high", reasoning="Only one agent available"
             ), None
 
         assert self._llm

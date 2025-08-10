@@ -39,7 +39,6 @@ from mcp_agent.mcp.mime_utils import (
     is_text_mime_type,
 )
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
-from mcp_agent.mcp.resource_utils import extract_title_from_uri
 
 _logger = get_logger("multipart_converter_anthropic")
 
@@ -195,6 +194,7 @@ class AnthropicConverter:
         mime_type = AnthropicConverter._determine_mime_type(resource_content)
 
         # Extract title from URI
+        from mcp_agent.mcp.resource_utils import extract_title_from_uri
         title = extract_title_from_uri(uri) if uri else "resource"
 
         # Convert based on MIME type

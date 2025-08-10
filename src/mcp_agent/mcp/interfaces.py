@@ -188,17 +188,17 @@ class AugmentedLLMProtocol(Protocol):
         """
         ...
 
-    async def completion(
-        self,
-        messages: Union[
-            str,
-            PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
-        ],
-        request_params: RequestParams | None = None,
-        tools: List[Tool] | None = None,
-    ) -> PromptMessageMultipart: ...
+    # async def completion(
+    #     self,
+    #     messages: Union[
+    #         str,
+    #         PromptMessage,
+    #         PromptMessageMultipart,
+    #         List[Union[str, PromptMessage, PromptMessageMultipart]],
+    #     ],
+    #     request_params: RequestParams | None = None,
+    #     tools: List[Tool] | None = None,
+    # ) -> PromptMessageMultipart: ...
 
     # TODO -- prompt_name and display should probably be at agent level.
     async def apply_prompt_template(

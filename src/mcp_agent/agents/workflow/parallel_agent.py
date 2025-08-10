@@ -65,7 +65,7 @@ class ParallelAgent(BaseAgent):
         """
 
         tracer = trace.get_tracer(__name__)
-        with tracer.start_as_current_span(f"Parallel: '{self.name}' generate"):
+        with tracer.start_as_current_span(f"Parallel: '{self._name}' generate"):
             # Execute all fan-out agents in parallel
             responses: List[PromptMessageMultipart] = await asyncio.gather(
                 *[
@@ -115,7 +115,7 @@ class ParallelAgent(BaseAgent):
 
         # Format each agent's response
         for i, response in enumerate(responses):
-            agent_name = self.fan_out_agents[i].name
+            agent_name = self.fan_out_agents[i]._name
             formatted.append(
                 f'<fastagent:response agent="{agent_name}">\n{response}\n</fastagent:response>'
             )
@@ -142,19 +142,14 @@ class ParallelAgent(BaseAgent):
         """
 
         tracer = trace.get_tracer(__name__)
-        with tracer.start_as_current_span(f"Parallel: '{self.name}' generate"):
+        with tracer.start_as_current_span(f"Parallel: '{self._name}' generate"):
             # Generate parallel responses first
             responses: List[PromptMessageMultipart] = await asyncio.gather(
-                *[
-                    agent.generate(messages, request_params)
-                    for agent in self.fan_out_agents
-                ]
+                *[agent.generate(messages, request_params) for agent in self.fan_out_agents]
             )
 
             # Extract the received message
-            received_message: Optional[str] = (
-                messages[-1].all_text() if messages else None
-            )
+            received_message: Optional[str] = messages[-1].all_text() if messages else None
 
             # Convert responses to strings
             string_responses = [response.all_text() for response in responses]
@@ -200,4 +195,4 @@ class ParallelAgent(BaseAgent):
             try:
                 await agent.shutdown()
             except Exception as e:
-                self.logger.warning(f"Error shutting down fan-out agent {agent.name}: {str(e)}")
+                self.logger.warning(f"Error shutting down fan-out agent {agent._name}: {str(e)}")
