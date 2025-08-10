@@ -116,7 +116,7 @@ class AugmentedLLMProtocol(Protocol):
             str,
             PromptMessage,
             PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]]
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
         ],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
@@ -130,7 +130,7 @@ class AugmentedLLMProtocol(Protocol):
             str,
             PromptMessage,
             PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]]
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
         ],
         request_params: RequestParams | None = None,
     ) -> PromptMessageMultipart:
@@ -150,6 +150,7 @@ class AugmentedLLMProtocol(Protocol):
         """
         ...
 
+    # TODO -- prompt_name and display should probably be at agent level.
     async def apply_prompt_template(
         self, prompt_result: "GetPromptResult", prompt_name: str
     ) -> str:
@@ -178,23 +179,38 @@ class AugmentedLLMProtocol(Protocol):
     usage_accumulator: "UsageAccumulator"
 
 
-class AgentProtocol(AugmentedLLMProtocol, Protocol):
-    """Protocol defining the standard agent interface"""
-
-    name: str
-
-    @property
-    def agent_type(self) -> AgentType:
-        """Return the type of this agent"""
-        ...
+class LlmAgentProtocol(AugmentedLLMProtocol, Protocol):
+    """Protocol defining the interface for LLM agents that can be used with MCP"""
 
     async def __call__(self, message: Union[str, PromptMessage, PromptMessageMultipart]) -> str:
         """Make the agent callable for sending messages directly."""
         ...
 
     async def send(self, message: Union[str, PromptMessage, PromptMessageMultipart]) -> str:
-        """Send a message to the agent and get a response"""
+        """Convenience method for directly returning strings"""
         ...
+
+    @property
+    def name(self) -> str:
+        """Agent name"""
+        ...
+
+    @property
+    def agent_type(self) -> AgentType:
+        """Return the type of this agent"""
+        ...
+
+    async def initialize(self) -> None:
+        """Initialize the LLM agent"""
+        ...
+
+    async def shutdown(self) -> None:
+        """Shut down the LLM agent"""
+        ...
+
+
+class AgentProtocol(LlmAgentProtocol, Protocol):
+    """Protocol defining the standard agent interface"""
 
     async def apply_prompt(
         self,
@@ -222,16 +238,6 @@ class AgentProtocol(AugmentedLLMProtocol, Protocol):
         """Get a resource from a specific server or search all servers"""
         ...
 
-    @deprecated
-    async def generate_str(self, message: str, request_params: RequestParams | None = None) -> str:
-        """Generate a response. Deprecated: Use send(), generate() or structured()  instead"""
-        ...
-
-    @deprecated
-    async def prompt(self, default_prompt: str = "") -> str:
-        """Start an interactive prompt session with the agent. Deprecated. Use agent_app.interactive() instead."""
-        ...
-
     async def with_resource(
         self,
         prompt_content: Union[str, PromptMessage, PromptMessageMultipart],
@@ -246,11 +252,11 @@ class AgentProtocol(AugmentedLLMProtocol, Protocol):
         ...
 
     async def initialize(self) -> None:
-        """Initialize the agent and connect to MCP servers"""
+        """Initialize the agent"""
         ...
 
     async def shutdown(self) -> None:
-        """Shut down the agent and close connections"""
+        """Shut down the agent"""
         ...
 
 

@@ -66,7 +66,7 @@ if TYPE_CHECKING:
 
 
 DEFAULT_CAPABILITIES = AgentCapabilities(
-    streaming=False, pushNotifications=False, stateTransitionHistory=False
+    streaming=False, push_notifications=False, state_transition_history=False
 )
 
 

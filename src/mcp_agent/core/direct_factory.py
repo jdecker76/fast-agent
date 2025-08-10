@@ -3,7 +3,10 @@ Direct factory functions for creating agent and workflow instances without proxi
 Implements type-safe factories with improved error handling.
 """
 
-from typing import Any, Callable, Dict, Optional, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Protocol, TypeVar
+
+if TYPE_CHECKING:
+    from mcp_agent.mcp.interfaces import AugmentedLLMProtocol
 
 from mcp_agent.agents.agent import Agent, AgentConfig
 from mcp_agent.agents.workflow.evaluator_optimizer import (
@@ -30,7 +33,12 @@ AgentConfigDict = Dict[str, Dict[str, Any]]
 T = TypeVar("T")  # For generic types
 
 # Type for model factory functions
-ModelFactoryFn = Callable[[Optional[str], Optional[RequestParams]], Callable[[], Any]]
+# This is a function that takes (model, request_params) and returns an LLM factory
+# The LLM factory itself takes (agent, request_params, **kwargs) and returns an AugmentedLLMProtocol
+ModelFactoryFn = Callable[
+    [Optional[str], Optional[RequestParams]], 
+    Callable[..., "AugmentedLLMProtocol"]
+]
 
 
 logger = get_logger(__name__)

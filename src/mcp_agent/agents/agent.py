@@ -50,36 +50,3 @@ class Agent(BaseAgent):
             context=context,
             **kwargs,
         )
-
-    async def prompt(self, default_prompt: str = "", agent_name: Optional[str] = None) -> str:
-        """
-        Start an interactive prompt session with this agent.
-
-        Args:
-            default: Default message to use when user presses enter
-            agent_name: Ignored for single agents, included for API compatibility
-
-        Returns:
-            The result of the interactive session
-        """
-        # Use the agent name as a string - ensure it's not the object itself
-        agent_name_str = str(self.name)
-
-        # Create agent_types dictionary with just this agent
-        agent_types = {agent_name_str: self.agent_type.value}
-
-        # Create the interactive prompt
-        prompt = InteractivePrompt(agent_types=agent_types)
-
-        # Define wrapper for send function
-        async def send_wrapper(message, agent_name):
-            return await self.send(message)
-
-        # Start the prompt loop with just this agent
-        return await prompt.prompt_loop(
-            send_func=send_wrapper,
-            default_agent=agent_name_str,
-            available_agents=[agent_name_str],  # Only this agent
-            prompt_provider=self,  # Pass self as the prompt provider since we implement the protocol
-            default=default_prompt,
-        )
