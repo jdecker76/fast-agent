@@ -107,11 +107,7 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
             **kwargs,
         )
 
-        self._context = context
-        self.tracer = trace.get_tracer(__name__)
-        self._name = self.config.name
         self.instruction = self.config.instruction
-        self.functions = functions or []
         self.executor = self.context.executor if context and hasattr(context, "executor") else None
         self.logger = get_logger(f"{__name__}.{self._name}")
 
@@ -197,30 +193,28 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
 
     async def __call__(
         self,
-        message: Union[str, PromptMessageMultipart] | None = None,
-        agent_name: Optional[str] = None,
-        default_prompt: str = "",
+        message: Union[
+            str,
+            PromptMessage,
+            PromptMessageMultipart,
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
+        ],
     ) -> str:
-        """
-        Make the agent callable to send messages or start an interactive prompt.
-
-        Args:
-            message: Optional message to send to the agent
-            agent_name: Optional name of the agent (for consistency with DirectAgentApp)
-            default: Default message to use in interactive prompt mode
-
-        Returns:
-            The agent's response as a string or the result of the interactive session
-        """
-        if message:
-            return await self.send(message)
-        return await self.prompt(default_prompt=default_prompt)
+        return await self.send(message)
 
     async def generate_str(self, message: str, request_params: RequestParams | None) -> str:
         result: PromptMessageMultipart = await self.generate([Prompt.user(message)], request_params)
         return result.first_text()
 
-    async def send(self, message: Union[str, PromptMessage, PromptMessageMultipart]) -> str:
+    async def send(
+        self,
+        message: Union[
+            str,
+            PromptMessage,
+            PromptMessageMultipart,
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
+        ],
+    ) -> str:
         """
         Send a message to the agent and get a response.
 
@@ -234,20 +228,8 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
             The agent's response as a string
         """
         # generate() now handles normalization internally, so we can pass the message directly
-        response = await self.generate(message, None)
-        return response.all_text()
-
-    async def prompt(self, default_prompt: str = "") -> str:
-        """
-        Start an interactive prompt session with the agent.
-
-        Args:
-            default_prompt: The initial prompt to send to the agent
-
-        Returns:
-            The result of the interactive session
-        """
-        ...
+        response = await self.generate(message)
+        return response.last_text()
 
     async def request_human_input(self, request: HumanInputRequest) -> str:
         """
@@ -654,7 +636,7 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         # Normalize all input types to a list of PromptMessageMultipart (Template Method pattern)
         normalized_messages = normalize_to_multipart_list(messages)
 
-        with self.tracer.start_as_current_span(f"Agent: '{self._name}' generate"):
+        with self._tracer.start_as_current_span(f"Agent: '{self._name}' generate"):
             return await self._generate_impl(normalized_messages, request_params)
 
     async def _generate_impl(
@@ -692,7 +674,7 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
             String representation of the assistant's response if generated
         """
         assert self._llm
-        with self.tracer.start_as_current_span(f"Agent: '{self._name}' apply_prompt_template"):
+        with self._tracer.start_as_current_span(f"Agent: '{self._name}' apply_prompt_template"):
             return await self._llm.apply_prompt_template(prompt_result, prompt_name)
 
     async def structured(
@@ -723,7 +705,7 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
             An instance of the specified model, or None if coercion fails
         """
         assert self._llm
-        with self.tracer.start_as_current_span(f"Agent: '{self._name}' structured"):
+        with self._tracer.start_as_current_span(f"Agent: '{self._name}' structured"):
             return await self._llm.structured(messages, model, request_params)
 
     async def apply_prompt_messages(

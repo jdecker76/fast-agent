@@ -8,7 +8,6 @@ and delegates operations to an attached AugmentedLLMProtocol instance.
 from typing import (
     TYPE_CHECKING,
     Any,
-    Dict,
     List,
     Optional,
     Tuple,
@@ -59,7 +58,7 @@ class LlmAgent(LlmAgentProtocol):
 
         self._context = context
         self._name = self.config.name
-        self.tracer = trace.get_tracer(__name__)
+        self._tracer = trace.get_tracer(__name__)
         self.instruction = self.config.instruction
         self.logger = get_logger(f"{__name__}.{self._name}")
 
@@ -191,32 +190,33 @@ class LlmAgent(LlmAgentProtocol):
             The LLM's response as a PromptMessageMultipart
         """
         # Normalize all input types to a list of PromptMessageMultipart (Template Method pattern)
-        normalized_messages = normalize_to_multipart_list(messages)
 
-        with self.tracer.start_as_current_span(f"Agent: '{self._name}' generate"):
-            return await self._generate_impl(normalized_messages, request_params)
+        assert self._llm
+        with self._tracer.start_as_current_span(f"Agent: '{self._name}' generate"):
+            return await self._llm.generate(messages, request_params)
 
-    async def _generate_impl(
-        self,
-        normalized_messages: List[PromptMessageMultipart],
-        request_params: RequestParams | None = None,
-    ) -> PromptMessageMultipart:
-        """
-        Default implementation for regular agents - delegates to attached LLM.
+    # async def _generate_impl(
+    #     self,
+    #     normalized_messages: List[PromptMessageMultipart],
+    #     request_params: RequestParams | None = None,
+    # ) -> PromptMessageMultipart:
+    #     """
+    #     Default implementation for regular agents - delegates to attached LLM.
 
-        Workflow agents should override this method to implement custom logic.
+    #     Workflow agents should override this method to implement custom logic.
 
-        Args:
-            normalized_messages: Already normalized list of PromptMessageMultipart
-            request_params: Optional parameters to configure the request
+    #     Args:
+    #         normalized_messages: Already normalized list of PromptMessageMultipart
+    #         request_params: Optional parameters to configure the request
 
-        Returns:
-            The LLM's response as a PromptMessageMultipart
-        """
-        assert self._llm, (
-            "No LLM attached to agent. Workflow agents should override _generate_impl()."
-        )
-        return await self._llm.generate(normalized_messages, request_params)
+    #     Returns:
+    #         The LLM's response as a PromptMessageMultipart
+    #     """
+    #     assert self._llm, (
+    #         "No LLM attached to agent. Workflow agents should override _generate_impl()."
+    #     )
+
+    #     return await self._llm.generate(normalized_messages, request_params)
 
     async def apply_prompt_template(self, prompt_result: GetPromptResult, prompt_name: str) -> str:
         """
@@ -261,7 +261,7 @@ class LlmAgent(LlmAgentProtocol):
             An instance of the specified model, or None if coercion fails
         """
         assert self._llm
-        with self.tracer.start_as_current_span(f"Agent: '{self._name}' structured"):
+        with self._tracer.start_as_current_span(f"Agent: '{self._name}' structured"):
             return await self._llm.structured(messages, model, request_params)
 
     @property

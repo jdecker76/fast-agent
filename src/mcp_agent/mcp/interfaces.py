@@ -171,6 +171,7 @@ class AugmentedLLMProtocol(Protocol):
             List[Union[str, PromptMessage, PromptMessageMultipart]],
         ],
         request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
     ) -> PromptMessageMultipart:
         """
         Apply messages directly to the LLM.
