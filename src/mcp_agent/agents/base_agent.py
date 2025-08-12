@@ -208,7 +208,11 @@ class BaseAgent(MCPAggregator, AgentProtocol):
         result: PromptMessageMultipart = await self.generate([Prompt.user(message)], request_params)
         return result.first_text()
 
-    async def send(self, message: Union[str, PromptMessage, PromptMessageMultipart]) -> str:
+    async def send(
+        self, 
+        message: Union[str, PromptMessage, PromptMessageMultipart],
+        request_params: RequestParams | None = None
+    ) -> str:
         """
         Send a message to the agent and get a response.
 
@@ -217,6 +221,7 @@ class BaseAgent(MCPAggregator, AgentProtocol):
                 - String: Converted to a user PromptMessageMultipart
                 - PromptMessage: Converted to PromptMessageMultipart
                 - PromptMessageMultipart: Used directly
+                - request_params: Optional request parameters
 
         Returns:
             The agent's response as a string
@@ -225,7 +230,7 @@ class BaseAgent(MCPAggregator, AgentProtocol):
         prompt = self._normalize_message_input(message)
 
         # Use the LLM to generate a response
-        response = await self.generate([prompt], None)
+        response = await self.generate([prompt], request_params)
         return response.all_text()
 
     def _normalize_message_input(

@@ -508,12 +508,24 @@ class MCPAggregator(ContextDependent):
         async def try_execute(client: ClientSession):
             try:
                 method = getattr(client, method_name)
+                
+                # Get metadata from context for tool, resource, and prompt calls
+                metadata = None
+                if method_name in ["call_tool", "read_resource", "get_prompt"]:
+                    from mcp_agent.llm.augmented_llm import _mcp_metadata_var
+                    metadata = _mcp_metadata_var.get()
+                
+                # Prepare kwargs
+                kwargs = method_args or {}
+                if metadata:
+                    kwargs["_meta"] = metadata
+                
                 # For call_tool method, check if we need to add progress_callback
                 if method_name == "call_tool" and progress_callback:
                     # The call_tool method signature includes progress_callback parameter
-                    return await method(**method_args, progress_callback=progress_callback)
+                    return await method(progress_callback=progress_callback, **kwargs)
                 else:
-                    return await method(**method_args)
+                    return await method(**kwargs)
             except Exception as e:
                 error_msg = (
                     f"Failed to {method_name} '{operation_name}' on server '{server_name}': {e}"
