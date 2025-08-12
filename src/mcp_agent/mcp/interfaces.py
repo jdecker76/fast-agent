@@ -288,6 +288,8 @@ class AgentProtocol(LlmAgentProtocol, Protocol):
 
     async def list_resources(self, server_name: str | None = None) -> Mapping[str, List[str]]: ...
 
+    async def list_mcp_tools(self, server_name: str | None = None) -> Mapping[str, List[Tool]]: ...
+
     async def get_resource(
         self, resource_uri: str, server_name: str | None = None
     ) -> ReadResourceResult:
