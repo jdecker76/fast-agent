@@ -24,6 +24,7 @@ from pydantic import FileUrl
 from mcp_agent.context_dependent import ContextDependent
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.server_config_helpers import get_server_config
+from mcp_agent.mcp.request_metadata import get_mcp_metadata
 from mcp_agent.mcp.sampling import sample
 
 if TYPE_CHECKING:
@@ -167,11 +168,27 @@ class MCPAgentClientSession(ClientSession, ContextDependent):
     ) -> ReceiveResultT:
         logger.debug("send_request: request=", data=request.model_dump())
         try:
+            # Merge request-scoped metadata (if any) with explicitly provided metadata
+            merged_metadata: MessageMetadata | None = metadata
+            try:
+                request_meta = get_mcp_metadata()
+                if request_meta:
+                    if merged_metadata is None:
+                        merged_metadata = MessageMetadata(extra=request_meta)
+                    else:
+                        # Merge into existing metadata.extra without clobbering
+                        existing = dict(getattr(merged_metadata, "extra", {}) or {})
+                        existing.update(request_meta)
+                        merged_metadata.extra = existing
+            except Exception:
+                # Do not fail the request if metadata retrieval/merge fails
+                pass
+
             result = await super().send_request(
                 request=request,
                 result_type=result_type,
                 request_read_timeout_seconds=request_read_timeout_seconds,
-                metadata=metadata,
+                metadata=merged_metadata,
                 progress_callback=progress_callback,
             )
             logger.debug(

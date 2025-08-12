@@ -61,6 +61,11 @@ from mcp_agent.mcp.helpers import (
 from mcp_agent.mcp.interfaces import AgentProtocol, AugmentedLLMProtocol
 from mcp_agent.mcp.mcp_aggregator import MCPAggregator
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from mcp_agent.mcp.request_metadata import (
+    get_mcp_metadata,
+    set_mcp_metadata,
+    with_mcp_metadata,
+)
 
 __all__ = [
     # MCP types
@@ -82,6 +87,10 @@ __all__ = [
     "AgentConfig",
     "MCPAggregator",
     "PromptMessageMultipart",
+    # Request metadata helpers
+    "get_mcp_metadata",
+    "set_mcp_metadata",
+    "with_mcp_metadata",
     # FastAgent components
     "FastAgent",
     "AgentApp",
