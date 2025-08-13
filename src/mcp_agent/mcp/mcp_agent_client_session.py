@@ -180,8 +180,17 @@ class MCPAgentClientSession(ClientSession, ContextDependent):
             )
             return result
         except Exception as e:
-            logger.error(f"send_request failed: {str(e)}")
-            raise
+            # Handle connection errors cleanly
+            from anyio import ClosedResourceError
+            
+            if isinstance(e, ClosedResourceError):
+                # Show clean offline message and convert to ConnectionError
+                from mcp_agent import console
+                console.console.print(f"[dim red]MCP server {self.session_server_name} offline[/dim red]")
+                raise ConnectionError(f"MCP server {self.session_server_name} offline") from e
+            else:
+                logger.error(f"send_request failed: {str(e)}")
+                raise
 
     async def _received_notification(self, notification: ServerNotification) -> None:
         """
