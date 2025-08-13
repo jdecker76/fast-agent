@@ -526,6 +526,9 @@ class MCPAggregator(ContextDependent):
                     return await method(progress_callback=progress_callback, **kwargs)
                 else:
                     return await method(**kwargs)
+            except ConnectionError:
+                # Let ConnectionError pass through for reconnection logic
+                raise
             except Exception as e:
                 error_msg = (
                     f"Failed to {method_name} '{operation_name}' on server '{server_name}': {e}"
@@ -537,33 +540,70 @@ class MCPAggregator(ContextDependent):
                     # Re-raise the original exception to propagate it
                     raise e
 
-        if self.connection_persistence:
-            server_connection = await self._persistent_connection_manager.get_server(
-                server_name, client_session_factory=MCPAgentClientSession
-            )
-            return await try_execute(server_connection.session)
-        else:
-            logger.debug(
-                f"Creating temporary connection to server: {server_name}",
-                data={
-                    "progress_action": ProgressAction.STARTING,
-                    "server_name": server_name,
-                    "agent_name": self.agent_name,
-                },
-            )
-            async with gen_client(
-                server_name, server_registry=self.context.server_registry
-            ) as client:
-                result = await try_execute(client)
+        # Try initial execution
+        try:
+            if self.connection_persistence:
+                server_connection = await self._persistent_connection_manager.get_server(
+                    server_name, client_session_factory=MCPAgentClientSession
+                )
+                return await try_execute(server_connection.session)
+            else:
                 logger.debug(
-                    f"Closing temporary connection to server: {server_name}",
+                    f"Creating temporary connection to server: {server_name}",
                     data={
-                        "progress_action": ProgressAction.SHUTDOWN,
+                        "progress_action": ProgressAction.STARTING,
                         "server_name": server_name,
                         "agent_name": self.agent_name,
                     },
                 )
+                async with gen_client(
+                    server_name, server_registry=self.context.server_registry
+                ) as client:
+                    result = await try_execute(client)
+                    logger.debug(
+                        f"Closing temporary connection to server: {server_name}",
+                        data={
+                            "progress_action": ProgressAction.SHUTDOWN,
+                            "server_name": server_name,
+                            "agent_name": self.agent_name,
+                        },
+                    )
+                    return result
+        except ConnectionError:
+            # Server offline - attempt reconnection
+            from mcp_agent import console
+            console.console.print(f"[dim yellow]MCP server {server_name} reconnecting...[/dim yellow]")
+            
+            try:
+                if self.connection_persistence:
+                    # Force disconnect and create fresh connection
+                    await self._persistent_connection_manager.disconnect_server(server_name)
+                    import asyncio
+                    await asyncio.sleep(0.1)
+                    
+                    server_connection = await self._persistent_connection_manager.get_server(
+                        server_name, client_session_factory=MCPAgentClientSession
+                    )
+                    result = await try_execute(server_connection.session)
+                else:
+                    # For non-persistent connections, just try again
+                    async with gen_client(
+                        server_name, server_registry=self.context.server_registry
+                    ) as client:
+                        result = await try_execute(client)
+                
+                # Success!
+                console.console.print(f"[dim green]MCP server {server_name} online[/dim green]")
                 return result
+                
+            except Exception:
+                # Reconnection failed
+                console.console.print(f"[dim red]MCP server {server_name} offline - failed to reconnect[/dim red]")
+                error_msg = f"MCP server {server_name} offline - failed to reconnect"
+                if error_factory:
+                    return error_factory(error_msg)
+                else:
+                    raise Exception(error_msg)
 
     async def _parse_resource_name(self, name: str, resource_type: str) -> tuple[str, str]:
         """
