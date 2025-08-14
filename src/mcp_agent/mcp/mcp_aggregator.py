@@ -513,7 +513,7 @@ class MCPAggregator(ContextDependent):
                     # The call_tool method signature includes progress_callback parameter
                     return await method(**method_args, progress_callback=progress_callback)
                 else:
-                    return await method(**kwargs)
+                    return await method(**(method_args or {}))
             except ConnectionError:
                 # Let ConnectionError pass through for reconnection logic
                 raise
