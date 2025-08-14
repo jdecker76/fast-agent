@@ -572,14 +572,13 @@ class MCPAggregator(ContextDependent):
 
         # Next, attempt to interpret as a namespaced name
         if is_namespaced_name(name):
-            parts = name.split(SEP, 1)
-            server_name, local_name = parts[0], parts[1]
+            # Try to match against known server names, handling server names with hyphens
+            for server_name in self.server_names:
+                if name.startswith(f"{server_name}{SEP}"):
+                    local_name = name[len(server_name) + len(SEP):]
+                    return server_name, local_name
 
-            # Validate that the parsed server actually exists
-            if server_name in self.server_names:
-                return server_name, local_name
-
-            # If the server name doesn't exist, it might be a tool with a hyphen in its name
+            # If no server name matched, it might be a tool with a hyphen in its name
             # Fall through to the next checks
 
         # For tools, search all servers for the tool by exact name match
