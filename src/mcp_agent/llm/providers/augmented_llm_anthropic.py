@@ -1,25 +1,5 @@
 import json
-from typing import TYPE_CHECKING, Any, List, Tuple, Type, Union
-
-from mcp import Tool
-from mcp.types import PromptMessage, TextContent
-
-from mcp_agent.core.prompt import Prompt
-from mcp_agent.event_progress import ProgressAction
-from mcp_agent.llm.provider_types import Provider
-from mcp_agent.llm.providers.multipart_converter_anthropic import (
-    AnthropicConverter,
-)
-from mcp_agent.llm.providers.sampling_converter_anthropic import (
-    AnthropicSamplingConverter,
-)
-from mcp_agent.llm.usage_tracking import TurnUsage
-from mcp_agent.mcp.interfaces import ModelT
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
-
-if TYPE_CHECKING:
-    from mcp import ListToolsResult
-
+from typing import Any, List, Tuple, Type, Union
 
 from anthropic import AsyncAnthropic, AuthenticationError
 from anthropic.lib.streaming import AsyncMessageStream
@@ -32,20 +12,35 @@ from anthropic.types import (
     ToolUseBlockParam,
     Usage,
 )
+from mcp import Tool
 from mcp.types import (
     CallToolRequest,
     CallToolRequestParams,
     CallToolResult,
     ContentBlock,
+    PromptMessage,
+    TextContent,
 )
 from rich.text import Text
 
 from mcp_agent.core.exceptions import ProviderKeyError
+from mcp_agent.core.prompt import Prompt
+from mcp_agent.event_progress import ProgressAction
 from mcp_agent.llm.augmented_llm import (
     AugmentedLLM,
     RequestParams,
 )
+from mcp_agent.llm.provider_types import Provider
+from mcp_agent.llm.providers.multipart_converter_anthropic import (
+    AnthropicConverter,
+)
+from mcp_agent.llm.providers.sampling_converter_anthropic import (
+    AnthropicSamplingConverter,
+)
+from mcp_agent.llm.usage_tracking import TurnUsage
 from mcp_agent.logging.logger import get_logger
+from mcp_agent.mcp.interfaces import ModelT
+from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-0"
 

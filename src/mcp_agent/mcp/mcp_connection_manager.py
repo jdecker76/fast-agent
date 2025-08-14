@@ -16,6 +16,7 @@ from typing import (
 from anyio import Event, Lock, create_task_group
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from httpx import HTTPStatusError
+
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.client.stdio import (
@@ -25,7 +26,6 @@ from mcp.client.stdio import (
 )
 from mcp.client.streamable_http import GetSessionIdCallback, streamablehttp_client
 from mcp.types import JSONRPCMessage, ServerCapabilities
-
 from mcp_agent.config import MCPServerSettings
 from mcp_agent.context_dependent import ContextDependent
 from mcp_agent.core.exceptions import ServerInitializationError

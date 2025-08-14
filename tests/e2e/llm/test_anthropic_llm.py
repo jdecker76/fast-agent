@@ -2,8 +2,6 @@ import pytest
 
 from mcp_agent.agents.llm_agent import LlmAgent
 from mcp_agent.app import MCPApp
-from mcp_agent.config import Settings
-from mcp_agent.context import Context
 from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.llm.model_factory import ModelFactory
 

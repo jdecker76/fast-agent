@@ -10,6 +10,9 @@ from typing import (
     TypeVar,
 )
 
+from opentelemetry import trace
+from pydantic import AnyUrl, BaseModel, ConfigDict
+
 from mcp import GetPromptResult, ReadResourceResult
 from mcp.client.session import ClientSession
 from mcp.shared.session import ProgressFnT
@@ -20,9 +23,6 @@ from mcp.types import (
     TextContent,
     Tool,
 )
-from opentelemetry import trace
-from pydantic import AnyUrl, BaseModel, ConfigDict
-
 from mcp_agent.context_dependent import ContextDependent
 from mcp_agent.event_progress import ProgressAction
 from mcp_agent.logging.logger import get_logger

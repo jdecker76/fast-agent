@@ -1,5 +1,7 @@
 from typing import Dict, List, Literal, Optional, Union
 
+from pydantic import BaseModel
+
 from mcp import StopReason
 from mcp.types import (
     CallToolRequest,
@@ -10,8 +12,6 @@ from mcp.types import (
     Role,
     TextContent,
 )
-from pydantic import BaseModel
-
 from mcp_agent.mcp.helpers.content_helpers import get_text
 
 # Extended StopReason that includes 'toolUse' in addition to the standard MCP StopReason

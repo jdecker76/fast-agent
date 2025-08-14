@@ -6,6 +6,8 @@ It adds logging and supports sampling requests.
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
+from pydantic import FileUrl
+
 from mcp import ClientSession, ServerNotification
 from mcp.shared.message import MessageMetadata
 from mcp.shared.session import (
@@ -28,8 +30,6 @@ from mcp.types import (
     Root,
     ToolListChangedNotification,
 )
-from pydantic import FileUrl
-
 from mcp_agent.context_dependent import ContextDependent
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.server_config_helpers import get_server_config

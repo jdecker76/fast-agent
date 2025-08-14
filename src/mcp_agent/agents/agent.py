@@ -9,8 +9,6 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, TypeVar
 
 from mcp_agent.agents.base_agent import BaseAgent
 from mcp_agent.core.agent_types import AgentConfig
-from mcp_agent.core.interactive_prompt import InteractivePrompt
-from mcp_agent.core.request_params import RequestParams
 from mcp_agent.human_input.types import HumanInputCallback
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.interfaces import AugmentedLLMProtocol

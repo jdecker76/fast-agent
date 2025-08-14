@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 from mcp import ClientSession
 from mcp.types import CreateMessageRequestParams, CreateMessageResult, TextContent
-
 from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.llm.sampling_converter import SamplingConverter
 from mcp_agent.logging.logger import get_logger
