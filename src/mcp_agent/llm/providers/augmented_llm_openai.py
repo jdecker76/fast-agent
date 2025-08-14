@@ -171,7 +171,6 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
     async def _process_stream_manual(self, stream, model: str):
         """Manual stream processing for providers like Ollama that may not work with ChatCompletionStreamState."""
         from openai.types.chat import ChatCompletionMessageToolCall
-        from openai.types.chat.chat_completion_message_tool_call import Function
 
         # Track estimated output tokens by counting text chunks
         estimated_tokens = 0
@@ -249,10 +248,10 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
                         ChatCompletionMessageToolCall(
                             id=tool_call_data["id"],
                             type=tool_call_data["type"],
-                            function=Function(
-                                name=tool_call_data["function"]["name"],
-                                arguments=tool_call_data["function"]["arguments"],
-                            ),
+                            function={
+                                "name": tool_call_data["function"]["name"],
+                                "arguments": tool_call_data["function"]["arguments"],
+                            },
                         )
                     )
 

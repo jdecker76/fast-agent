@@ -208,7 +208,11 @@ class BaseAgent(MCPAggregator, AgentProtocol):
         result: PromptMessageMultipart = await self.generate([Prompt.user(message)], request_params)
         return result.first_text()
 
-    async def send(self, message: Union[str, PromptMessage, PromptMessageMultipart]) -> str:
+    async def send(
+        self, 
+        message: Union[str, PromptMessage, PromptMessageMultipart],
+        request_params: RequestParams | None = None
+    ) -> str:
         """
         Send a message to the agent and get a response.
 
@@ -217,6 +221,7 @@ class BaseAgent(MCPAggregator, AgentProtocol):
                 - String: Converted to a user PromptMessageMultipart
                 - PromptMessage: Converted to PromptMessageMultipart
                 - PromptMessageMultipart: Used directly
+                - request_params: Optional request parameters
 
         Returns:
             The agent's response as a string
@@ -225,7 +230,7 @@ class BaseAgent(MCPAggregator, AgentProtocol):
         prompt = self._normalize_message_input(message)
 
         # Use the LLM to generate a response
-        response = await self.generate([prompt], None)
+        response = await self.generate([prompt], request_params)
         return response.all_text()
 
     def _normalize_message_input(
@@ -364,12 +369,15 @@ class BaseAgent(MCPAggregator, AgentProtocol):
         if self.config.tools is not None:
             filtered_tools = []
             for tool in result.tools:
-                # Extract server name from tool name (e.g., "mathematics-add" -> "mathematics")
-                if "-" in tool.name:
-                    server_name = tool.name.split("-", 1)[0]
+                # Extract server name from tool name, handling server names with hyphens
+                server_name = None
+                for configured_server in self.config.tools.keys():
+                    if tool.name.startswith(f"{configured_server}-"):
+                        server_name = configured_server
+                        break
 
-                    # Check if this server has tool filters
-                    if server_name in self.config.tools:
+                # Check if this server has tool filters
+                if server_name and server_name in self.config.tools:
                         # Check if tool matches any pattern for this server
                         for pattern in self.config.tools[server_name]:
                             if self._matches_pattern(tool.name, pattern, server_name):
