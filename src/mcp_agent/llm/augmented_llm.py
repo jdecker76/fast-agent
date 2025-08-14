@@ -13,6 +13,7 @@ from typing import (
     cast,
 )
 
+from mcp import Tool
 from mcp.types import (
     CallToolRequest,
     CallToolResult,
@@ -211,6 +212,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             List[Union[str, PromptMessage, PromptMessageMultipart]],
         ],
         request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
     ) -> PromptMessageMultipart:
         """
         Create a completion with the LLM using the provided messages.
@@ -248,7 +250,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         self._precall(multipart_messages)
 
         assistant_response: PromptMessageMultipart = await self._apply_prompt_provider_specific(
-            multipart_messages, request_params
+            multipart_messages, request_params, tools
         )
 
         # add generic error and termination reason handling/rollback
@@ -261,6 +263,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         self,
         multipart_messages: List["PromptMessageMultipart"],
         request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
         is_template: bool = False,
     ) -> PromptMessageMultipart:
         """

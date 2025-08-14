@@ -34,7 +34,6 @@ from mcp.types import (
     TextContent,
     Tool,
 )
-from opentelemetry import trace
 from pydantic import BaseModel
 
 from mcp_agent.agents.llm_agent import LlmAgent
@@ -50,7 +49,7 @@ from mcp_agent.human_input.types import (
 )
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.content_helpers import normalize_to_multipart_list
-from mcp_agent.mcp.interfaces import AgentProtocol, AugmentedLLMProtocol, LLMFactoryProtocol
+from mcp_agent.mcp.interfaces import AugmentedLLMProtocol, LLMFactoryProtocol
 from mcp_agent.mcp.mcp_aggregator import MCPAggregator
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 

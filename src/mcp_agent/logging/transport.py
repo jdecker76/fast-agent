@@ -424,14 +424,13 @@ class AsyncEventBus:
                             )
 
             except asyncio.CancelledError:
-                # If we have a current event, mark it done before breaking
+                # Mark task done and re-raise to exit cleanly
                 if event is not None:
                     self._queue.task_done()
-                break
+                raise
             except Exception as e:
                 print(f"Error in event processing loop: {e}")
-            finally:
-                # Always mark the task as done if we got an event
+                # Mark task done for this event
                 if event is not None:
                     self._queue.task_done()
 

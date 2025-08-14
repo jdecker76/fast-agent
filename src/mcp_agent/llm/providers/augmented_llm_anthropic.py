@@ -51,13 +51,6 @@ DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-0"
 
 
 class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
-    """
-    The basic building block of agentic systems is an LLM enhanced with augmentations
-    such as retrieval, tools, and memory provided from a collection of MCP servers.
-    Our current models can actively use these capabilities—generating their own search queries,
-    selecting appropriate tools, and determining what information to retain.
-    """
-
     # Anthropic-specific parameter exclusions
     ANTHROPIC_EXCLUDE_FIELDS = {
         AugmentedLLM.PARAM_MESSAGES,
@@ -102,7 +95,9 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
             cache_mode = self.context.config.anthropic.cache_mode
         return cache_mode
 
-    async def _prepare_tools(self, structured_model: Type[ModelT] | None = None) -> List[ToolParam]:
+    async def _prepare_tools(
+        self, structured_model: Type[ModelT] | None = None, tools: List[Tool] | None = None
+    ) -> List[ToolParam]:
         """Prepare tools based on whether we're in structured output mode."""
         if structured_model:
             # JSON mode - create a single tool for structured output
@@ -115,14 +110,13 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
             ]
         else:
             # Regular mode - use tools from aggregator
-            tool_list: ListToolsResult = await self.aggregator.list_tools()
             return [
                 ToolParam(
                     name=tool.name,
                     description=tool.description or "",
                     input_schema=tool.inputSchema,
                 )
-                for tool in tool_list.tools
+                for tool in tools or []
             ]
 
     def _apply_system_cache(self, base_args: dict, cache_mode: str) -> None:
@@ -332,6 +326,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         message_param,
         request_params: RequestParams | None = None,
         structured_model: Type[ModelT] | None = None,
+        tools: List[Tool] | None = None,
     ) -> list[ContentBlock]:
         """
         Process a query using an LLM and available tools.
@@ -789,6 +784,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         self,
         message_param,
         request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
     ) -> PromptMessageMultipart:
         """
         Process a query using an LLM and available tools.
@@ -802,6 +798,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         res = await self._anthropic_completion(
             message_param=message_param,
             request_params=request_params,
+            tools=tools,
         )
         return Prompt.assistant(*res)
 
@@ -809,6 +806,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         self,
         multipart_messages: List["PromptMessageMultipart"],
         request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
         is_template: bool = False,
     ) -> PromptMessageMultipart:
         # Check the last message role
@@ -845,7 +843,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         if last_message.role == "user":
             self.logger.debug("Last message in prompt is from user, generating assistant response")
             message_param = AnthropicConverter.convert_to_anthropic(last_message)
-            return await self.generate_messages(message_param, request_params)
+            return await self.generate_messages(message_param, request_params, tools)
         else:
             # For assistant messages: Return the last message content as text
             self.logger.debug("Last message in prompt is from assistant, returning it directly")

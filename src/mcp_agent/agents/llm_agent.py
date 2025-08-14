@@ -16,7 +16,7 @@ from typing import (
     Union,
 )
 
-from mcp import ListToolsResult
+from mcp import ListToolsResult, Tool
 from mcp.types import (
     GetPromptResult,
     PromptMessage,
@@ -28,7 +28,6 @@ from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.llm.usage_tracking import UsageAccumulator
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.helpers.content_helpers import normalize_to_multipart_list
 from mcp_agent.mcp.interfaces import AugmentedLLMProtocol, LlmAgentProtocol, LLMFactoryProtocol
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
@@ -171,6 +170,7 @@ class LlmAgent(LlmAgentProtocol):
             List[Union[str, PromptMessage, PromptMessageMultipart]],
         ],
         request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
     ) -> PromptMessageMultipart:
         """
         Create a completion with the LLM using the provided messages.
@@ -189,11 +189,10 @@ class LlmAgent(LlmAgentProtocol):
         Returns:
             The LLM's response as a PromptMessageMultipart
         """
-        # Normalize all input types to a list of PromptMessageMultipart (Template Method pattern)
 
         assert self._llm
         with self._tracer.start_as_current_span(f"Agent: '{self._name}' generate"):
-            return await self._llm.generate(messages, request_params)
+            return await self._llm.generate(messages, request_params, tools)
 
     # async def _generate_impl(
     #     self,
