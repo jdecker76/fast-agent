@@ -213,6 +213,7 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
             PromptMessageMultipart,
             List[Union[str, PromptMessage, PromptMessageMultipart]],
         ],
+        request_params: RequestParams | None = None,
     ) -> str:
         """
         Send a message to the agent and get a response.
@@ -222,12 +223,13 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
                 - String: Converted to a user PromptMessageMultipart
                 - PromptMessage: Converted to PromptMessageMultipart
                 - PromptMessageMultipart: Used directly
+                - request_params: Optional request parameters
 
         Returns:
             The agent's response as a string
         """
         # generate() now handles normalization internally, so we can pass the message directly
-        response = await self.generate(message)
+        response = await self.generate(message, request_params)
         return response.last_text()
 
     async def request_human_input(self, request: HumanInputRequest) -> str:
@@ -340,11 +342,11 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
 
                 # Check if this server has tool filters
                 if server_name and server_name in self.config.tools:
-                        # Check if tool matches any pattern for this server
-                        for pattern in self.config.tools[server_name]:
-                            if self._matches_pattern(tool.name, pattern, server_name):
-                                filtered_tools.append(tool)
-                                break
+                    # Check if tool matches any pattern for this server
+                    for pattern in self.config.tools[server_name]:
+                        if self._matches_pattern(tool.name, pattern, server_name):
+                            filtered_tools.append(tool)
+                            break
             result.tools = filtered_tools
 
         if not self.human_input_callback:
@@ -836,11 +838,11 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
 
             human_input_tool: FastTool = FastTool.from_function(self.request_human_input)
             special_server_name = "__human_input__"
-            
+
             # If the special server doesn't exist in result, create it
             if special_server_name not in result:
                 result[special_server_name] = []
-            
+
             result[special_server_name].append(
                 Tool(
                     name=HUMAN_INPUT_TOOL_NAME,
