@@ -20,7 +20,7 @@ from mcp.client.stdio import (
 )
 from mcp.client.streamable_http import GetSessionIdCallback, streamablehttp_client
 
-from mcp_agent.config import (
+from fast_agent.config import (
     MCPServerAuthSettings,
     MCPServerSettings,
     Settings,

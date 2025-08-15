@@ -2,9 +2,9 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Dict, Optional, Type, TypeVar
 
-from mcp_agent.config import Settings
-from mcp_agent.context import Context, cleanup_context, initialize_context
-from mcp_agent.event_progress import ProgressAction
+from fast_agent.config import Settings
+from fast_agent.context import Context, cleanup_context, initialize_context
+from fast_agent.event_progress import ProgressAction
 from mcp_agent.executor.workflow_signal import SignalWaitCallback
 from mcp_agent.human_input.handler import console_input_callback
 from mcp_agent.human_input.types import HumanInputCallback
@@ -49,7 +49,7 @@ class MCPApp:
         Initialize the application with a name and optional settings.
         Args:
             name: Name of the application
-            settings: Application configuration - If unspecified, the settings are loaded from mcp_agent.config.yaml.
+            settings: Application configuration - If unspecified, the settings are loaded from fastagent.config.yaml.
                 If this is a string, it is treated as the path to the config file to load.
             human_input_callback: Callback for handling human input
             signal_notification: Callback for getting notified on workflow signals/events.

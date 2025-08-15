@@ -13,6 +13,8 @@ from typing import (
 from opentelemetry import trace
 from pydantic import AnyUrl, BaseModel, ConfigDict
 
+from fast_agent.context_dependent import ContextDependent
+from fast_agent.event_progress import ProgressAction
 from mcp import GetPromptResult, ReadResourceResult
 from mcp.client.session import ClientSession
 from mcp.shared.session import ProgressFnT
@@ -23,8 +25,6 @@ from mcp.types import (
     TextContent,
     Tool,
 )
-from mcp_agent.context_dependent import ContextDependent
-from mcp_agent.event_progress import ProgressAction
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.common import SEP, create_namespaced_name, is_namespaced_name
 from mcp_agent.mcp.gen_client import gen_client
@@ -32,7 +32,7 @@ from mcp_agent.mcp.mcp_agent_client_session import MCPAgentClientSession
 from mcp_agent.mcp.mcp_connection_manager import MCPConnectionManager
 
 if TYPE_CHECKING:
-    from mcp_agent.context import Context
+    from fast_agent.context import Context
 
 
 logger = get_logger(__name__)  # This will be replaced per-instance when agent_name is available
@@ -576,7 +576,7 @@ class MCPAggregator(ContextDependent):
                     return result
         except ConnectionError:
             # Server offline - attempt reconnection
-            from mcp_agent import console
+            from fast_agent import console
 
             console.console.print(
                 f"[dim yellow]MCP server {server_name} reconnecting...[/dim yellow]"

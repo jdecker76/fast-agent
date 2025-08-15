@@ -2,7 +2,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
-    from mcp_agent.context import Context
+    from fast_agent.context import Context
 
 
 class ContextDependent:
@@ -27,7 +27,7 @@ class ContextDependent:
 
         try:
             # Fall back to global context if available
-            from mcp_agent.context import get_current_context
+            from fast_agent.context import get_current_context
 
             return get_current_context()
         except Exception as e:

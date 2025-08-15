@@ -23,7 +23,7 @@ from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 if TYPE_CHECKING:
     from a2a.types import AgentCard
 
-    from mcp_agent.context import Context
+    from fast_agent.context import Context
 
 logger = get_logger(__name__)
 

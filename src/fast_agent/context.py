@@ -23,13 +23,13 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExport
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from pydantic import BaseModel, ConfigDict
 
-from mcp_agent.config import Settings, get_settings
+from fast_agent.config import Settings, get_settings
+from fast_agent.mcp_server_registry import ServerRegistry
 from mcp_agent.executor.executor import AsyncioExecutor, Executor
 from mcp_agent.executor.task_registry import ActivityRegistry
 from mcp_agent.logging.events import EventFilter, StreamingExclusionFilter
 from mcp_agent.logging.logger import LoggingConfig, get_logger
 from mcp_agent.logging.transport import create_transport
-from mcp_agent.mcp_server_registry import ServerRegistry
 
 if TYPE_CHECKING:
     from mcp_agent.executor.workflow_signal import SignalWaitCallback

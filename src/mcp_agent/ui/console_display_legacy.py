@@ -4,7 +4,7 @@ from mcp.types import CallToolResult
 from rich.panel import Panel
 from rich.text import Text
 
-from mcp_agent import console
+from fast_agent import console
 from mcp_agent.mcp.common import SEP
 from mcp_agent.mcp.mcp_aggregator import MCPAggregator
 

@@ -6,7 +6,7 @@ from rich.json import JSON
 from rich.panel import Panel
 from rich.text import Text
 
-from mcp_agent import console
+from fast_agent import console
 from mcp_agent.core.mermaid_utils import (
     create_mermaid_live_link,
     detect_diagram_type,

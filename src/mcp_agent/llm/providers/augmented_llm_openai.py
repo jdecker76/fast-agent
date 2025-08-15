@@ -20,9 +20,9 @@ from openai.types.chat import (
 from pydantic_core import from_json
 from rich.text import Text
 
+from fast_agent.event_progress import ProgressAction
 from mcp_agent.core.exceptions import ProviderKeyError
 from mcp_agent.core.prompt import Prompt
-from mcp_agent.event_progress import ProgressAction
 from mcp_agent.llm.augmented_llm import (
     AugmentedLLM,
     RequestParams,

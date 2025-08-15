@@ -15,22 +15,11 @@ from mcp.types import (
 )
 
 # Core agent components
-from mcp_agent.agents.agent import Agent, AgentConfig
-from mcp_agent.core.agent_app import AgentApp
-
-# Workflow decorators
-from mcp_agent.core.direct_decorators import (
-    agent,
-    chain,
-    evaluator_optimizer,
-    orchestrator,
-    parallel,
-    router,
-)
-
-# FastAgent components
-from mcp_agent.core.fastagent import FastAgent
-
+# Note: AgentApp removed from here to avoid circular imports
+# Workflow decorators - removed to avoid circular imports
+# Users should import these directly from mcp_agent.core.direct_decorators
+# FastAgent components - removed to avoid circular imports
+# Users should import FastAgent directly from mcp_agent.core.fastagent
 # MCP content creation utilities
 from mcp_agent.core.mcp_content import (
     Assistant,
@@ -57,10 +46,7 @@ from mcp_agent.mcp.helpers import (
     is_text_content,
 )
 
-# Core protocol interfaces
-from mcp_agent.mcp.interfaces import AgentProtocol, AugmentedLLMProtocol
-from mcp_agent.mcp.mcp_aggregator import MCPAggregator
-from mcp_agent.mcp.prompt_message_multipart import LlmStopReason, PromptMessageMultipart
+# Core protocol interfaces - removed to avoid circular imports
 
 __all__ = [
     # MCP types
@@ -74,25 +60,6 @@ __all__ = [
     "ReadResourceResult",
     "EmbeddedResource",
     "Role",
-    # Core protocols
-    "AgentProtocol",
-    "AugmentedLLMProtocol",
-    # Core agent components
-    "Agent",
-    "AgentConfig",
-    "MCPAggregator",
-    "PromptMessageMultipart",
-    "LlmStopReason",
-    # FastAgent components
-    "FastAgent",
-    "AgentApp",
-    # Workflow decorators
-    "agent",
-    "orchestrator",
-    "router",
-    "chain",
-    "parallel",
-    "evaluator_optimizer",
     # Request configuration
     "RequestParams",
     # MCP content helpers

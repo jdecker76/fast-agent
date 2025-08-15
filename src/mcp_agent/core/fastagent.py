@@ -15,9 +15,9 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, TypeVar
 import yaml
 from opentelemetry import trace
 
-from mcp_agent import config
-from mcp_agent.app import MCPApp
-from mcp_agent.context import Context
+from fast_agent import config
+from fast_agent.app import MCPApp
+from fast_agent.context import Context
 from mcp_agent.core.agent_app import AgentApp
 from mcp_agent.core.direct_decorators import (
     agent as agent_decorator,
@@ -207,7 +207,7 @@ class FastAgent:
 
             # Stop progress display immediately if quiet mode is requested
             if self._programmatic_quiet:
-                from mcp_agent.progress_display import progress_display
+                from fast_agent.progress_display import progress_display
 
                 progress_display.stop()
 
@@ -227,7 +227,7 @@ class FastAgent:
         but without relying on the global cache."""
 
         # Import but make a local copy to avoid affecting the global state
-        from mcp_agent.config import _settings, get_settings
+        from fast_agent.config import _settings, get_settings
 
         # Temporarily clear the global settings to ensure a fresh load
         old_settings = _settings
@@ -290,7 +290,7 @@ class FastAgent:
                         self.app.context.config.logger.show_tools = False
 
                         # Directly disable the progress display singleton
-                        from mcp_agent.progress_display import progress_display
+                        from fast_agent.progress_display import progress_display
 
                         progress_display.stop()
 
@@ -441,7 +441,7 @@ class FastAgent:
             finally:
                 # Ensure progress display is stopped before showing usage summary
                 try:
-                    from mcp_agent.progress_display import progress_display
+                    from fast_agent.progress_display import progress_display
 
                     progress_display.stop()
                 except:  # noqa: E722

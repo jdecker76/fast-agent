@@ -27,11 +27,11 @@ from openai.lib._parsing import type_to_response_format_param as _type_to_respon
 from pydantic_core import from_json
 from rich.text import Text
 
-from mcp_agent.context_dependent import ContextDependent
+from fast_agent.context_dependent import ContextDependent
+from fast_agent.event_progress import ProgressAction
 from mcp_agent.core.exceptions import PromptExitError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.core.request_params import RequestParams
-from mcp_agent.event_progress import ProgressAction
 from mcp_agent.llm.memory import Memory, SimpleMemory
 from mcp_agent.llm.model_database import ModelDatabase
 from mcp_agent.llm.provider_types import Provider
@@ -56,15 +56,15 @@ MessageT = TypeVar("MessageT")
 
 # Forward reference for type annotations
 if TYPE_CHECKING:
+    from fast_agent.context import Context
     from mcp_agent.agents.agent import Agent
-    from mcp_agent.context import Context
 
 
 # TODO -- move this to a constant
 HUMAN_INPUT_TOOL_NAME = "__human_input__"
 
 # Context variable for storing MCP metadata
-_mcp_metadata_var: ContextVar[Dict[str, Any] | None] = ContextVar('mcp_metadata', default=None)
+_mcp_metadata_var: ContextVar[Dict[str, Any] | None] = ContextVar("mcp_metadata", default=None)
 
 
 def deep_merge(dict1: Dict[Any, Any], dict2: Dict[Any, Any]) -> Dict[Any, Any]:
@@ -320,12 +320,12 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         multipart_messages = normalize_to_multipart_list(messages)
 
         self._precall(multipart_messages)
-        
+
         # Store MCP metadata in context variable
         final_request_params = self.get_request_params(request_params)
         if final_request_params.mcp_metadata:
             _mcp_metadata_var.set(final_request_params.mcp_metadata)
-            
+
         result, assistant_response = await self._apply_prompt_provider_specific_structured(
             multipart_messages, model, request_params
         )

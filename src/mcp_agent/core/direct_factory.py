@@ -5,6 +5,8 @@ Implements type-safe factories with improved error handling.
 
 from typing import Any, Dict, Optional, Protocol, TypeVar
 
+from fast_agent.app import MCPApp
+from fast_agent.event_progress import ProgressAction
 from mcp_agent.agents.agent import Agent, AgentConfig
 from mcp_agent.agents.workflow.evaluator_optimizer import (
     EvaluatorOptimizerAgent,
@@ -14,11 +16,9 @@ from mcp_agent.agents.workflow.iterative_planner import IterativePlanner
 from mcp_agent.agents.workflow.orchestrator_agent import OrchestratorAgent
 from mcp_agent.agents.workflow.parallel_agent import ParallelAgent
 from mcp_agent.agents.workflow.router_agent import RouterAgent
-from mcp_agent.app import MCPApp
 from mcp_agent.core.agent_types import AgentType
 from mcp_agent.core.exceptions import AgentConfigError
 from mcp_agent.core.validation import get_dependencies_groups
-from mcp_agent.event_progress import ProgressAction
 from mcp_agent.llm.augmented_llm import RequestParams
 from mcp_agent.llm.model_factory import ModelFactory
 from mcp_agent.logging.logger import get_logger

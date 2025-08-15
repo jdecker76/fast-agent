@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Type, Union
 from mcp.types import ContentBlock, TextContent
 from rich.text import Text
 
+from fast_agent.event_progress import ProgressAction
 from mcp_agent.core.exceptions import ProviderKeyError
 from mcp_agent.core.request_params import RequestParams
-from mcp_agent.event_progress import ProgressAction
 from mcp_agent.llm.augmented_llm import AugmentedLLM
 from mcp_agent.llm.provider_types import Provider
 from mcp_agent.llm.usage_tracking import TurnUsage

@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from mcp.types import TextContent
 
-from mcp_agent.config import AnthropicSettings, Settings
+from fast_agent.config import AnthropicSettings, Settings
 from mcp_agent.llm.providers.augmented_llm_anthropic import AnthropicAugmentedLLM
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
@@ -281,7 +281,7 @@ class TestAnthropicCaching(unittest.IsolatedAsyncioTestCase):
         # Mock generate_messages to capture the message_param
         captured_message_param = None
 
-        async def mock_generate_messages(message_param, request_params=None):
+        async def mock_generate_messages(message_param, request_params=None, tools=None):
             nonlocal captured_message_param
             captured_message_param = message_param
             return PromptMessageMultipart(
@@ -324,7 +324,7 @@ class TestAnthropicCaching(unittest.IsolatedAsyncioTestCase):
         ]
 
         # Mock generate_messages
-        async def mock_generate_messages(message_param, request_params=None):
+        async def mock_generate_messages(message_param, request_params=None, tools=None):
             return PromptMessageMultipart(
                 role="assistant", content=[TextContent(type="text", text="Response")]
             )

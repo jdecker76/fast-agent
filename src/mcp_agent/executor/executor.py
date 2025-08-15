@@ -19,7 +19,7 @@ from typing import (
 
 from pydantic import BaseModel, ConfigDict
 
-from mcp_agent.context_dependent import ContextDependent
+from fast_agent.context_dependent import ContextDependent
 from mcp_agent.executor.workflow_signal import (
     AsyncioSignalHandler,
     Signal,
@@ -29,7 +29,7 @@ from mcp_agent.executor.workflow_signal import (
 from mcp_agent.logging.logger import get_logger
 
 if TYPE_CHECKING:
-    from mcp_agent.context import Context
+    from fast_agent.context import Context
 
 logger = get_logger(__name__)
 

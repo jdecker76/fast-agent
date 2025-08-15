@@ -61,7 +61,7 @@ LLM = TypeVar("LLM", bound=AugmentedLLMProtocol)
 
 HUMAN_INPUT_TOOL_NAME = "__human_input__"
 if TYPE_CHECKING:
-    from mcp_agent.context import Context
+    from fast_agent.context import Context
     from mcp_agent.llm.usage_tracking import UsageAccumulator
 
 

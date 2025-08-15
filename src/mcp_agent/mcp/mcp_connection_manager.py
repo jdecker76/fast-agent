@@ -17,6 +17,9 @@ from anyio import Event, Lock, create_task_group
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from httpx import HTTPStatusError
 
+from fast_agent.config import MCPServerSettings
+from fast_agent.context_dependent import ContextDependent
+from fast_agent.event_progress import ProgressAction
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.client.stdio import (
@@ -26,17 +29,14 @@ from mcp.client.stdio import (
 )
 from mcp.client.streamable_http import GetSessionIdCallback, streamablehttp_client
 from mcp.types import JSONRPCMessage, ServerCapabilities
-from mcp_agent.config import MCPServerSettings
-from mcp_agent.context_dependent import ContextDependent
 from mcp_agent.core.exceptions import ServerInitializationError
-from mcp_agent.event_progress import ProgressAction
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.logger_textio import get_stderr_handler
 from mcp_agent.mcp.mcp_agent_client_session import MCPAgentClientSession
 
 if TYPE_CHECKING:
-    from mcp_agent.context import Context
-    from mcp_agent.mcp_server_registry import InitHookCallable, ServerRegistry
+    from fast_agent.mcp_server_registry import InitHookCallable, ServerRegistry
+    from fast_agent.context import Context
 
 logger = get_logger(__name__)
 
@@ -305,13 +305,15 @@ class MCPConnectionManager(ContextDependent):
         """Suppress MCP library's 'Error in sse_reader' messages."""
         if self._mcp_sse_filter_added:
             return
-            
+
         import logging
-        
+
         class MCPSSEErrorFilter(logging.Filter):
             def filter(self, record):
-                return not (record.name == "mcp.client.sse" and "Error in sse_reader" in record.getMessage())
-        
+                return not (
+                    record.name == "mcp.client.sse" and "Error in sse_reader" in record.getMessage()
+                )
+
         mcp_sse_logger = logging.getLogger("mcp.client.sse")
         mcp_sse_logger.addFilter(MCPSSEErrorFilter())
         self._mcp_sse_filter_added = True
@@ -359,7 +361,7 @@ class MCPConnectionManager(ContextDependent):
             elif config.transport == "sse":
                 # Suppress MCP library error spam
                 self._suppress_mcp_sse_errors()
-                
+
                 return _add_none_to_context(
                     sse_client(
                         config.url,

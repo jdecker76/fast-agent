@@ -14,7 +14,7 @@ from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.interfaces import AugmentedLLMProtocol
 
 if TYPE_CHECKING:
-    from mcp_agent.context import Context
+    from fast_agent.context import Context
 
 logger = get_logger(__name__)
 

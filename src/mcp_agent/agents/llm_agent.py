@@ -38,7 +38,7 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 LLM = TypeVar("LLM", bound=AugmentedLLMProtocol)
 
 if TYPE_CHECKING:
-    from mcp_agent.context import Context
+    from fast_agent.context import Context
 
 
 class LlmAgent(LlmAgentProtocol):
