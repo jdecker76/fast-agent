@@ -16,7 +16,7 @@ import yaml
 from opentelemetry import trace
 
 from fast_agent import config
-from fast_agent.app import MCPApp
+from fast_agent.core import Core
 from fast_agent.context import Context
 from mcp_agent.core.agent_app import AgentApp
 from mcp_agent.core.direct_decorators import (
@@ -200,7 +200,7 @@ class FastAgent:
                 self.config["logger"]["show_tools"] = False
 
             # Create the app with our local settings
-            self.app = MCPApp(
+            self.app = Core(
                 name=name,
                 settings=config.Settings(**self.config) if hasattr(self, "config") else None,
             )

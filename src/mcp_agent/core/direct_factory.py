@@ -5,7 +5,7 @@ Implements type-safe factories with improved error handling.
 
 from typing import Any, Dict, Optional, Protocol, TypeVar
 
-from fast_agent.app import MCPApp
+from fast_agent.core import Core
 from fast_agent.event_progress import ProgressAction
 from mcp_agent.agents.agent import Agent, AgentConfig
 from mcp_agent.agents.workflow.evaluator_optimizer import (
@@ -42,7 +42,7 @@ class AgentCreatorProtocol(Protocol):
 
     async def __call__(
         self,
-        app_instance: MCPApp,
+        app_instance: Core,
         agents_dict: AgentConfigDict,
         agent_type: AgentType,
         active_agents: Optional[AgentDict] = None,
@@ -94,7 +94,7 @@ def get_model_factory(
 
 
 async def create_agents_by_type(
-    app_instance: MCPApp,
+    app_instance: Core,
     agents_dict: AgentConfigDict,
     agent_type: AgentType,
     model_factory_func: Optional[ModelFactoryFunctionProtocol],
@@ -354,7 +354,7 @@ async def create_agents_by_type(
 
 
 async def create_agents_in_dependency_order(
-    app_instance: MCPApp,
+    app_instance: Core,
     agents_dict: AgentConfigDict,
     model_factory_func: ModelFactoryFunctionProtocol,
     allow_cycles: bool = False,
