@@ -1,5 +1,5 @@
 import json
-from typing import Any, List, Tuple, Type
+from typing import Any, List, Tuple, Type, cast
 
 from anthropic import AsyncAnthropic, AuthenticationError
 from anthropic.lib.streaming import AsyncMessageStream
@@ -8,6 +8,7 @@ from anthropic.types import (
     MessageParam,
     TextBlock,
     ToolParam,
+    ToolUseBlock,
     ToolUseBlockParam,
     Usage,
 )
@@ -352,11 +353,11 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         cache_mode = self._get_cache_mode()
         self.logger.debug(f"Anthropic cache_mode: {cache_mode}")
 
-        available_tools = await self._prepare_tools(structured_model)
+        available_tools = await self._prepare_tools(structured_model, tools)
 
         response_content_blocks: List[ContentBlock] = []
         stop_reason: LlmStopReason = LlmStopReason.END_TURN
-
+        tool_calls: dict[str, CallToolRequest] | None = None
         model = self.default_request_params.model
 
         # Note: We'll cache tools+system together by putting cache_control only on system prompt
@@ -511,7 +512,9 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
 
                 # response.stop_reason == "tool_use":
                 # First, collect all tool uses in this turn
-                tool_uses = [c for c in response.content if c.type == "tool_use"]
+                tool_uses: list[ToolUseBlock] = [
+                    c for c in response.content if c.type == "tool_use"
+                ]
 
                 if tool_uses:
                     if message_text == "":
@@ -519,7 +522,16 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                             "the assistant requested tool calls",
                             style="dim green italic",
                         )
-
+                    tool_calls = {}
+                    for tool_use in tool_uses:
+                        tool_call = CallToolRequest(
+                            method="tools/call",
+                            params=CallToolRequestParams(
+                                name=tool_use.name,
+                                arguments=cast("dict[str, Any] | None", tool_use.input),
+                            ),
+                        )
+                        tool_calls[tool_use.id] = tool_call
                     # Process all tool calls using the helper method
                     tool_results, tool_responses = await self._process_tool_calls(
                         tool_uses, available_tools, message_text, structured_model
@@ -535,10 +547,6 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                     ):
                         # adjust the stop reason. we identify structured output usage as an Assistant method with this tool call and stop reason
                         stop_reason = LlmStopReason.END_TURN
-                        # tool_call_request = CallToolRequest(
-                        #     method="tools/call",
-                        #     params=CallToolRequestParams(name=tool_name, arguments=tool_args),
-                        # )
 
                         self.logger.debug("Structured output received, breaking iteration loop")
                         break
@@ -553,7 +561,9 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
 
         self._log_chat_finished(model=model)
 
-        return Prompt.assistant(*response_content_blocks, stop_reason=stop_reason)
+        return Prompt.assistant(
+            *response_content_blocks, stop_reason=stop_reason, tool_calls=tool_calls
+        )
 
         return response_content_blocks
 

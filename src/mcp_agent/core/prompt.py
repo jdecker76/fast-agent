@@ -3,8 +3,9 @@ Prompt class for easily creating and working with MCP prompt content.
 """
 
 from pathlib import Path
-from typing import List, Literal, Union
+from typing import Dict, List, Literal, Union
 
+from mcp import CallToolRequest
 from mcp.types import ContentBlock, PromptMessage
 
 from mcp_agent.mcp.prompt_message_multipart import LlmStopReason, PromptMessageMultipart
@@ -77,6 +78,7 @@ class Prompt:
             str, Path, bytes, dict, ContentBlock, PromptMessage, PromptMessageMultipart
         ],
         stop_reason: LlmStopReason | None = None,
+        tool_calls: Dict[str, CallToolRequest] | None = None,
     ) -> PromptMessageMultipart:
         """
         Create an assistant PromptMessageMultipart with various content items.
@@ -101,18 +103,27 @@ class Prompt:
             item = content_items[0]
             if isinstance(item, PromptMessage):
                 return PromptMessageMultipart(
-                    role="assistant", content=[item.content], stop_reason=stop_reason
+                    role="assistant",
+                    content=[item.content],
+                    stop_reason=stop_reason,
+                    tool_calls=tool_calls,
                 )
             elif isinstance(item, PromptMessageMultipart):
                 # Keep the content but change role to assistant
                 return PromptMessageMultipart(
-                    role="assistant", content=item.content, stop_reason=stop_reason
+                    role="assistant",
+                    content=item.content,
+                    stop_reason=stop_reason,
+                    tool_calls=tool_calls,
                 )
 
         # Use the original implementation for other types
         messages = Assistant(*content_items)
         return PromptMessageMultipart(
-            role="assistant", content=[msg["content"] for msg in messages], stop_reason=stop_reason
+            role="assistant",
+            content=[msg["content"] for msg in messages],
+            stop_reason=stop_reason,
+            tool_calls=tool_calls,
         )
 
     @classmethod

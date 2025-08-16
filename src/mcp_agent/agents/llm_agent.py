@@ -26,6 +26,7 @@ from pydantic import BaseModel
 
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.request_params import RequestParams
+from mcp_agent.llm.provider_types import Provider
 from mcp_agent.llm.usage_tracking import UsageAccumulator
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.interfaces import AugmentedLLMProtocol, LlmAgentProtocol, LLMFactoryProtocol
@@ -271,6 +272,10 @@ class LlmAgent(LlmAgentProtocol):
     def llm(self) -> AugmentedLLMProtocol:
         assert self._llm, "LLM is not attached"
         return self._llm
+
+    @property
+    def provider(self) -> Provider:
+        return self.llm.provider
 
     async def list_tools(self) -> ListToolsResult | None:
         return ListToolsResult(tools=[])

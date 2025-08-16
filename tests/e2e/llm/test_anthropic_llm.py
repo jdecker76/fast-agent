@@ -3,6 +3,7 @@ import unittest
 from typing import TYPE_CHECKING, Annotated
 
 import pytest
+from mcp import Tool
 from pydantic import BaseModel, Field
 
 from fast_agent.core import Core
@@ -22,6 +23,9 @@ class FormattedResponse(BaseModel):
         str, Field(description="Your reflection on the conversation that is not seen by the user.")
     ]
     message: str
+
+
+# class MyTool(Tool):
 
 
 class TestAnthropicLLM(unittest.IsolatedAsyncioTestCase):
@@ -63,17 +67,18 @@ class TestAnthropicLLM(unittest.IsolatedAsyncioTestCase):
         if Provider.ANTHROPIC == self.agent.llm.provider:
             assert result.tool_calls
             assert 1 == len(result.tool_calls)
-            pass  # make sure we have a tool use block
-            # assert structured_output == {"type": "text", "text": "Let's discuss the weather."}
 
-    async def test_tool_user_stop(self) -> None:
-        pass
-
-
-# Keep the original test function for backward compatibility if needed
-@pytest.mark.asyncio
-async def test_anthropic_llm():
-    """Original test function - now just runs the test class."""
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestAnthropicLLM)
-    runner = unittest.TextTestRunner()
-    runner.run(suite)
+    async def test_tool_use_stop(self) -> None:
+        input_schema = {
+            "type": "object",
+            "properties": {
+                "city": {"type": "string", "description": "The city to check the weather for"}
+            },
+        }
+        tool = Tool(
+            name="weather",
+            description="call this to check the weather in a city",
+            inputSchema=input_schema,
+        )
+        result = await self.agent.generate("check the weather in london", tools=[tool])
+        assert result.stop_reason is LlmStopReason.TOOL_USE
