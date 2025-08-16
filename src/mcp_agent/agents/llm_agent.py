@@ -267,6 +267,11 @@ class LlmAgent(LlmAgentProtocol):
             return self._llm.usage_accumulator
         return None
 
+    @property
+    def llm(self) -> AugmentedLLMProtocol:
+        assert self._llm, "LLM is not attached"
+        return self._llm
+
     async def list_tools(self) -> ListToolsResult | None:
         return ListToolsResult(tools=[])
 

@@ -113,8 +113,6 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
     selecting appropriate tools, and determining what information to retain.
     """
 
-    provider: Provider | None = None
-
     def __init__(
         self,
         provider: Provider,
@@ -155,7 +153,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         self.aggregator = agent if agent is not None else MCPAggregator(server_names or [])
         self.name = agent._name if agent else name
         self.instruction = agent.instruction if agent else instruction
-        self.provider = provider
+        self._provider = provider
         # memory contains provider specific API types.
         self.history: Memory[MessageParamT] = SimpleMemory[MessageParamT]()
 
@@ -788,3 +786,13 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             and context window utilization.
         """
         return self._usage_accumulator.get_summary()
+
+    @property
+    def provider(self) -> Provider:
+        """
+        Return the LLM provider type.
+
+        Returns:
+            The Provider enum value representing the LLM provider
+        """
+        return self._provider

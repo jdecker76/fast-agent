@@ -28,6 +28,7 @@ from mcp import ClientSession, Tool
 from mcp.types import GetPromptResult, Prompt, PromptMessage, ReadResourceResult
 from mcp_agent.core.agent_types import AgentType
 from mcp_agent.core.request_params import RequestParams
+from mcp_agent.llm.provider_types import Provider
 from mcp_agent.llm.usage_tracking import UsageAccumulator
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
@@ -189,18 +190,6 @@ class AugmentedLLMProtocol(Protocol):
         """
         ...
 
-    # async def completion(
-    #     self,
-    #     messages: Union[
-    #         str,
-    #         PromptMessage,
-    #         PromptMessageMultipart,
-    #         List[Union[str, PromptMessage, PromptMessageMultipart]],
-    #     ],
-    #     request_params: RequestParams | None = None,
-    #     tools: List[Tool] | None = None,
-    # ) -> PromptMessageMultipart: ...
-
     # TODO -- prompt_name and display should probably be at agent level.
     async def apply_prompt_template(
         self, prompt_result: "GetPromptResult", prompt_name: str
@@ -234,6 +223,16 @@ class AugmentedLLMProtocol(Protocol):
         """
         ...
 
+    @property
+    def provider(self) -> Provider:
+        """
+        Return the LLM provider type.
+
+        Returns:
+            The Provider enum value representing the LLM provider
+        """
+        ...
+
 
 class LlmAgentProtocol(AugmentedLLMProtocol, Protocol):
     """Protocol defining the interface for LLM agents that can be used with MCP"""
@@ -244,6 +243,11 @@ class LlmAgentProtocol(AugmentedLLMProtocol, Protocol):
 
     async def send(self, message: Union[str, PromptMessage, PromptMessageMultipart]) -> str:
         """Convenience method for directly returning strings"""
+        ...
+
+    @property
+    def llm(self) -> AugmentedLLMProtocol:
+        """Return the LLM instance used by this agent, or a runtime error if not attached"""
         ...
 
     @property

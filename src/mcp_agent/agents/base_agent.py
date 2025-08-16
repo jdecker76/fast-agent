@@ -113,8 +113,8 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         # Store the default request params from config
         self._default_request_params = self.config.default_request_params
 
-        # Initialize the LLM to None (will be set by attach_llm)
-        self._llm: Optional[AugmentedLLMProtocol] = None
+        # set with the "attach" method
+        self._llm: AugmentedLLMProtocol | None = None
 
         # Map function names to tools
         self._function_tool_map: Dict[str, Any] = {}

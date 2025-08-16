@@ -5,12 +5,12 @@ Prompt class for easily creating and working with MCP prompt content.
 from pathlib import Path
 from typing import List, Literal, Union
 
-from mcp.types import PromptMessage
+from mcp.types import ContentBlock, PromptMessage
 
 from mcp_agent.mcp.prompt_message_multipart import LlmStopReason, PromptMessageMultipart
 
 # Import our content helper functions
-from .mcp_content import Assistant, MCPContentType, MCPPrompt, User
+from .mcp_content import Assistant, MCPPrompt, User
 
 
 class Prompt:
@@ -36,7 +36,7 @@ class Prompt:
     def user(
         cls,
         *content_items: Union[
-            str, Path, bytes, dict, MCPContentType, PromptMessage, PromptMessageMultipart
+            str, Path, bytes, dict, ContentBlock, PromptMessage, PromptMessageMultipart
         ],
     ) -> PromptMessageMultipart:
         """
@@ -74,7 +74,7 @@ class Prompt:
     def assistant(
         cls,
         *content_items: Union[
-            str, Path, bytes, dict, MCPContentType, PromptMessage, PromptMessageMultipart
+            str, Path, bytes, dict, ContentBlock, PromptMessage, PromptMessageMultipart
         ],
         stop_reason: LlmStopReason | None = None,
     ) -> PromptMessageMultipart:
@@ -119,7 +119,7 @@ class Prompt:
     def message(
         cls,
         *content_items: Union[
-            str, Path, bytes, dict, MCPContentType, PromptMessage, PromptMessageMultipart
+            str, Path, bytes, dict, ContentBlock, PromptMessage, PromptMessageMultipart
         ],
         role: Literal["user", "assistant"] = "user",
     ) -> PromptMessageMultipart:

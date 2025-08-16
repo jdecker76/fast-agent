@@ -1,6 +1,7 @@
 from json import JSONDecodeError
 from typing import Optional, Union
 
+from mcp import ListToolsResult
 from mcp.types import CallToolResult
 from rich.json import JSON
 from rich.panel import Panel
@@ -351,7 +352,9 @@ class ConsoleDisplay:
 
         if aggregator:
             # Add human input tool if available
-            tools = await aggregator.list_tools()
+            #            tools = await aggregator.list_tools()
+            #            tools = []
+            tools = ListToolsResult(tools=[])
             if any(tool.name == HUMAN_INPUT_TOOL_NAME for tool in tools.tools):
                 style = (
                     "green" if highlight_namespaced_tool == HUMAN_INPUT_TOOL_NAME else "dim white"
