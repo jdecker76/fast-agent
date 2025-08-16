@@ -7,9 +7,7 @@ from anthropic.types import (
     Message,
     MessageParam,
     TextBlock,
-    TextBlockParam,
     ToolParam,
-    ToolUseBlockParam,
     Usage,
 )
 from mcp import Tool
@@ -24,6 +22,7 @@ from mcp.types import (
 from rich.text import Text
 
 from fast_agent.event_progress import ProgressAction
+from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.exceptions import ProviderKeyError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.llm.augmented_llm import (
@@ -36,6 +35,7 @@ from mcp_agent.llm.providers.multipart_converter_anthropic import (
 )
 from mcp_agent.llm.providers.sampling_converter_anthropic import (
     AnthropicSamplingConverter,
+    anthropic_stop_reason_to_mcp_stop_reason,
 )
 from mcp_agent.llm.usage_tracking import TurnUsage
 from mcp_agent.logging.logger import get_logger
@@ -462,7 +462,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
             if response.content and response.content[0].type == "text":
                 responses.append(TextContent(type="text", text=response.content[0].text))
 
-            if response.stop_reason == "end_turn":
+            if response.stop_reason == " ":
                 message_text = ""
                 for block in response_as_message["content"]:
                     if isinstance(block, dict) and block.get("type") == "text":
@@ -795,7 +795,9 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
             request_params=request_params,
             tools=tools,
         )
-        return Prompt.assistant(*res)
+        #        normalized_stop_reason = anthropic_stop_reason_to_mcp_stop_reason(res[-1].stop_reason)
+
+        return Prompt.assistant(*res, stop_reason=LlmStopReason.END_TURN)
 
     async def _apply_prompt_provider_specific(
         self,
@@ -927,7 +929,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
 
         for content_block in message.content:
             if content_block.type == "text":
-                content.append(TextBlockParam(type="text", text=content_block.text))
+                content.append(TextBlock(type="text", text=content_block.text))
             elif content_block.type == "tool_use":
                 content.append(
                     ToolUseBlockParam(

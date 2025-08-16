@@ -424,14 +424,14 @@ class AsyncEventBus:
                             )
 
             except asyncio.CancelledError:
-                # Mark task done and re-raise to exit cleanly
-                if event is not None:
+                # TODO -- added _queue assertion; is that necessary?
+                if event is not None and self._queue is not None:
                     self._queue.task_done()
                 raise
             except Exception as e:
                 print(f"Error in event processing loop: {e}")
                 # Mark task done for this event
-                if event is not None:
+                if event is not None and self._queue is not None:
                     self._queue.task_done()
 
         # Process remaining events in queue

@@ -194,29 +194,6 @@ class LlmAgent(LlmAgentProtocol):
         with self._tracer.start_as_current_span(f"Agent: '{self._name}' generate"):
             return await self._llm.generate(messages, request_params, tools)
 
-    # async def _generate_impl(
-    #     self,
-    #     normalized_messages: List[PromptMessageMultipart],
-    #     request_params: RequestParams | None = None,
-    # ) -> PromptMessageMultipart:
-    #     """
-    #     Default implementation for regular agents - delegates to attached LLM.
-
-    #     Workflow agents should override this method to implement custom logic.
-
-    #     Args:
-    #         normalized_messages: Already normalized list of PromptMessageMultipart
-    #         request_params: Optional parameters to configure the request
-
-    #     Returns:
-    #         The LLM's response as a PromptMessageMultipart
-    #     """
-    #     assert self._llm, (
-    #         "No LLM attached to agent. Workflow agents should override _generate_impl()."
-    #     )
-
-    #     return await self._llm.generate(normalized_messages, request_params)
-
     async def apply_prompt_template(self, prompt_result: GetPromptResult, prompt_name: str) -> str:
         """
         Apply a prompt template as persistent context that will be included in all future conversations.

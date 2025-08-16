@@ -1,8 +1,8 @@
-from typing import Dict, List, Literal, Optional, Union
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
-from mcp import StopReason
+from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp.types import (
     CallToolRequest,
     CallToolResult,
@@ -13,9 +13,6 @@ from mcp.types import (
     TextContent,
 )
 from mcp_agent.mcp.helpers.content_helpers import get_text
-
-# Extended StopReason that includes 'toolUse' in addition to the standard MCP StopReason
-LlmStopReason = Union[StopReason, Literal["toolUse"]]
 
 
 class PromptMessageMultipart(BaseModel):
@@ -29,7 +26,7 @@ class PromptMessageMultipart(BaseModel):
     tool_calls: Dict[str, CallToolRequest] | None = None
     tool_results: Dict[str, CallToolResult] | None = None
     channels: Dict[str, ContentBlock] | None = None
-    stopReason: LlmStopReason | None = None
+    stop_reason: LlmStopReason | None = None
 
     @classmethod
     def to_multipart(cls, messages: List[PromptMessage]) -> List["PromptMessageMultipart"]:

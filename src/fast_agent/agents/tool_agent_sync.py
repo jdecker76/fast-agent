@@ -3,7 +3,7 @@ from mcp_agent.mcp.interfaces import LlmAgentProtocol
 
 class ToolAgentSynchronous(LlmAgentProtocol):
     """
-    A base Agent class that implements the AgentProtocol interface.
+    A Tool Calling agent.  Loops LLM responses, and delegates to a call_tool method.
 
     This class provides default implementations of the standard agent methods
     and delegates LLM operations to an attached AugmentedLLMProtocol instance.

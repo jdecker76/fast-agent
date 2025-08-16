@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from fast_agent.context import Context
@@ -11,7 +11,7 @@ class ContextDependent:
     Provides both global fallback and instance-specific context support.
     """
 
-    def __init__(self, context: Optional["Context"] = None, **kwargs: dict[str, Any]) -> None:
+    def __init__(self, context: "Context | None" = None, **kwargs: dict[str, Any]) -> None:
         self._context = context
         super().__init__(**kwargs)
 

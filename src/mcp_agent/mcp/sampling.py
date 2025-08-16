@@ -4,6 +4,7 @@ This simplified implementation directly converts between MCP types and PromptMes
 
 from typing import TYPE_CHECKING
 
+from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp import ClientSession
 from mcp.types import CreateMessageRequestParams, CreateMessageResult, TextContent
 from mcp_agent.core.agent_types import AgentConfig
@@ -149,7 +150,7 @@ async def sample(mcp_ctx: ClientSession, params: CreateMessageRequestParams) -> 
             role=llm_response.role,
             content=TextContent(type="text", text=llm_response.first_text()),
             model=model,
-            stopReason="endTurn",
+            stopReason=LlmStopReason.END_TURN.value,
         )
     except Exception as e:
         logger.error(f"Error in sampling: {str(e)}")

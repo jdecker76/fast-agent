@@ -16,8 +16,8 @@ import yaml
 from opentelemetry import trace
 
 from fast_agent import config
-from fast_agent.core import Core
 from fast_agent.context import Context
+from fast_agent.core import Core
 from mcp_agent.core.agent_app import AgentApp
 from mcp_agent.core.direct_decorators import (
     agent as agent_decorator,

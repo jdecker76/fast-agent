@@ -35,8 +35,8 @@ from mcp_agent.mcp.logger_textio import get_stderr_handler
 from mcp_agent.mcp.mcp_agent_client_session import MCPAgentClientSession
 
 if TYPE_CHECKING:
-    from fast_agent.mcp_server_registry import InitHookCallable, ServerRegistry
     from fast_agent.context import Context
+    from fast_agent.mcp_server_registry import InitHookCallable, ServerRegistry
 
 logger = get_logger(__name__)
 

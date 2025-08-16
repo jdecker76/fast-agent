@@ -42,7 +42,8 @@ def mcp_stop_reason_to_anthropic_stop_reason(stop_reason: StopReason):
         return stop_reason
 
 
-def anthropic_stop_reason_to_mcp_stop_reason(stop_reason: str) -> StopReason:
+@classmethod
+def anthropic_stop_reason_to_mcp_stop_reason(cls, stop_reason: str) -> StopReason:
     if not stop_reason:
         return "end_turn"
     elif stop_reason == "end_turn":

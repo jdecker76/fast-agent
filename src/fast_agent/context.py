@@ -7,7 +7,6 @@ import concurrent.futures
 import uuid
 from typing import TYPE_CHECKING, Any, Optional, Union
 
-from mcp import ServerSession
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
