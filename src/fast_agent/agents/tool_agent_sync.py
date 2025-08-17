@@ -1,6 +1,6 @@
 from typing import List, Union
 
-from mcp.types import CallToolResult, PromptMessage, TextContent, Tool
+from mcp.types import CallToolResult, PromptMessage, Tool
 
 from fast_agent.agents.llm_agent import LlmAgent
 from fast_agent.context import Context
@@ -8,6 +8,7 @@ from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.logging import logger
+from mcp_agent.mcp.helpers.content_helpers import text_content
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 
@@ -70,14 +71,14 @@ class ToolAgentSynchronous(LlmAgent):
         for correlation_id, tool in (request.tool_calls or {}).items():
             if isinstance(tool, SimpleTool):
                 await self.execute_tool(tool)
-
             else:
+                self._logger.warning("Unsupported tool type", data={"tool": tool})
                 tool_results[correlation_id] = CallToolResult(
-                    content=[TextContent(type="text", text="Tool call failed")], isError=True
+                    content=[text_content("Tool call failed")], isError=True
                 )
 
         return PromptMessageMultipart(role="user", tool_results=tool_results)
 
     async def execute_tool(self, tool: SimpleTool) -> None:
         result = await tool.execute()
-        self._logger.info("Tool executed", data={"tool": tool, "result": result})
+        self._logger.debug(f"Tool {tool.name} executed", data={"tool": tool, "result": result})
