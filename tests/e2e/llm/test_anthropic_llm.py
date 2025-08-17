@@ -105,3 +105,22 @@ class TestAnthropicLLM(unittest.IsolatedAsyncioTestCase):
         result = await self.agent.generate(result_message)
         assert LlmStopReason.END_TURN is result.stop_reason
         assert "sunny" in result.last_text().lower()
+
+    async def test_tool_calling_agent(self) -> None:
+        """Generates a tool call, and returns a response. Ensures correlation works (converter handles results)"""
+        result = await self.agent.generate(
+            "check the weather in new york",
+            tools=[self._tool],
+            request_params=RequestParams(maxTokens=100),
+        )
+        assert LlmStopReason.TOOL_USE is result.stop_reason
+        assert result.tool_calls
+        assert 1 == len(result.tool_calls)
+        tool_id = next(iter(result.tool_calls.keys()))
+
+        result = CallToolResult(content=[TextContent(type="text", text="it's sunny in new york")])
+        tool_results = {tool_id: result}
+        result_message = PromptMessageMultipart(role="user", tool_results=tool_results)
+        result = await self.agent.generate(result_message)
+        assert LlmStopReason.END_TURN is result.stop_reason
+        assert "sunny" in result.last_text().lower()

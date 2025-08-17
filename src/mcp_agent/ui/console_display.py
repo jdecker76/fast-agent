@@ -349,7 +349,7 @@ class ConsoleDisplay:
 
         # Build server list for bottom separator (using same logic as legacy)
         display_server_list = Text()
-
+        # TODO - reinstate server list functionality
         if aggregator:
             # Add human input tool if available
             #            tools = await aggregator.list_tools()
@@ -368,7 +368,8 @@ class ConsoleDisplay:
                 else highlight_namespaced_tool
             )
 
-            for server_name in await aggregator.list_servers():
+            # for server_name in await aggregator.list_servers():
+            for server_name in []:
                 style = "green" if server_name == mcp_server_name else "dim white"
                 display_server_list.append(f"[{server_name}] ", style)
 

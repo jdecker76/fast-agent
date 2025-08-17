@@ -15,7 +15,7 @@ from typing import (
     Union,
 )
 
-from mcp import ListToolsResult, Tool
+from mcp import Tool
 from mcp.types import (
     GetPromptResult,
     PromptMessage,
@@ -294,10 +294,3 @@ class LlmAgent(LlmAgentProtocol):
             result.model = model_override
 
         return result
-
-    ## TODO DELETE
-    async def list_tools(self) -> ListToolsResult | None:
-        return ListToolsResult(tools=[])
-
-    async def list_servers(self) -> List[str]:
-        return ["foo"]
