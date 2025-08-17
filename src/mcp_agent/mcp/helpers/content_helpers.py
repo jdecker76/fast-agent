@@ -285,3 +285,7 @@ def normalize_to_multipart_list(
             result.append(Prompt.user(str(message)))
 
     return result
+
+
+def text_content(content: str) -> TextContent:
+    return TextContent(type="text", text=content)

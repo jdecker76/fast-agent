@@ -18,7 +18,7 @@ class SimpleTool(Tool):
 
 class ToolAgentSynchronous(LlmAgent):
     """
-    A Tool Calling agent.  Loops LLM responses, and delegates to a call_tool method.
+    A Tool Calling agent. Loops LLM responses, and delegates to a call_tool method.
 
     This class provides default implementations of the standard agent methods
     and delegates LLM operations to an attached AugmentedLLMProtocol instance.
@@ -68,8 +68,16 @@ class ToolAgentSynchronous(LlmAgent):
 
         tool_results: dict[str, CallToolResult] = {}
         for correlation_id, tool in (request.tool_calls or {}).items():
-            tool_results[correlation_id] = CallToolResult(
-                content=[TextContent(type="text", text="Tool call failed")], isError=True
-            )
+            if isinstance(tool, SimpleTool):
+                await self.execute_tool(tool)
+
+            else:
+                tool_results[correlation_id] = CallToolResult(
+                    content=[TextContent(type="text", text="Tool call failed")], isError=True
+                )
 
         return PromptMessageMultipart(role="user", tool_results=tool_results)
+
+    async def execute_tool(self, tool: SimpleTool) -> None:
+        result = await tool.execute()
+        self._logger.info("Tool executed", data={"tool": tool, "result": result})
