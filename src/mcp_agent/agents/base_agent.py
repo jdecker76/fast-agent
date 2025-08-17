@@ -36,7 +36,7 @@ from mcp.types import (
 )
 from pydantic import BaseModel
 
-from mcp_agent.agents.llm_agent import LlmAgent
+from fast_agent.agents.llm_agent import LlmAgent
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.exceptions import PromptExitError
 from mcp_agent.core.prompt import Prompt

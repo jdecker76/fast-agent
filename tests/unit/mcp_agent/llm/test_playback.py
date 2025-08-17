@@ -1,7 +1,7 @@
 import pytest
 from pydantic import BaseModel
 
-from mcp_agent.agents.llm_agent import LlmAgent
+from fast_agent.agents.llm_agent import LlmAgent
 from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.core.exceptions import ModelConfigError
 from mcp_agent.core.prompt import Prompt

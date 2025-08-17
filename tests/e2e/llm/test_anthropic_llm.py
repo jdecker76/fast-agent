@@ -5,9 +5,9 @@ from typing import Annotated
 from mcp.types import CallToolRequest, CallToolResult, TextContent, Tool
 from pydantic import BaseModel, Field
 
+from fast_agent.agents.llm_agent import LlmAgent
 from fast_agent.core import Core
 from fast_agent.types.llm_stop_reason import LlmStopReason
-from mcp_agent.agents.llm_agent import LlmAgent
 from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.llm.model_factory import ModelFactory
