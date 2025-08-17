@@ -1,13 +1,14 @@
 import asyncio
 import os
 
-from mcp import Tool
+from mcp.types import CallToolResult
 
 from fast_agent.agents.llm_agent import LlmAgent
-from fast_agent.agents.tool_agent_sync import ToolAgentSynchronous
+from fast_agent.agents.tool_agent_sync import SimpleTool, ToolAgentSynchronous
 from fast_agent.core import Core
 from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.llm.model_factory import ModelFactory
+from mcp_agent.mcp.helpers.content_helpers import text_content
 
 
 async def main():
@@ -26,7 +27,11 @@ async def main():
         },
     }
 
-    tool = Tool(
+    class WeatherTool(SimpleTool):
+        async def execute(self, city: str) -> CallToolResult:
+            return CallToolResult(content=[text_content(f"The weather in {city} is sunny.")])
+
+    tool = WeatherTool(
         name="weather",
         description="call this to check the weather in a city",
         inputSchema=input_schema,

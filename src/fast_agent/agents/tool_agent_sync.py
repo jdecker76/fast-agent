@@ -1,3 +1,4 @@
+from abc import ABC
 from typing import List, Union
 
 from mcp.types import CallToolResult, PromptMessage, Tool
@@ -12,9 +13,8 @@ from mcp_agent.mcp.helpers.content_helpers import text_content
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 
-class SimpleTool(Tool):
-    async def execute(self, *args, **kwargs):
-        pass
+class SimpleTool(ABC, Tool):
+    async def execute(self, **kwargs) -> CallToolResult: ...
 
 
 class ToolAgentSynchronous(LlmAgent):
@@ -62,23 +62,31 @@ class ToolAgentSynchronous(LlmAgent):
 
         return result
 
+    async def _name_map(self, tools: List[Tool]) -> dict[str, Tool]:
+        """
+        Create a mapping of tool names to tool instances.
+        """
+        return {tool.name: tool for tool in tools}
+
     async def run_tools(self, request: PromptMessageMultipart) -> PromptMessageMultipart:
         """Runs the tools in the request, and returns a new User message with the results"""
         if not request.tool_calls:
             self._logger.warning("No tool calls found in request", data=request)
 
         tool_results: dict[str, CallToolResult] = {}
-        for correlation_id, tool in (request.tool_calls or {}).items():
+        tool_map = await self._name_map(self._tools)
+        for correlation_id, tool_request in (request.tool_calls or {}).items():
+            tool = tool_map.get(tool_request.params.name)
             if isinstance(tool, SimpleTool):
-                await self.execute_tool(tool)
+                tool_results[correlation_id] = await tool.execute(*tool_request.params.arguments)
+                self._logger.debug(
+                    f"Tool {tool.name} executed",
+                    data={"tool": tool, "result": tool_results[correlation_id]},
+                )
             else:
-                self._logger.warning("Unsupported tool type", data={"tool": tool})
+                self._logger.warning("Unsupported tool type", data={"tool": tool_request})
                 tool_results[correlation_id] = CallToolResult(
                     content=[text_content("Tool call failed")], isError=True
                 )
 
         return PromptMessageMultipart(role="user", tool_results=tool_results)
-
-    async def execute_tool(self, tool: SimpleTool) -> None:
-        result = await tool.execute()
-        self._logger.debug(f"Tool {tool.name} executed", data={"tool": tool, "result": result})
