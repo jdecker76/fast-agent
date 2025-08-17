@@ -6,7 +6,6 @@ and delegates operations to an attached AugmentedLLMProtocol instance.
 """
 
 from typing import (
-    TYPE_CHECKING,
     List,
     Optional,
     Tuple,
@@ -23,6 +22,7 @@ from mcp.types import (
 from opentelemetry import trace
 from pydantic import BaseModel
 
+from fast_agent.context import Context
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.llm.provider_types import Provider
@@ -37,9 +37,6 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 # Define a TypeVar for AugmentedLLM and its subclasses
 LLM = TypeVar("LLM", bound=AugmentedLLMProtocol)
 
-if TYPE_CHECKING:
-    from fast_agent.context import Context
-
 
 class LlmAgent(LlmAgentProtocol):
     """
@@ -50,7 +47,7 @@ class LlmAgent(LlmAgentProtocol):
     def __init__(
         self,
         config: AgentConfig,
-        context: Optional["Context"] = None,
+        context: Context | None = None,
     ) -> None:
         self.config = config
 
@@ -89,8 +86,8 @@ class LlmAgent(LlmAgentProtocol):
     async def attach_llm(
         self,
         llm_factory: LLMFactoryProtocol,
-        model: Optional[str] = None,
-        request_params: Optional[RequestParams] = None,
+        model: str | None = None,
+        request_params: RequestParams | None = None,
         **additional_kwargs,
     ) -> AugmentedLLMProtocol:
         """
