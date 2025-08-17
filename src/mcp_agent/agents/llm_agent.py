@@ -52,7 +52,6 @@ class LlmAgent(LlmAgentProtocol):
         self,
         config: AgentConfig,
         context: Optional["Context"] = None,
-        **kwargs: Any,
     ) -> None:
         self.config = config
 
@@ -112,24 +111,10 @@ class LlmAgent(LlmAgentProtocol):
         Returns:
             The created LLM instance
         """
-        # Start with agent's default params
-        effective_params = (
-            self._default_request_params.model_copy() if self._default_request_params else None
+        # Merge parameters with proper precedence
+        effective_params = self._merge_request_params(
+            self._default_request_params, request_params, model
         )
-
-        # Override with explicitly passed request_params
-        if request_params:
-            if effective_params:
-                # Update non-None values
-                for k, v in request_params.model_dump(exclude_unset=True).items():
-                    if v is not None:
-                        setattr(effective_params, k, v)
-            else:
-                effective_params = request_params
-
-        # Override model if explicitly specified
-        if model and effective_params:
-            effective_params.model = model
 
         # Create the LLM instance
         self._llm = llm_factory(
@@ -143,21 +128,19 @@ class LlmAgent(LlmAgentProtocol):
         message: Union[str, PromptMessage, PromptMessageMultipart],
     ) -> str:
         """
-        Make the agent callable to send messages or start an interactive prompt.
+        Make the agent callable to send messages.
 
         Args:
             message: Optional message to send to the agent
-            agent_name: Optional name of the agent (for consistency with DirectAgentApp)
-            default: Default message to use in interactive prompt mode
 
         Returns:
-            The agent's response as a string or the result of the interactive session
+            The agent's response as a string
         """
         return await self.send(message)
 
     async def send(self, message: Union[str, PromptMessage, PromptMessageMultipart]) -> str:
         """
-        Convenience method to return a string directly
+        Convenience method to generate and return a string directly
         """
         response = await self.generate(message)
         return response.last_text()
@@ -277,6 +260,43 @@ class LlmAgent(LlmAgentProtocol):
     def provider(self) -> Provider:
         return self.llm.provider
 
+    def _merge_request_params(
+        self,
+        base_params: Optional[RequestParams],
+        override_params: Optional[RequestParams],
+        model_override: Optional[str] = None,
+    ) -> Optional[RequestParams]:
+        """
+        Merge request parameters with proper precedence.
+
+        Args:
+            base_params: Base parameters (lower precedence)
+            override_params: Override parameters (higher precedence)
+            model_override: Optional model name to override
+
+        Returns:
+            Merged RequestParams or None if both inputs are None
+        """
+        if not base_params and not override_params:
+            return None
+
+        if not base_params:
+            result = override_params.model_copy() if override_params else None
+        else:
+            result = base_params.model_copy()
+            if override_params:
+                # Merge only the explicitly set values from override_params
+                for k, v in override_params.model_dump(exclude_unset=True).items():
+                    if v is not None:
+                        setattr(result, k, v)
+
+        # Apply model override if specified
+        if model_override and result:
+            result.model = model_override
+
+        return result
+
+    ## TODO DELETE
     async def list_tools(self) -> ListToolsResult | None:
         return ListToolsResult(tools=[])
 

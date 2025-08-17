@@ -6,7 +6,6 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-
 class ProgressAction(str, Enum):
     """Progress actions available in the system."""
 

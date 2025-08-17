@@ -2,8 +2,7 @@ import os
 import unittest
 from typing import TYPE_CHECKING, Annotated
 
-import pytest
-from mcp import Tool
+from mcp.types import CallToolRequest, CallToolResult, TextContent, Tool
 from pydantic import BaseModel, Field
 
 from fast_agent.core import Core
@@ -13,9 +12,7 @@ from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.llm.model_factory import ModelFactory
 from mcp_agent.llm.provider_types import Provider
-
-if TYPE_CHECKING:
-    from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 
 class FormattedResponse(BaseModel):
@@ -25,11 +22,20 @@ class FormattedResponse(BaseModel):
     message: str
 
 
-# class MyTool(Tool):
-
-
 class TestAnthropicLLM(unittest.IsolatedAsyncioTestCase):
     """Test cases for Anthropic LLM functionality."""
+
+    _input_schema = {
+        "type": "object",
+        "properties": {
+            "city": {"type": "string", "description": "The city to check the weather for"}
+        },
+    }
+    _tool = Tool(
+        name="weather",
+        description="call this to check the weather in a city",
+        inputSchema=_input_schema,
+    )
 
     async def asyncSetUp(self):
         """Set up test environment with Core and agent."""
@@ -68,17 +74,34 @@ class TestAnthropicLLM(unittest.IsolatedAsyncioTestCase):
             assert result.tool_calls
             assert 1 == len(result.tool_calls)
 
+        ## make sure the next turn works (anthropic needs to insert empty block)
+        result = await self.agent.generate("what about tomorrow's weather?")
+        assert result.stop_reason is LlmStopReason.END_TURN
+
     async def test_tool_use_stop(self) -> None:
-        input_schema = {
-            "type": "object",
-            "properties": {
-                "city": {"type": "string", "description": "The city to check the weather for"}
-            },
-        }
-        tool = Tool(
-            name="weather",
-            description="call this to check the weather in a city",
-            inputSchema=input_schema,
+        result = await self.agent.generate("check the weather in london", tools=[self._tool])
+        assert LlmStopReason.TOOL_USE is result.stop_reason
+        assert result.tool_calls
+        assert 1 == len(result.tool_calls)
+        tool_id = next(iter(result.tool_calls.keys()))
+        tool_call: CallToolRequest = result.tool_calls[tool_id]
+        assert "weather" == tool_call.params.name
+
+    async def test_tool_user_continuation(self) -> None:
+        """Generates a tool call, and returns a response. Ensures correlation works (converter handles results)"""
+        result = await self.agent.generate(
+            "check the weather in new york",
+            tools=[self._tool],
+            request_params=RequestParams(maxTokens=100),
         )
-        result = await self.agent.generate("check the weather in london", tools=[tool])
-        assert result.stop_reason is LlmStopReason.TOOL_USE
+        assert LlmStopReason.TOOL_USE is result.stop_reason
+        assert result.tool_calls
+        assert 1 == len(result.tool_calls)
+        tool_id = next(iter(result.tool_calls.keys()))
+
+        result = CallToolResult(content=[TextContent(type="text", text="it's sunny in new york")])
+        tool_results = {tool_id: result}
+        result_message = PromptMessageMultipart(role="user", tool_results=tool_results)
+        result = await self.agent.generate(result_message)
+        assert LlmStopReason.END_TURN is result.stop_reason
+        assert "sunny" in result.last_text().lower()

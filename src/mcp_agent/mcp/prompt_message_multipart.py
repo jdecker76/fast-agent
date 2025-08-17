@@ -22,7 +22,7 @@ class PromptMessageMultipart(BaseModel):
     """
 
     role: Role
-    content: List[ContentBlock]
+    content: List[ContentBlock] = []
     tool_calls: Dict[str, CallToolRequest] | None = None
     tool_results: Dict[str, CallToolResult] | None = None
     channels: Dict[str, ContentBlock] | None = None
