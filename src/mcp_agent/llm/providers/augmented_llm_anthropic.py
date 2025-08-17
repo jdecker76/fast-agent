@@ -248,7 +248,6 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
 
         for tool_idx, content_block in enumerate(tool_uses):
             tool_name = content_block.name
-            is_first_tool = tool_idx == 0
 
             if tool_name == STRUCTURED_OUTPUT_TOOL_NAME and structured_model:
                 # Structured output: extract JSON, don't call external tools

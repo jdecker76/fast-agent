@@ -7,7 +7,6 @@ and delegates operations to an attached AugmentedLLMProtocol instance.
 
 from typing import (
     TYPE_CHECKING,
-    Any,
     List,
     Optional,
     Tuple,

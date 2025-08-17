@@ -1,6 +1,6 @@
 import os
 import unittest
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 from mcp.types import CallToolRequest, CallToolResult, TextContent, Tool
 from pydantic import BaseModel, Field
