@@ -41,7 +41,9 @@ async def main():
         AgentConfig(name="tools", model="haiku")
     )
 
-    tool_agent: ToolAgentSynchronous = ToolAgentSynchronous(test, tools=[tool])
+    tool_agent: ToolAgentSynchronous = ToolAgentSynchronous(
+        test, tools=[tool], context=core.context
+    )
     await tool_agent.attach_llm(ModelFactory.create_factory("haiku"))
     await tool_agent.send("how is the weather in San Francisco?")
 
