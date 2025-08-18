@@ -8,9 +8,11 @@ from fast_agent.context import Context
 from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.core.request_params import RequestParams
-from mcp_agent.logging import logger
+from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.content_helpers import text_content
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+
+logger = get_logger(__name__)
 
 
 class SimpleTool(ABC, Tool):
@@ -29,11 +31,10 @@ class ToolAgentSynchronous(LlmAgent):
         self,
         config: AgentConfig,
         tools: list[Tool] = [],
-        context: Context | None = None,  # noqa: F821
+        context: Context | None = None,
     ) -> None:
         super().__init__(config=config, context=context)
         self._tools = tools
-        self._logger = logger.get_logger(__name__)
 
     async def generate(
         self,
@@ -54,9 +55,10 @@ class ToolAgentSynchronous(LlmAgent):
             tools = self._tools
 
         while True:
+            # llm handles case where last message is an assistant message
             result = await super().generate(messages, request_params, tools=tools)
             if LlmStopReason.TOOL_USE == result.stop_reason:
-                messages = await self.run_tools(result)
+                messages = await self.run_tools(result, tools)
             else:
                 break
 
@@ -68,23 +70,25 @@ class ToolAgentSynchronous(LlmAgent):
         """
         return {tool.name: tool for tool in tools}
 
-    async def run_tools(self, request: PromptMessageMultipart) -> PromptMessageMultipart:
+    async def run_tools(
+        self, request: PromptMessageMultipart, tools: List[Tool]
+    ) -> PromptMessageMultipart:
         """Runs the tools in the request, and returns a new User message with the results"""
         if not request.tool_calls:
-            self._logger.warning("No tool calls found in request", data=request)
+            logger.warning("No tool calls found in request", data=request)
 
         tool_results: dict[str, CallToolResult] = {}
-        tool_map = await self._name_map(self._tools)
+        tool_map = await self._name_map(tools)
         for correlation_id, tool_request in (request.tool_calls or {}).items():
             tool = tool_map.get(tool_request.params.name)
             if isinstance(tool, SimpleTool):
                 tool_results[correlation_id] = await tool.execute(*tool_request.params.arguments)
-                self._logger.debug(
+                logger.debug(
                     f"Tool {tool.name} executed",
                     data={"tool": tool, "result": tool_results[correlation_id]},
                 )
             else:
-                self._logger.warning("Unsupported tool type", data={"tool": tool_request})
+                logger.warning("Unsupported tool type", data={"tool": tool_request})
                 tool_results[correlation_id] = CallToolResult(
                     content=[text_content("Tool call failed")], isError=True
                 )
