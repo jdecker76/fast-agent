@@ -58,6 +58,67 @@ MESSAGE_CONFIGS = {
     },
 }
 
+HTML_ESCAPE_CHARS = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+}
+
+
+def _prepare_markdown_content(content: str, escape_xml: bool = True) -> str:
+    """Prepare content for markdown rendering by escaping HTML/XML tags
+    while preserving code blocks and inline code.
+
+    This ensures XML/HTML tags are displayed as visible text rather than
+    being interpreted as markup by the markdown renderer.
+
+    Note: This method does not handle overlapping code blocks (e.g., if inline
+    code appears within a fenced code block range). In practice, this is not
+    an issue since markdown syntax doesn't support such overlapping.
+    """
+    if not escape_xml or not isinstance(content, str):
+        return content
+
+    protected_ranges = []
+    import re
+
+    # Protect fenced code blocks (don't escape anything inside these)
+    code_block_pattern = r"```[\s\S]*?```"
+    for match in re.finditer(code_block_pattern, content):
+        protected_ranges.append((match.start(), match.end()))
+
+    # Protect inline code (don't escape anything inside these)
+    inline_code_pattern = r"(?<!`)`(?!``)[^`\n]+`(?!`)"
+    for match in re.finditer(inline_code_pattern, content):
+        protected_ranges.append((match.start(), match.end()))
+
+    protected_ranges.sort(key=lambda x: x[0])
+
+    # Build the escaped content
+    result = []
+    last_end = 0
+
+    for start, end in protected_ranges:
+        # Escape everything outside protected ranges
+        unprotected_text = content[last_end:start]
+        for char, replacement in HTML_ESCAPE_CHARS.items():
+            unprotected_text = unprotected_text.replace(char, replacement)
+        result.append(unprotected_text)
+
+        # Keep protected ranges (code blocks) as-is
+        result.append(content[start:end])
+        last_end = end
+
+    # Escape any remaining content after the last protected range
+    remainder_text = content[last_end:]
+    for char, replacement in HTML_ESCAPE_CHARS.items():
+        remainder_text = remainder_text.replace(char, replacement)
+    result.append(remainder_text)
+
+    return "".join(result)
+
 
 class ConsoleDisplay:
     """
@@ -74,6 +135,55 @@ class ConsoleDisplay:
         """
         self.config = config
         self._markup = config.logger.enable_markup if config else True
+        self._escape_xml = True
+
+    def _render_content_smartly(
+        self, content: str, check_markdown_markers: bool = False
+    ) -> None:
+        """
+        Helper method to intelligently render content based on its type.
+
+        - Pure XML: Use syntax highlighting for readability
+        - Markdown (with markers): Use markdown rendering with proper escaping
+        - Plain text: Display as-is (when check_markdown_markers=True and no markers found)
+
+        Args:
+            content: The text content to render
+            check_markdown_markers: If True, only use markdown rendering when markers are present
+        """
+        import re
+
+        from rich.markdown import Markdown
+
+        # Check if content appears to be primarily XML
+        xml_pattern = r"^<[a-zA-Z_][a-zA-Z0-9_-]*[^>]*>"
+        is_xml_content = (
+            bool(re.match(xml_pattern, content.strip())) and content.count("<") > 5
+        )
+
+        if is_xml_content:
+            # Display XML content with syntax highlighting for better readability
+            from rich.syntax import Syntax
+
+            syntax = Syntax(content, "xml", theme=CODE_STYLE, line_numbers=False)
+            console.console.print(syntax, markup=self._markup)
+        elif check_markdown_markers:
+            # Check for markdown markers before deciding to use markdown rendering
+            if any(
+                marker in content for marker in ["##", "**", "*", "`", "---", "###"]
+            ):
+                # Has markdown markers - render as markdown with escaping
+                prepared_content = _prepare_markdown_content(content, self._escape_xml)
+                md = Markdown(prepared_content, code_theme=CODE_STYLE)
+                console.console.print(md, markup=self._markup)
+            else:
+                # Plain text - display as-is
+                console.console.print(content, markup=self._markup)
+        else:
+            # Always treat as markdown with proper escaping
+            prepared_content = _prepare_markdown_content(content, self._escape_xml)
+            md = Markdown(prepared_content, code_theme=CODE_STYLE)
+            console.console.print(md, markup=self._markup)
 
     def display_message(
         self,
@@ -205,8 +315,12 @@ class ConsoleDisplay:
                     console.console.print(pretty_obj, markup=self._markup)
             except (JSONDecodeError, TypeError, ValueError):
                 # Check if it looks like markdown
-                if any(marker in content for marker in ["##", "**", "*", "`", "---", "###"]):
-                    md = Markdown(content, code_theme=CODE_STYLE)
+                if any(
+                    marker in content for marker in ["##", "**", "*", "`", "---", "###"]
+                ):
+                    # Escape HTML/XML tags while preserving code blocks
+                    prepared_content = _prepare_markdown_content(content, self._escape_xml)
+                    md = Markdown(prepared_content, code_theme=CODE_STYLE)
                     # Markdown handles its own styling, don't apply style
                     console.console.print(md, markup=self._markup)
                 else:
@@ -241,13 +355,17 @@ class ConsoleDisplay:
                         text_content = text_content[:360] + "..."
                     # Apply style only if specified
                     if style:
-                        console.console.print(text_content, style=style, markup=self._markup)
+                        console.console.print(
+                            text_content, style=style, markup=self._markup
+                        )
                     else:
                         console.console.print(text_content, markup=self._markup)
                 else:
                     # Apply style only if specified
                     if style:
-                        console.console.print("(empty text)", style=style, markup=self._markup)
+                        console.console.print(
+                            "(empty text)", style=style, markup=self._markup
+                        )
                     else:
                         console.console.print("(empty text)", markup=self._markup)
             else:
@@ -334,10 +452,16 @@ class ConsoleDisplay:
             else:
                 text_count = sum(1 for item in content if is_text_content(item))
                 if text_count == len(content):
-                    status = f"{len(content)} Text Blocks" if len(content) > 1 else "1 Text Block"
+                    status = (
+                        f"{len(content)} Text Blocks"
+                        if len(content) > 1
+                        else "1 Text Block"
+                    )
                 else:
                     status = (
-                        f"{len(content)} Content Blocks" if len(content) > 1 else "1 Content Block"
+                        f"{len(content)} Content Blocks"
+                        if len(content) > 1
+                        else "1 Content Block"
                     )
 
         # Build right info
@@ -388,7 +512,9 @@ class ConsoleDisplay:
             truncate_content=True,
         )
 
-    async def show_tool_update(self, aggregator: MCPAggregator | None, updated_server: str) -> None:
+    async def show_tool_update(
+        self, aggregator: MCPAggregator | None, updated_server: str
+    ) -> None:
         """Show a tool update for a server in the new visual style."""
         if not self.config or not self.config.logger.show_tools:
             return
@@ -400,9 +526,7 @@ class ConsoleDisplay:
 
         # Combined separator and status line
         if agent_name:
-            left = (
-                f"[magenta]▎[/magenta][dim magenta]▶[/dim magenta] [magenta]{agent_name}[/magenta]"
-            )
+            left = f"[magenta]▎[/magenta][dim magenta]▶[/dim magenta] [magenta]{agent_name}[/magenta]"
         else:
             left = "[magenta]▎[/magenta][dim magenta]▶[/dim magenta]"
 
@@ -427,12 +551,16 @@ class ConsoleDisplay:
             pass  # No active prompt_toolkit session
 
     def _get_matching_tools(
-        self, available_tools: List[Union[Dict[str, Any], object]], selected_tool_name: str
+        self,
+        available_tools: List[Union[Dict[str, Any], object]],
+        selected_tool_name: str,
     ) -> List[str]:
         """Get list of matching tool names for the selected tool's namespace."""
         matching_tools = []
         selected_namespace = (
-            selected_tool_name.split(SEP)[0] if SEP in selected_tool_name else selected_tool_name
+            selected_tool_name.split(SEP)[0]
+            if SEP in selected_tool_name
+            else selected_tool_name
         )
 
         for display_tool in available_tools:
@@ -454,7 +582,9 @@ class ConsoleDisplay:
 
             # Check if this tool is in the same namespace
             tool_namespace = (
-                tool_call_name.split(SEP)[0] if SEP in tool_call_name else tool_call_name
+                tool_call_name.split(SEP)[0]
+                if SEP in tool_call_name
+                else tool_call_name
             )
             if tool_namespace == selected_namespace:
                 # Get the display name (shortened if needed)
@@ -463,12 +593,16 @@ class ConsoleDisplay:
                     if SEP in tool_call_name
                     else [tool_call_name, tool_call_name]
                 )
-                shortened_name = parts[1] if len(parts[1]) <= 12 else parts[1][:11] + "…"
+                shortened_name = (
+                    parts[1] if len(parts[1]) <= 12 else parts[1][:11] + "…"
+                )
                 matching_tools.append(shortened_name)
 
         return matching_tools
 
-    def _create_combined_separator_status(self, left_content: str, right_info: str = "") -> None:
+    def _create_combined_separator_status(
+        self, left_content: str, right_info: str = ""
+    ) -> None:
         """
         Create a combined separator and status line.
 
@@ -570,14 +704,20 @@ class ConsoleDisplay:
 
             # Format: "1 - Title" or "1 - Flowchart" or "Diagram 1"
             if diagram.title:
-                diagram_content.append(f"{i} - {diagram.title}", style=f"bright_blue link {url}")
+                diagram_content.append(
+                    f"{i} - {diagram.title}", style=f"bright_blue link {url}"
+                )
             else:
                 # Try to detect diagram type, fallback to "Diagram N"
                 diagram_type = detect_diagram_type(diagram.content)
                 if diagram_type != "Diagram":
-                    diagram_content.append(f"{i} - {diagram_type}", style=f"bright_blue link {url}")
+                    diagram_content.append(
+                        f"{i} - {diagram_type}", style=f"bright_blue link {url}"
+                    )
                 else:
-                    diagram_content.append(f"Diagram {i}", style=f"bright_blue link {url}")
+                    diagram_content.append(
+                        f"Diagram {i}", style=f"bright_blue link {url}"
+                    )
 
         # Display diagrams on a simple new line (more space efficient)
         console.console.print()
@@ -652,7 +792,9 @@ class ConsoleDisplay:
 
         # Create content text
         content = Text()
-        messages_phrase = f"Loaded {message_count} message{'s' if message_count != 1 else ''}"
+        messages_phrase = (
+            f"Loaded {message_count} message{'s' if message_count != 1 else ''}"
+        )
         content.append(f"{messages_phrase} from template ", style="cyan italic")
         content.append(f"'{prompt_name}'", style="cyan bold italic")
 
@@ -691,7 +833,7 @@ class ConsoleDisplay:
         Args:
             parallel_agent: The parallel agent containing fan_out_agents with results
         """
-        from rich.markdown import Markdown
+
         from rich.text import Text
 
         if self.config and not self.config.logger.show_chat:
@@ -778,13 +920,9 @@ class ConsoleDisplay:
             console.console.print(left + " " * padding + right, markup=self._markup)
             console.console.print()
 
-            # Display content as markdown if it looks like markdown, otherwise as text
+            # Display content based on its type (check for markdown markers in parallel results)
             content = result["content"]
-            if any(marker in content for marker in ["##", "**", "*", "`", "---", "###"]):
-                md = Markdown(content, code_theme=CODE_STYLE)
-                console.console.print(md, markup=self._markup)
-            else:
-                console.console.print(content, markup=self._markup)
+            self._render_content_smartly(content, check_markdown_markers=True)
 
         # Summary
         console.console.print()

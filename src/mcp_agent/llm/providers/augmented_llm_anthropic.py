@@ -668,7 +668,28 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
             self.logger.debug("Last message in prompt is from assistant, returning it directly")
             return None, last_message
 
+    @classmethod
+    def convert_message_to_message_param(cls, message: Message, **kwargs) -> MessageParam:
+        """Convert a response object to an input parameter object to allow LLM calls to be chained."""
+        content = []
+
+        for content_block in message.content:
+            if content_block.type == "text":
+                content.append(TextBlock(type="text", text=content_block.text))
+            elif content_block.type == "tool_use":
+                content.append(
+                    ToolUseBlockParam(
+                        type="tool_use",
+                        name=content_block.name,
+                        input=content_block.input,
+                        id=content_block.id,
+                    )
+                )
+
+        return MessageParam(role="assistant", content=content, **kwargs)
+
     def _show_usage(self, raw_usage: Usage, turn_usage: TurnUsage) -> None:
+        """This is a debug routine, leaving in for convenience"""
         # Print raw usage for debugging
         print(f"\n=== USAGE DEBUG ({turn_usage.model}) ===")
         print(f"Raw usage: {raw_usage}")
@@ -689,23 +710,3 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         if self.usage_accumulator.cache_hit_rate:
             print(f"Cache hit rate: {self.usage_accumulator.cache_hit_rate:.1f}%")
         print("===========================\n")
-
-    @classmethod
-    def convert_message_to_message_param(cls, message: Message, **kwargs) -> MessageParam:
-        """Convert a response object to an input parameter object to allow LLM calls to be chained."""
-        content = []
-
-        for content_block in message.content:
-            if content_block.type == "text":
-                content.append(TextBlock(type="text", text=content_block.text))
-            elif content_block.type == "tool_use":
-                content.append(
-                    ToolUseBlockParam(
-                        type="tool_use",
-                        name=content_block.name,
-                        input=content_block.input,
-                        id=content_block.id,
-                    )
-                )
-
-        return MessageParam(role="assistant", content=content, **kwargs)

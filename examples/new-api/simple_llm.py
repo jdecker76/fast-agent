@@ -12,7 +12,6 @@ from mcp_agent.mcp.helpers.content_helpers import text_content
 
 
 async def main():
-    print(os.getcwd())
     core: Core = Core()
     await core.initialize()
     test: AgentConfig = AgentConfig("hello", model="kimi")
