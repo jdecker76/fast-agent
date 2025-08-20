@@ -17,7 +17,6 @@ async def main():
     test: AgentConfig = AgentConfig("hello", model="kimi")
     agent: LlmAgent = LlmAgent(test)
     await agent.attach_llm(ModelFactory.create_factory("haiku"))
-    print(await agent.send("hello world"))
 
     input_schema = {
         "type": "object",

@@ -151,42 +151,45 @@ class AugmentedLLMProtocol(Protocol):
 
     async def structured(
         self,
-        messages: Union[
-            str,
-            PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
-        ],
+        messages: List[PromptMessageMultipart],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
-        """Apply the prompt and return the result as a Pydantic model, or None if coercion fails"""
+        """
+        Generate a structured response using normalized message lists.
+        
+        This is the primary LLM interface for structured output that works directly with 
+        List[PromptMessageMultipart] for efficient internal usage.
+
+        Args:
+            messages: List of PromptMessageMultipart objects
+            model: The Pydantic model class to parse the response into
+            request_params: Optional parameters to configure the LLM request
+
+        Returns:
+            Tuple of (parsed model instance or None, assistant response message)
+        """
         ...
 
     async def generate(
         self,
-        messages: Union[
-            str,
-            PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
-        ],
+        messages: List[PromptMessageMultipart],
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
     ) -> PromptMessageMultipart:
         """
-        Apply messages directly to the LLM.
+        Generate a completion using normalized message lists.
+        
+        This is the primary LLM interface that works directly with 
+        List[PromptMessageMultipart] for efficient internal usage.
 
         Args:
-            messages: Message(s) in various formats:
-                - String: Converted to a user PromptMessageMultipart
-                - PromptMessage: Converted to PromptMessageMultipart
-                - PromptMessageMultipart: Used directly
-                - List of any combination of the above
+            messages: List of PromptMessageMultipart objects
             request_params: Optional parameters to configure the LLM request
+            tools: Optional list of tools available to the LLM
 
         Returns:
-            A PromptMessageMultipart containing the Assistant response, including Tool Content
+            A PromptMessageMultipart containing the Assistant response
         """
         ...
 

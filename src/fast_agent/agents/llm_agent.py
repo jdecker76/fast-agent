@@ -1,47 +1,32 @@
 """
-Base Agent class that implements the AgentProtocol interface.
+LLM Agent class that adds interaction behaviors to LlmDecorator.
 
-This class provides default implementations of the standard agent methods
-and delegates operations to an attached AugmentedLLMProtocol instance.
+This class extends LlmDecorator with LLM-specific interaction behaviors including:
+- UI display methods for messages, tools, and prompts
+- Stop reason handling
+- Tool call tracking
+- Chat display integration
 """
 
-from typing import (
-    List,
-    Optional,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-)
+from typing import List, Optional, Union
 
-from mcp import Tool
-from mcp.types import (
-    GetPromptResult,
-    PromptMessage,
-)
-from opentelemetry import trace
-from pydantic import BaseModel
+from mcp.types import CallToolResult, PromptMessage
+from rich.text import Text
 
+from fast_agent.agents.llm_decorator import LlmDecorator
 from fast_agent.context import Context
-from mcp_agent.core.agent_types import AgentConfig, AgentType
-from mcp_agent.core.request_params import RequestParams
-from mcp_agent.llm.provider_types import Provider
-from mcp_agent.llm.usage_tracking import UsageAccumulator
-from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.interfaces import AugmentedLLMProtocol, LlmAgentProtocol, LLMFactoryProtocol
+from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
-
-# Define a TypeVar for models
-ModelT = TypeVar("ModelT", bound=BaseModel)
-
-# Define a TypeVar for AugmentedLLM and its subclasses
-LLM = TypeVar("LLM", bound=AugmentedLLMProtocol)
+from mcp_agent.ui.console_display import ConsoleDisplay
 
 
-class LlmAgent(LlmAgentProtocol):
+class LlmAgent(LlmDecorator):
     """
-    This class provides default implementations of the standard agent methods
-    and delegates LLM operations to an attached AugmentedLLMProtocol instance.
+    An LLM agent that adds interaction behaviors to the base LlmDecorator.
+
+    This class provides LLM-specific functionality including UI display methods,
+    tool call tracking, and chat interaction patterns while delegating core
+    LLM operations to the attached AugmentedLLMProtocol.
     """
 
     def __init__(
@@ -49,97 +34,69 @@ class LlmAgent(LlmAgentProtocol):
         config: AgentConfig,
         context: Context | None = None,
     ) -> None:
-        self.config = config
+        super().__init__(config=config, context=context)
 
-        self._context = context
-        self._name = self.config.name
-        self._tracer = trace.get_tracer(__name__)
-        self.instruction = self.config.instruction
-        self.logger = get_logger(f"{__name__}.{self._name}")
+        # Initialize display component
+        self.display = ConsoleDisplay(config=self._context.config if self._context else None)
 
-        # Store the default request params from config
-        self._default_request_params = self.config.default_request_params
+        # Tool call tracking for current turn
+        self._current_turn_tool_calls = 0
 
-        # Initialize the LLM to None (will be set by attach_llm)
-        self._llm: Optional[AugmentedLLMProtocol] = None
+    def _reset_turn_tool_calls(self) -> None:
+        """Reset tool call counter for new turn."""
+        self._current_turn_tool_calls = 0
 
-    async def initialize(self) -> None:
-        pass
-
-    async def shutdown(self) -> None:
-        pass
-
-    @property
-    def agent_type(self) -> AgentType:
-        """
-        Return the type of this agent.
-        """
-        return AgentType.LLM
-
-    @property
-    def name(self) -> str:
-        """
-        Return the name of this agent.
-        """
-        return self._name
-
-    async def attach_llm(
+    async def show_assistant_message(
         self,
-        llm_factory: LLMFactoryProtocol,
-        model: str | None = None,
-        request_params: RequestParams | None = None,
-        **additional_kwargs,
-    ) -> AugmentedLLMProtocol:
-        """
-        Create and attach an LLM instance to this agent.
+        message_text: str | Text | None,
+        highlight_namespaced_tool: str = "",
+        title: str = "ASSISTANT",
+    ) -> None:
+        """Display an assistant message in a formatted panel."""
+        if message_text is None:
+            message_text = Text("No content to display", style="dim green italic")
 
-        Parameters have the following precedence (highest to lowest):
-        1. Explicitly passed parameters to this method
-        2. Agent's default_request_params
-        3. LLM's default values
-
-        Args:
-            llm_factory: A factory function that constructs an AugmentedLLM
-            model: Optional model name override
-            request_params: Optional request parameters override
-            **additional_kwargs: Additional parameters passed to the LLM constructor
-
-        Returns:
-            The created LLM instance
-        """
-        # Merge parameters with proper precedence
-        effective_params = self._merge_request_params(
-            self._default_request_params, request_params, model
+        await self.display.show_assistant_message(
+            message_text,
+            aggregator=None,
+            highlight_namespaced_tool=highlight_namespaced_tool,
+            title=title,
+            name=self.name,
         )
 
-        # Create the LLM instance
-        self._llm = llm_factory(
-            agent=self, request_params=effective_params, context=self._context, **additional_kwargs
-        )
+    def show_user_message(self, message, model: str | None, chat_turn: int) -> None:
+        """Display a user message in a formatted panel."""
+        self.display.show_user_message(message, model, chat_turn, name=self.name)
 
-        return self._llm
+    # async def show_prompt_loaded(
+    #     self,
+    #     prompt_name: str,
+    #     description: Optional[str] = None,
+    #     message_count: int = 0,
+    #     arguments: Optional[dict[str, str]] = None,
+    # ) -> None:
+    #     """
+    #     Display information about a loaded prompt template.
 
-    async def __call__(
-        self,
-        message: Union[str, PromptMessage, PromptMessageMultipart],
-    ) -> str:
-        """
-        Make the agent callable to send messages.
+    #     Args:
+    #         prompt_name: The name of the prompt
+    #         description: Optional description of the prompt
+    #         message_count: Number of messages in the prompt
+    #         arguments: Optional dictionary of arguments passed to the prompt
+    #     """
+    #     # Get aggregator from attached LLM if available
+    #     aggregator = None
+    #     if self._llm and hasattr(self._llm, "aggregator"):
+    #         aggregator = self._llm.aggregator
 
-        Args:
-            message: Optional message to send to the agent
-
-        Returns:
-            The agent's response as a string
-        """
-        return await self.send(message)
-
-    async def send(self, message: Union[str, PromptMessage, PromptMessageMultipart]) -> str:
-        """
-        Convenience method to generate and return a string directly
-        """
-        response = await self.generate(message)
-        return response.last_text()
+    #     await self.display.show_prompt_loaded(
+    #         prompt_name=prompt_name,
+    #         description=description,
+    #         message_count=message_count,
+    #         agent_name=self.name,
+    #         aggregator=aggregator,
+    #         arguments=arguments,
+    #     )
 
     async def generate(
         self,
@@ -149,145 +106,14 @@ class LlmAgent(LlmAgentProtocol):
             PromptMessageMultipart,
             List[Union[str, PromptMessage, PromptMessageMultipart]],
         ],
-        request_params: RequestParams | None = None,
-        tools: List[Tool] | None = None,
+        request_params=None,
+        tools=None,
     ) -> PromptMessageMultipart:
         """
-        Create a completion with the LLM using the provided messages.
-
-        Template Method pattern: This method normalizes inputs and delegates
-        to the abstract _generate_impl() method that subclasses must implement.
-
-        Args:
-            messages: Message(s) in various formats:
-                - String: Converted to a user PromptMessageMultipart
-                - PromptMessage: Converted to PromptMessageMultipart
-                - PromptMessageMultipart: Used directly
-                - List of any combination of the above
-            request_params: Optional parameters to configure the request
-
-        Returns:
-            The LLM's response as a PromptMessageMultipart
+        Enhanced generate method that resets tool call tracking.
         """
-
-        assert self._llm
-        with self._tracer.start_as_current_span(f"Agent: '{self._name}' generate"):
-            return await self._llm.generate(messages, request_params, tools)
-
-    async def apply_prompt_template(self, prompt_result: GetPromptResult, prompt_name: str) -> str:
-        """
-        Apply a prompt template as persistent context that will be included in all future conversations.
-        Delegates to the attached LLM.
-
-        Args:
-            prompt_result: The GetPromptResult containing prompt messages
-            prompt_name: The name of the prompt being applied
-
-        Returns:
-            String representation of the assistant's response if generated
-        """
-        assert self._llm
-        return await self._llm.apply_prompt_template(prompt_result, prompt_name)
-
-    async def structured(
-        self,
-        messages: Union[
-            str,
-            PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
-        ],
-        model: Type[ModelT],
-        request_params: RequestParams | None = None,
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
-        """
-        Apply the prompt and return the result as a Pydantic model.
-        Delegates to the attached LLM.
-
-        Args:
-            messages: Message(s) in various formats:
-                - String: Converted to a user PromptMessageMultipart
-                - PromptMessage: Converted to PromptMessageMultipart
-                - PromptMessageMultipart: Used directly
-                - List of any combination of the above
-            model: The Pydantic model class to parse the result into
-            request_params: Optional parameters to configure the LLM request
-
-        Returns:
-            An instance of the specified model, or None if coercion fails
-        """
-        assert self._llm
-        with self._tracer.start_as_current_span(f"Agent: '{self._name}' structured"):
-            return await self._llm.structured(messages, model, request_params)
-
-    @property
-    def message_history(self) -> List[PromptMessageMultipart]:
-        """
-        Return the agent's message history as PromptMessageMultipart objects.
-
-        This history can be used to transfer state between agents or for
-        analysis and debugging purposes.
-
-        Returns:
-            List of PromptMessageMultipart objects representing the conversation history
-        """
-        if self._llm:
-            return self._llm.message_history
-        return []
-
-    @property
-    def usage_accumulator(self) -> UsageAccumulator | None:
-        """
-        Return the usage accumulator for tracking token usage across turns.
-
-        Returns:
-            UsageAccumulator object if LLM is attached, None otherwise
-        """
-        if self._llm:
-            return self._llm.usage_accumulator
-        return None
-
-    @property
-    def llm(self) -> AugmentedLLMProtocol:
-        assert self._llm, "LLM is not attached"
-        return self._llm
-
-    @property
-    def provider(self) -> Provider:
-        return self.llm.provider
-
-    def _merge_request_params(
-        self,
-        base_params: Optional[RequestParams],
-        override_params: Optional[RequestParams],
-        model_override: Optional[str] = None,
-    ) -> Optional[RequestParams]:
-        """
-        Merge request parameters with proper precedence.
-
-        Args:
-            base_params: Base parameters (lower precedence)
-            override_params: Override parameters (higher precedence)
-            model_override: Optional model name to override
-
-        Returns:
-            Merged RequestParams or None if both inputs are None
-        """
-        if not base_params and not override_params:
-            return None
-
-        if not base_params:
-            result = override_params.model_copy() if override_params else None
-        else:
-            result = base_params.model_copy()
-            if override_params:
-                # Merge only the explicitly set values from override_params
-                for k, v in override_params.model_dump(exclude_unset=True).items():
-                    if v is not None:
-                        setattr(result, k, v)
-
-        # Apply model override if specified
-        if model_override and result:
-            result.model = model_override
-
-        return result
+        # Reset tool call counter for new turn
+        self._reset_turn_tool_calls()
+        
+        # Delegate to parent implementation
+        return await super().generate(messages, request_params, tools)

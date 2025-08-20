@@ -11,7 +11,6 @@ from mcp_agent.core.request_params import RequestParams
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.content_helpers import text_content
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
-from mcp_agent.ui.console_display import ConsoleDisplay
 
 logger = get_logger(__name__)
 
@@ -36,7 +35,6 @@ class ToolAgentSynchronous(LlmAgent):
     ) -> None:
         super().__init__(config=config, context=context)
         self._tools = tools
-        self._console_display = ConsoleDisplay(context.config if context else None)
 
     async def generate(
         self,
@@ -83,11 +81,11 @@ class ToolAgentSynchronous(LlmAgent):
         tool_map = await self._name_map(tools)
         for correlation_id, tool_request in (request.tool_calls or {}).items():
             tool = tool_map.get(tool_request.params.name)
-            self._console_display.show_tool_call(
+            self.display.show_tool_call(
+                name=self.name,
                 tool_args=tool_request.params.arguments,
                 available_tools=[],
                 tool_name=tool_request.params.name,
-                name=self.name,
             )
             if isinstance(tool, SimpleTool):
                 tool_results[correlation_id] = await tool.execute(*tool_request.params.arguments)
@@ -100,8 +98,6 @@ class ToolAgentSynchronous(LlmAgent):
                 tool_results[correlation_id] = CallToolResult(
                     content=[text_content("Tool call failed")], isError=True
                 )
-            self._console_display.show_tool_result(
-                name=self.name, result=tool_results[correlation_id]
-            )
+            self.display.show_tool_result(name=self.name, result=tool_results[correlation_id])
 
         return PromptMessageMultipart(role="user", tool_results=tool_results)

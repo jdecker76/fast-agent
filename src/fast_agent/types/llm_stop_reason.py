@@ -22,6 +22,7 @@ class LlmStopReason(str, Enum):
     TOOL_USE = "toolUse"  # Used when LLM stops to call tools
     ERROR = "error"  # Used when there's an error in generation
     TIMEOUT = "timeout"  # Used when generation times out
+    SAFETY = "safety"  # a safety or content warning was triggered
 
     def __eq__(self, other: object) -> bool:
         """

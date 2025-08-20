@@ -41,7 +41,7 @@ from mcp_agent.llm.sampling_format_converter import (
 )
 from mcp_agent.llm.usage_tracking import TurnUsage, UsageAccumulator
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.helpers.content_helpers import get_text, normalize_to_multipart_list
+from mcp_agent.mcp.helpers.content_helpers import get_text
 from mcp_agent.mcp.interfaces import (
     AugmentedLLMProtocol,
     ModelT,
@@ -160,10 +160,8 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         self._message_history: List[PromptMessageMultipart] = []
 
         # Initialize the display component
-        if self.context.config and self.context.config.logger.use_legacy_display:
-            from mcp_agent.ui.console_display_legacy import ConsoleDisplay
-        else:
-            from mcp_agent.ui.console_display import ConsoleDisplay
+        from mcp_agent.ui.console_display import ConsoleDisplay
+
         self.display = ConsoleDisplay(config=self.context.config)
 
         # Tool call counter for current turn
@@ -205,41 +203,31 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             use_history=True,
         )
 
+
     async def generate(
         self,
-        messages: Union[
-            str,
-            PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
-        ],
+        messages: List[PromptMessageMultipart],
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
     ) -> PromptMessageMultipart:
         """
-        Create a completion with the LLM using the provided messages.
+        Generate a completion using normalized message lists.
+        
+        This is the primary LLM interface that works directly with 
+        List[PromptMessageMultipart] for efficient internal usage.
 
         Args:
-            messages: Message(s) in various formats:
-                - String: Converted to a user PromptMessageMultipart
-                - PromptMessage: Converted to PromptMessageMultipart
-                - PromptMessageMultipart: Used directly
-                - List of any combination of the above
+            messages: List of PromptMessageMultipart objects
             request_params: Optional parameters to configure the LLM request
+            tools: Optional list of tools available to the LLM
 
         Returns:
             A PromptMessageMultipart containing the Assistant response
         """
-        # note - check changes here are mirrored in structured(). i've thought hard about
-        # a strategy to reduce duplication etc, but aiming for simple but imperfect for the moment
-
-        # Normalize all input types to a list of PromptMessageMultipart
-        multipart_messages = normalize_to_multipart_list(messages)
-
         # TODO -- create a "fast-agent" control role rather than magic strings
 
-        if multipart_messages[-1].first_text().startswith("***SAVE_HISTORY"):
-            parts: list[str] = multipart_messages[-1].first_text().split(" ", 1)
+        if messages[-1].first_text().startswith("***SAVE_HISTORY"):
+            parts: list[str] = messages[-1].first_text().split(" ", 1)
             filename: str = (
                 parts[1].strip() if len(parts) > 1 else f"{self.name or 'assistant'}_prompts.txt"
             )
@@ -249,7 +237,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             )
             return Prompt.assistant(f"History saved to {filename}")
 
-        self._precall(multipart_messages)
+        self._precall(messages)
 
         # Store MCP metadata in context variable
         final_request_params = self.get_request_params(request_params)
@@ -257,7 +245,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             _mcp_metadata_var.set(final_request_params.mcp_metadata)
 
         assistant_response: PromptMessageMultipart = await self._apply_prompt_provider_specific(
-            multipart_messages, request_params, tools
+            messages, request_params, tools
         )
 
         # add generic error and termination reason handling/rollback
@@ -287,26 +275,21 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             or the last assistant message in the prompt
         """
 
+
     async def structured(
         self,
-        messages: Union[
-            str,
-            PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
-        ],
+        messages: List[PromptMessageMultipart],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
         """
-        Return a structured response from the LLM using the provided messages.
+        Generate a structured response using normalized message lists.
+        
+        This is the primary LLM interface for structured output that works directly with 
+        List[PromptMessageMultipart] for efficient internal usage.
 
         Args:
-            messages: Message(s) in various formats:
-                - String: Converted to a user PromptMessageMultipart
-                - PromptMessage: Converted to PromptMessageMultipart
-                - PromptMessageMultipart: Used directly
-                - List of any combination of the above
+            messages: List of PromptMessageMultipart objects
             model: The Pydantic model class to parse the response into
             request_params: Optional parameters to configure the LLM request
 
@@ -314,10 +297,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             Tuple of (parsed model instance or None, assistant response message)
         """
 
-        # Normalize all input types to a list of PromptMessageMultipart
-        multipart_messages = normalize_to_multipart_list(messages)
-
-        self._precall(multipart_messages)
+        self._precall(messages)
 
         # Store MCP metadata in context variable
         final_request_params = self.get_request_params(request_params)
@@ -325,7 +305,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             _mcp_metadata_var.set(final_request_params.mcp_metadata)
 
         result, assistant_response = await self._apply_prompt_provider_specific_structured(
-            multipart_messages, model, request_params
+            messages, model, request_params
         )
 
         self._message_history.append(assistant_response)
