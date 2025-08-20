@@ -157,8 +157,8 @@ class AugmentedLLMProtocol(Protocol):
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
         """
         Generate a structured response using normalized message lists.
-        
-        This is the primary LLM interface for structured output that works directly with 
+
+        This is the primary LLM interface for structured output that works directly with
         List[PromptMessageMultipart] for efficient internal usage.
 
         Args:
@@ -179,8 +179,8 @@ class AugmentedLLMProtocol(Protocol):
     ) -> PromptMessageMultipart:
         """
         Generate a completion using normalized message lists.
-        
-        This is the primary LLM interface that works directly with 
+
+        This is the primary LLM interface that works directly with
         List[PromptMessageMultipart] for efficient internal usage.
 
         Args:
@@ -237,16 +237,13 @@ class AugmentedLLMProtocol(Protocol):
         ...
 
 
-class LlmAgentProtocol(AugmentedLLMProtocol, Protocol):
-    """Protocol defining the interface for LLM agents that can be used with MCP"""
+class LlmAgentProtocol(Protocol):
+    """Protocol defining the minimal interface for LLM agents.
 
-    async def __call__(self, message: Union[str, PromptMessage, PromptMessageMultipart]) -> str:
-        """Make the agent callable for sending messages directly."""
-        ...
-
-    async def send(self, message: Union[str, PromptMessage, PromptMessageMultipart]) -> str:
-        """Convenience method for directly returning strings"""
-        ...
+    This is a base protocol for agents that have an LLM but don't necessarily
+    expose all the agent methods. Workflow agents might implement this without
+    implementing the full AgentProtocol.
+    """
 
     @property
     def llm(self) -> AugmentedLLMProtocol:
@@ -272,8 +269,98 @@ class LlmAgentProtocol(AugmentedLLMProtocol, Protocol):
         ...
 
 
-class AgentProtocol(LlmAgentProtocol, Protocol):
-    """Protocol defining the standard agent interface"""
+class AgentProtocol(Protocol):
+    """Protocol defining the standard agent interface with flexible input types.
+
+    This protocol does NOT extend AugmentedLLMProtocol. Instead, agents
+    have an llm property that provides access to the underlying LLM.
+    The Agent methods accept flexible input types and handle normalization,
+    while the LLM methods have strict signatures.
+    """
+
+    @property
+    def llm(self) -> AugmentedLLMProtocol:
+        """Return the LLM instance used by this agent"""
+        ...
+
+    @property
+    def name(self) -> str:
+        """Agent name"""
+        ...
+
+    @property
+    def agent_type(self) -> AgentType:
+        """Return the type of this agent"""
+        ...
+
+    async def __call__(
+        self,
+        message: Union[
+            str,
+            PromptMessage,
+            PromptMessageMultipart,
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
+        ],
+    ) -> str:
+        """Make the agent callable for sending messages directly."""
+        ...
+
+    async def send(
+        self,
+        message: Union[
+            str,
+            PromptMessage,
+            PromptMessageMultipart,
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
+        ],
+    ) -> str:
+        """Send a message and get a string response."""
+        ...
+
+    async def generate(
+        self,
+        messages: Union[
+            str,
+            PromptMessage,
+            PromptMessageMultipart,
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
+        ],
+        request_params: RequestParams | None = None,
+    ) -> PromptMessageMultipart:
+        """Generate a completion with flexible input types.
+
+        This method accepts various input formats and normalizes them
+        before delegating to the LLM.
+        """
+        ...
+
+    async def structured(
+        self,
+        messages: Union[
+            str,
+            PromptMessage,
+            PromptMessageMultipart,
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
+        ],
+        model: Type[ModelT],
+        request_params: RequestParams | None = None,
+    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+        """Generate structured output with flexible input types.
+
+        This method accepts various input formats and normalizes them
+        before delegating to the LLM.
+        """
+        ...
+
+    @property
+    def message_history(self) -> List[PromptMessageMultipart]:
+        """Return the agent's message history."""
+        ...
+
+    @property
+    def usage_accumulator(self) -> UsageAccumulator | None:
+        """Return the agent's usage information."""
+        ...
 
     async def apply_prompt(
         self,

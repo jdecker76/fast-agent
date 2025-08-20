@@ -694,7 +694,7 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
         """
         Apply the prompt and return the result as a Pydantic model.
-        Delegates to the attached LLM.
+        Normalizes input messages and delegates to the attached LLM.
 
         Args:
             messages: Message(s) in various formats:
@@ -709,8 +709,11 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
             An instance of the specified model, or None if coercion fails
         """
         assert self._llm
+        # Normalize all input types to a list of PromptMessageMultipart
+        normalized_messages = normalize_to_multipart_list(messages)
+
         with self._tracer.start_as_current_span(f"Agent: '{self._name}' structured"):
-            return await self._llm.structured(messages, model, request_params)
+            return await self._llm.structured(normalized_messages, model, request_params)
 
     async def apply_prompt_messages(
         self, prompts: List[PromptMessageMultipart], request_params: RequestParams | None = None
