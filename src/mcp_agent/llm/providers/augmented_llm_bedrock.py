@@ -81,6 +81,7 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         AugmentedLLM.PARAM_MAX_ITERATIONS,
         AugmentedLLM.PARAM_PARALLEL_TOOL_CALLS,
         AugmentedLLM.PARAM_TEMPLATE_VARS,
+        AugmentedLLM.PARAM_MCP_METADATA,
     }
 
     @classmethod
