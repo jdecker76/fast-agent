@@ -19,7 +19,6 @@ from .interfaces import (
     AugmentedLLMProtocol,
     LlmAgentProtocol,
     MCPConnectionManagerProtocol,
-    ModelFactoryClassProtocol,
     ModelT,
     ServerConnection,
     ServerRegistryProtocol,
@@ -39,7 +38,6 @@ __all__ = [
     "MCPConnectionManagerProtocol",
     "ServerRegistryProtocol",
     "ServerConnection",
-    "ModelFactoryClassProtocol",
     "ModelT",
     # Helper functions
     "get_text",

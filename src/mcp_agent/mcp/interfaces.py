@@ -38,7 +38,6 @@ __all__ = [
     "ServerConnection",
     "AugmentedLLMProtocol",
     "AgentProtocol",
-    "ModelFactoryClassProtocol",
     "LLMFactoryProtocol",
     "ModelFactoryFunctionProtocol",
     "ModelT",
@@ -409,27 +408,4 @@ class AgentProtocol(Protocol):
 
     async def shutdown(self) -> None:
         """Shut down the agent"""
-        ...
-
-
-class ModelFactoryClassProtocol(Protocol):
-    """
-    Protocol defining the minimal interface of the ModelFactory class needed by sampling.
-    This allows sampling.py to depend on this protocol rather than the concrete ModelFactory class.
-    """
-
-    @classmethod
-    def create_factory(
-        cls, model_string: str, request_params: Optional[RequestParams] = None
-    ) -> Callable[..., Any]:
-        """
-        Creates a factory function that can be used to construct an LLM instance.
-
-        Args:
-            model_string: The model specification string
-            request_params: Optional parameters to configure LLM behavior
-
-        Returns:
-            A factory function that can create an LLM instance
-        """
         ...

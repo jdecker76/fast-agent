@@ -8,16 +8,21 @@ This class extends LlmDecorator with LLM-specific interaction behaviors includin
 - Chat display integration
 """
 
-from typing import List, Optional, Union
+from typing import List
 
-from mcp.types import CallToolResult, PromptMessage
+from mcp import Tool
 from rich.text import Text
 
 from fast_agent.agents.llm_decorator import LlmDecorator
 from fast_agent.context import Context
+from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.agent_types import AgentConfig
+from mcp_agent.core.request_params import RequestParams
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 from mcp_agent.ui.console_display import ConsoleDisplay
+
+# TODO -- move tool counting logic to relevant place
+# TODO -- decide what to do with type safety for model/chat_turn()
 
 
 class LlmAgent(LlmDecorator):
@@ -48,25 +53,87 @@ class LlmAgent(LlmDecorator):
 
     async def show_assistant_message(
         self,
-        message_text: str | Text | None,
+        message: PromptMessageMultipart,
         highlight_namespaced_tool: str = "",
         title: str = "ASSISTANT",
     ) -> None:
-        """Display an assistant message in a formatted panel."""
-        if message_text is None:
-            message_text = Text("No content to display", style="dim green italic")
+        """Display an assistant message with appropriate styling based on stop reason."""
+
+        # Determine display content based on stop reason
+        additional_message: Text = Text()
+
+        match message.stop_reason:
+            case LlmStopReason.END_TURN:
+                # Normal completion - show the text content
+                display_content = message.last_text() or "No content to display"
+
+            case LlmStopReason.MAX_TOKENS:
+                # Create a rich Text object with the actual content plus warning
+                additional_message.append(
+                    "\n\nMaximum output tokens reached - generation stopped.",
+                    style="dim red italic",
+                )
+
+            case LlmStopReason.SAFETY:
+                # Create a rich Text object with the actual content plus warning
+                content_text = message.last_text() or ""
+                display_content = Text()
+                if content_text:
+                    display_content.append(content_text)
+                    display_content.append("\n\n")
+                additional_message.append(
+                    "\n\nContent filter activated - generation stopped.", style="dim red italic"
+                )
+
+            case LlmStopReason.TOOL_USE:
+                if None is message.last_text():
+                    additional_message.append(
+                        "The assistant requested tool calls", "dim green italic"
+                    )
+                # Tool use - show the text content (tool calls will be displayed separately)
+
+            case _:
+                additional_message.append(
+                    f"Generation stopped for an unhandled reason ({message.stop_reason or 'unknown'})",
+                    style="dim red italic",
+                )
+
+        message_text = message.last_text() or ""
+        display_content = Text(message_text).append(additional_message)
 
         await self.display.show_assistant_message(
-            message_text,
+            display_content,
             aggregator=None,
             highlight_namespaced_tool=highlight_namespaced_tool,
             title=title,
             name=self.name,
         )
 
-    def show_user_message(self, message, model: str | None, chat_turn: int) -> None:
+    def show_user_message(self, message) -> None:
         """Display a user message in a formatted panel."""
+        model = self._llm.default_request_params.model
+        chat_turn = self._llm.chat_turn()
         self.display.show_user_message(message, model, chat_turn, name=self.name)
+
+    async def generate_impl(
+        self,
+        messages: List[PromptMessageMultipart],
+        request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
+    ) -> PromptMessageMultipart:
+        """
+        Enhanced generate implementation that resets tool call tracking.
+        Messages are already normalized to List[PromptMessageMultipart].
+        """
+        self._reset_turn_tool_calls()
+        if "user" == messages[-1].role:
+            self.show_user_message(message=messages[-1].last_text())
+
+        # TODO - possible to do proper error catch/recovery
+        result = await super().generate_impl(messages, request_params, tools)
+
+        await self.show_assistant_message(result)
+        return result
 
     # async def show_prompt_loaded(
     #     self,
@@ -97,23 +164,3 @@ class LlmAgent(LlmDecorator):
     #         aggregator=aggregator,
     #         arguments=arguments,
     #     )
-
-    async def generate(
-        self,
-        messages: Union[
-            str,
-            PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
-        ],
-        request_params=None,
-        tools=None,
-    ) -> PromptMessageMultipart:
-        """
-        Enhanced generate method that resets tool call tracking.
-        """
-        # Reset tool call counter for new turn
-        self._reset_turn_tool_calls()
-        
-        # Delegate to parent implementation
-        return await super().generate(messages, request_params, tools)

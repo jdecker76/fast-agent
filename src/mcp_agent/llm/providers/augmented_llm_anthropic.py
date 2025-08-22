@@ -469,7 +469,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                 elif hasattr(block, "type") and block.type == "text":
                     message_text += block.text
 
-            await self.show_assistant_message(message_text)
+            #    await self.show_assistant_message(message_text)
 
             self.logger.debug("Stopping because finish_reason is 'end_turn'")
         elif response.stop_reason == "stop_sequence":
@@ -490,7 +490,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                     style="dim green italic",
                 )
 
-            await self.show_assistant_message(message_text)
+        #   await self.show_assistant_message(message_text)
         elif response.stop_reason == "tool_use":
             stop_reason = LlmStopReason.TOOL_USE
             message_text = ""

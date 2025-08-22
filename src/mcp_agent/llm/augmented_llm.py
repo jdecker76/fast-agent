@@ -10,7 +10,6 @@ from typing import (
     Tuple,
     Type,
     TypeVar,
-    Union,
     cast,
 )
 
@@ -48,7 +47,6 @@ from mcp_agent.mcp.interfaces import (
 )
 from mcp_agent.mcp.mcp_aggregator import MCPAggregator
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
-from mcp_agent.mcp.prompt_render import render_multipart_message
 
 # Define type variables locally
 MessageParamT = TypeVar("MessageParamT")
@@ -204,7 +202,6 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             use_history=True,
         )
 
-
     async def generate(
         self,
         messages: List[PromptMessageMultipart],
@@ -213,8 +210,8 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
     ) -> PromptMessageMultipart:
         """
         Generate a completion using normalized message lists.
-        
-        This is the primary LLM interface that works directly with 
+
+        This is the primary LLM interface that works directly with
         List[PromptMessageMultipart] for efficient internal usage.
 
         Args:
@@ -276,7 +273,6 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             or the last assistant message in the prompt
         """
 
-
     async def structured(
         self,
         messages: List[PromptMessageMultipart],
@@ -285,8 +281,8 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
         """
         Generate a structured response using normalized message lists.
-        
-        This is the primary LLM interface for structured output that works directly with 
+
+        This is the primary LLM interface for structured output that works directly with
         List[PromptMessageMultipart] for efficient internal usage.
 
         Args:
@@ -389,12 +385,12 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         """Pre-call hook to modify the message before sending it to the provider."""
         # Ensure all messages are PromptMessageMultipart before extending history
         self._message_history.extend(multipart_messages)
-        if multipart_messages[-1].role == "user":
-            self.show_user_message(
-                render_multipart_message(multipart_messages[-1]),
-                model=self.default_request_params.model,
-                chat_turn=self.chat_turn(),
-            )
+        # if multipart_messages[-1].role == "user":
+        #     self.show_user_message(
+        #         render_multipart_message(multipart_messages[-1]),
+        #         model=self.default_request_params.model,
+        #         chat_turn=self.chat_turn(),
+        #     )
 
     def chat_turn(self) -> int:
         """Return the current chat turn number"""

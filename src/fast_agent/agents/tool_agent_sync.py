@@ -1,7 +1,7 @@
 from abc import ABC
-from typing import List, Union
+from typing import List
 
-from mcp.types import CallToolResult, PromptMessage, Tool
+from mcp.types import CallToolResult, Tool
 
 from fast_agent.agents.llm_agent import LlmAgent
 from fast_agent.context import Context
@@ -36,29 +36,33 @@ class ToolAgentSynchronous(LlmAgent):
         super().__init__(config=config, context=context)
         self._tools = tools
 
-    async def generate(
+    async def generate_impl(
         self,
-        messages: Union[
-            str,
-            PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
-        ],
+        messages: List[PromptMessageMultipart],
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
     ) -> PromptMessageMultipart:
         """
         Generate a response using the LLM, and handle tool calls if necessary.
+        Messages are already normalized to List[PromptMessageMultipart].
         """
-
         if tools is None:
             tools = self._tools
 
+        # Keep track of the conversation for tool calling loop
+        conversation = messages.copy()
+
         while True:
-            # llm handles case where last message is an assistant message
-            result = await super().generate(messages, request_params, tools=tools)
+            # Call parent's generate_impl which delegates to LLM
+            result = await super().generate_impl(conversation, request_params, tools=tools)
+
             if LlmStopReason.TOOL_USE == result.stop_reason:
-                messages = await self.run_tools(result, tools)
+                # Add assistant's tool-calling message to conversation
+                conversation.append(result)
+                # Run tools and get user message with results
+                tool_result_message = await self.run_tools(result, tools)
+                # Add tool results to conversation
+                conversation.append(tool_result_message)
             else:
                 break
 

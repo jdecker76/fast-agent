@@ -160,7 +160,7 @@ class LlmDecorator(LlmAgentProtocol):
         Create a completion with the LLM using the provided messages.
 
         This method provides the friendly agent interface by normalizing inputs
-        and delegating to the LLM's internal interface.
+        and delegating to generate_impl.
 
         Args:
             messages: Message(s) in various formats:
@@ -169,17 +169,40 @@ class LlmDecorator(LlmAgentProtocol):
                 - PromptMessageMultipart: Used directly
                 - List of any combination of the above
             request_params: Optional parameters to configure the request
+            tools: Optional list of tools available to the LLM
 
         Returns:
             The LLM's response as a PromptMessageMultipart
         """
-
-        assert self._llm
         # Normalize all input types to a list of PromptMessageMultipart
         multipart_messages = normalize_to_multipart_list(messages)
 
         with self._tracer.start_as_current_span(f"Agent: '{self._name}' generate"):
-            return await self._llm.generate(multipart_messages, request_params, tools)
+            return await self.generate_impl(multipart_messages, request_params, tools)
+
+    async def generate_impl(
+        self,
+        messages: List[PromptMessageMultipart],
+        request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
+    ) -> PromptMessageMultipart:
+        """
+        Implementation method for generate.
+
+        Default implementation delegates to the attached LLM.
+        Subclasses can override this to customize behavior while still
+        benefiting from the message normalization in generate().
+
+        Args:
+            messages: Normalized list of PromptMessageMultipart objects
+            request_params: Optional parameters to configure the request
+            tools: Optional list of tools available to the LLM
+
+        Returns:
+            The LLM's response as a PromptMessageMultipart
+        """
+        assert self._llm, "LLM is not attached"
+        return await self._llm.generate(messages, request_params, tools)
 
     async def apply_prompt_template(self, prompt_result: GetPromptResult, prompt_name: str) -> str:
         """
@@ -211,7 +234,7 @@ class LlmDecorator(LlmAgentProtocol):
         Apply the prompt and return the result as a Pydantic model.
 
         This method provides the friendly agent interface by normalizing inputs
-        and delegating to the LLM's internal interface.
+        and delegating to structured_impl.
 
         Args:
             messages: Message(s) in various formats:
@@ -223,14 +246,37 @@ class LlmDecorator(LlmAgentProtocol):
             request_params: Optional parameters to configure the LLM request
 
         Returns:
-            An instance of the specified model, or None if coercion fails
+            A tuple of (parsed model instance or None, assistant response message)
         """
-        assert self._llm
         # Normalize all input types to a list of PromptMessageMultipart
         multipart_messages = normalize_to_multipart_list(messages)
 
         with self._tracer.start_as_current_span(f"Agent: '{self._name}' structured"):
-            return await self._llm.structured(multipart_messages, model, request_params)
+            return await self.structured_impl(multipart_messages, model, request_params)
+
+    async def structured_impl(
+        self,
+        messages: List[PromptMessageMultipart],
+        model: Type[ModelT],
+        request_params: RequestParams | None = None,
+    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+        """
+        Implementation method for structured.
+
+        Default implementation delegates to the attached LLM.
+        Subclasses can override this to customize behavior while still
+        benefiting from the message normalization in structured().
+
+        Args:
+            messages: Normalized list of PromptMessageMultipart objects
+            model: The Pydantic model class to parse the result into
+            request_params: Optional parameters to configure the LLM request
+
+        Returns:
+            A tuple of (parsed model instance or None, assistant response message)
+        """
+        assert self._llm, "LLM is not attached"
+        return await self._llm.structured(messages, model, request_params)
 
     @property
     def message_history(self) -> List[PromptMessageMultipart]:
