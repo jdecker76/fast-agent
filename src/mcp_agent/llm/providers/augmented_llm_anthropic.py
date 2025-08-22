@@ -473,6 +473,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
 
             self.logger.debug("Stopping because finish_reason is 'end_turn'")
         elif response.stop_reason == "stop_sequence":
+            stop_reason = LlmStopReason.STOP_SEQUENCE
             # We have reached a stop sequence
             self.logger.debug("Stopping because finish_reason is 'stop_sequence'")
         elif response.stop_reason == "max_tokens":

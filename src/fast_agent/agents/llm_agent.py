@@ -76,13 +76,14 @@ class LlmAgent(LlmDecorator):
 
             case LlmStopReason.SAFETY:
                 # Create a rich Text object with the actual content plus warning
-                content_text = message.last_text() or ""
-                display_content = Text()
-                if content_text:
-                    display_content.append(content_text)
-                    display_content.append("\n\n")
                 additional_message.append(
                     "\n\nContent filter activated - generation stopped.", style="dim red italic"
+                )
+
+            case LlmStopReason.STOP_SEQUENCE:
+                # Create a rich Text object with the actual content plus warning
+                additional_message.append(
+                    "\n\nStop Sequence activated - generation stopped.", style="dim red italic"
                 )
 
             case LlmStopReason.TOOL_USE:
