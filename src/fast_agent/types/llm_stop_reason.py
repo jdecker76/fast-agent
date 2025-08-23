@@ -17,10 +17,12 @@ class LlmStopReason(str, Enum):
     END_TURN = "endTurn"
     STOP_SEQUENCE = "stopSequence"
     MAX_TOKENS = "maxTokens"
+    TOOL_USE = "toolUse"  # Used when LLM stops to call tools
+    PAUSE = "pause"
 
     # Custom extensions for fast-agent
-    TOOL_USE = "toolUse"  # Used when LLM stops to call tools
     ERROR = "error"  # Used when there's an error in generation
+
     TIMEOUT = "timeout"  # Used when generation times out
     SAFETY = "safety"  # a safety or content warning was triggered
 

@@ -20,7 +20,6 @@ from mcp.types import (
     ContentBlock,
     TextContent,
 )
-from rich.text import Text
 
 from fast_agent.event_progress import ProgressAction
 from fast_agent.types.llm_stop_reason import LlmStopReason
@@ -197,57 +196,17 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
 
         return tool_use_id, tool_result, structured_content
 
-    async def _process_regular_tool_call(
-        self,
-        content_block: Any,
-        available_tools: List[ToolParam],
-        is_first_tool: bool,
-        message_text: str | Text,
-    ) -> Tuple[str, CallToolResult]:
-        """
-        Process a regular MCP tool call.
-
-        This handles actual tool execution via the MCP aggregator.
-        """
-        tool_name = content_block.name
-        tool_args = content_block.input
-        tool_use_id = content_block.id
-
-        if is_first_tool:
-            await self.show_assistant_message(message_text, tool_name)
-
-        self.show_tool_call(available_tools, tool_name, tool_args)
-        tool_call_request = CallToolRequest(
-            method="tools/call",
-            params=CallToolRequestParams(name=tool_name, arguments=tool_args),
-        )
-        result = await self.call_tool(request=tool_call_request, tool_call_id=tool_use_id)
-        self.show_tool_result(result)
-        return tool_use_id, result
-
     async def _process_tool_calls(
         self,
         tool_uses: List[Any],
         available_tools: List[ToolParam],
-        message_text: str | Text,
         structured_model: Type[ModelT] | None = None,
     ) -> Tuple[List[Tuple[str, CallToolResult]], List[ContentBlock]]:
-        """
-        Process tool calls, handling both structured output and regular MCP tools.
-
-        For structured output mode:
-        - Extracts JSON data from the forced 'return_structured_output' tool
-        - Does NOT create fake CallToolResults
-        - Returns the JSON content directly
-
-        For regular tools:
-        - Calls actual MCP tools via the aggregator
-        - Returns real CallToolResults
-        """
+        """ """
         tool_results = []
         responses = []
 
-        for tool_idx, content_block in enumerate(tool_uses):
+        for _, content_block in enumerate(tool_uses):
             tool_name = content_block.name
 
             if tool_name == STRUCTURED_OUTPUT_TOOL_NAME and structured_model:
@@ -260,14 +219,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                 responses.append(structured_content)
                 # Add to tool_results to satisfy Anthropic's API requirement for tool_result messages
                 tool_results.append((tool_use_id, tool_result))
-            else:
-                # Regular tool: call external MCP tool
-                # tool_use_id, tool_result = await self._process_regular_tool_call(
-                #     content_block, available_tools, is_first_tool, message_text
-                # )
-                # tool_results.append((tool_use_id, tool_result))
-                # responses.extend(tool_result.content)
-                pass
+
         return tool_results, responses
 
     async def _process_stream(self, stream: AsyncMessageStream, model: str) -> Message:
@@ -357,7 +309,6 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         available_tools = await self._prepare_tools(structured_model, tools)
 
         response_content_blocks: List[ContentBlock] = []
-        stop_reason: LlmStopReason = LlmStopReason.END_TURN
         tool_calls: dict[str, CallToolRequest] | None = None
         model = self.default_request_params.model
 
@@ -461,83 +412,53 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         if response.content and response.content[0].type == "text":
             response_content_blocks.append(TextContent(type="text", text=response.content[0].text))
 
-        if response.stop_reason == "end_turn":
-            message_text = ""
-            for block in response_as_message["content"]:
-                if isinstance(block, dict) and block.get("type") == "text":
-                    message_text += block.get("text", "")
-                elif hasattr(block, "type") and block.type == "text":
-                    message_text += block.text
+        stop_reason: LlmStopReason = LlmStopReason.END_TURN
 
-            #    await self.show_assistant_message(message_text)
+        match response.stop_reason:
+            case "stop_sequence":
+                stop_reason = LlmStopReason.STOP_SEQUENCE
+            case "max_tokens":
+                stop_reason = LlmStopReason.MAX_TOKENS
+            case "refusal":
+                stop_reason = LlmStopReason.SAFETY
+            case "pause":
+                stop_reason = LlmStopReason.PAUSE
+            case "tool_use":
+                stop_reason = LlmStopReason.TOOL_USE
+                tool_uses: list[ToolUseBlock] = [
+                    c for c in response.content if c.type == "tool_use"
+                ]
 
-            self.logger.debug("Stopping because finish_reason is 'end_turn'")
-        elif response.stop_reason == "stop_sequence":
-            stop_reason = LlmStopReason.STOP_SEQUENCE
-            # We have reached a stop sequence
-            self.logger.debug("Stopping because finish_reason is 'stop_sequence'")
-        elif response.stop_reason == "max_tokens":
-            # We have reached the max tokens limit
-            stop_reason = LlmStopReason.MAX_TOKENS
-            self.logger.debug("Stopping because finish_reason is 'max_tokens'")
-            if params.maxTokens is not None:
-                message_text = Text(
-                    f"the assistant has reached the maximum token limit ({params.maxTokens})",
-                    style="dim green italic",
-                )
-            else:
-                message_text = Text(
-                    "the assistant has reached the maximum token limit",
-                    style="dim green italic",
-                )
-
-        #   await self.show_assistant_message(message_text)
-        elif response.stop_reason == "tool_use":
-            stop_reason = LlmStopReason.TOOL_USE
-            message_text = ""
-            for block in response_as_message["content"]:
-                if isinstance(block, dict) and block.get("type") == "text":
-                    message_text += block.get("text", "")
-                elif hasattr(block, "type") and block.type == "text":
-                    message_text += block.text
-
-            # response.stop_reason == "tool_use":
-            # First, collect all tool uses in this turn
-            tool_uses: list[ToolUseBlock] = [c for c in response.content if c.type == "tool_use"]
-
-            if tool_uses:
-                if message_text == "":
-                    message_text = Text(
-                        "the assistant requested tool calls",
-                        style="dim green italic",
+                if tool_uses:
+                    tool_calls = {}
+                    for tool_use in tool_uses:
+                        tool_call = CallToolRequest(
+                            method="tools/call",
+                            params=CallToolRequestParams(
+                                name=tool_use.name,
+                                arguments=cast("dict[str, Any] | None", tool_use.input),
+                            ),
+                        )
+                        tool_calls[tool_use.id] = tool_call
+                    tool_results, tool_responses = await self._process_tool_calls(
+                        tool_uses, available_tools, structured_model
                     )
-                tool_calls = {}
-                for tool_use in tool_uses:
-                    tool_call = CallToolRequest(
-                        method="tools/call",
-                        params=CallToolRequestParams(
-                            name=tool_use.name,
-                            arguments=cast("dict[str, Any] | None", tool_use.input),
-                        ),
-                    )
-                    tool_calls[tool_use.id] = tool_call
-                # Process all tool calls using the helper method
-                tool_results, tool_responses = await self._process_tool_calls(
-                    tool_uses, available_tools, message_text, structured_model
-                )
-                response_content_blocks.extend(tool_responses)
 
-                # Always add tool_results_message first (required by Anthropic API)
-                messages.append(AnthropicConverter.create_tool_results_message(tool_results))
+                    # Only add tool_results_message if there are actual results (required by Anthropic API)
+                    if tool_results:
+                        messages.append(
+                            AnthropicConverter.create_tool_results_message(tool_results)
+                        )
 
-                # For structured output, we have our result and should exit after sending tool_result
-                if structured_model and any(
-                    tool.name == STRUCTURED_OUTPUT_TOOL_NAME for tool in tool_uses
-                ):
-                    # adjust the stop reason. we identify structured output usage as an Assistant method with this tool call and stop reason
-                    stop_reason = LlmStopReason.END_TURN
+                    # For structured output, we have our result and should exit after sending tool_result
+                    if structured_model and any(
+                        tool.name == STRUCTURED_OUTPUT_TOOL_NAME for tool in tool_uses
+                    ):
+                        # adjust the stop reason. we identify structured output usage as an Assistant method with this tool call and stop reason
+                        stop_reason = LlmStopReason.END_TURN
+                        response_content_blocks.extend(tool_responses)
 
-                    self.logger.debug("Structured output received, breaking iteration loop")
+                        self.logger.debug("Structured output received, breaking iteration loop")
 
         # Only save the new conversation messages to history if use_history is true
         # Keep the prompt messages separate

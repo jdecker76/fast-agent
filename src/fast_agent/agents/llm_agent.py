@@ -64,20 +64,22 @@ class LlmAgent(LlmDecorator):
 
         match message.stop_reason:
             case LlmStopReason.END_TURN:
-                # Normal completion - show the text content
                 display_content = message.last_text() or "No content to display"
 
             case LlmStopReason.MAX_TOKENS:
-                # Create a rich Text object with the actual content plus warning
                 additional_message.append(
                     "\n\nMaximum output tokens reached - generation stopped.",
                     style="dim red italic",
                 )
 
             case LlmStopReason.SAFETY:
-                # Create a rich Text object with the actual content plus warning
                 additional_message.append(
                     "\n\nContent filter activated - generation stopped.", style="dim red italic"
+                )
+
+            case LlmStopReason.PAUSE:
+                additional_message.append(
+                    "\n\nLLM has requested a pause.", style="dim green italic"
                 )
 
             case LlmStopReason.STOP_SEQUENCE:
@@ -91,7 +93,6 @@ class LlmAgent(LlmDecorator):
                     additional_message.append(
                         "The assistant requested tool calls", "dim green italic"
                     )
-                # Tool use - show the text content (tool calls will be displayed separately)
 
             case _:
                 additional_message.append(
@@ -110,11 +111,11 @@ class LlmAgent(LlmDecorator):
             name=self.name,
         )
 
-    def show_user_message(self, message) -> None:
+    def show_user_message(self, message: PromptMessageMultipart) -> None:
         """Display a user message in a formatted panel."""
         model = self._llm.default_request_params.model
         chat_turn = self._llm.chat_turn()
-        self.display.show_user_message(message, model, chat_turn, name=self.name)
+        self.display.show_user_message(message.last_text(), model, chat_turn, name=self.name)
 
     async def generate_impl(
         self,
@@ -128,9 +129,9 @@ class LlmAgent(LlmDecorator):
         """
         self._reset_turn_tool_calls()
         if "user" == messages[-1].role:
-            self.show_user_message(message=messages[-1].last_text())
+            self.show_user_message(message=messages[-1])
 
-        # TODO - possible to do proper error catch/recovery
+        # TODO - manage error catch, recovery, pause
         result = await super().generate_impl(messages, request_params, tools)
 
         await self.show_assistant_message(result)
