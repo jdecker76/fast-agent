@@ -44,6 +44,8 @@ from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-0"
 STRUCTURED_OUTPUT_TOOL_NAME = "return_structured_output"
 
+logger = get_logger(__name__)
+
 
 class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
     # Anthropic-specific parameter exclusions
@@ -63,8 +65,6 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
 
     def __init__(self, *args, **kwargs) -> None:
         # Initialize logger - keep it simple without name reference
-        self.logger = get_logger(__name__)
-
         super().__init__(
             *args, provider=Provider.ANTHROPIC, type_converter=AnthropicSamplingConverter, **kwargs
         )
@@ -125,11 +125,11 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                         "cache_control": {"type": "ephemeral"},
                     }
                 ]
-                self.logger.debug(
+                logger.debug(
                     "Applied cache_control to system prompt (caches tools+system in one block)"
                 )
             else:
-                self.logger.debug(f"System prompt is not a string: {type(base_args['system'])}")
+                logger.debug(f"System prompt is not a string: {type(base_args['system'])}")
 
     async def _apply_conversation_cache(self, messages: List[MessageParam], cache_mode: str) -> int:
         """Apply conversation caching if in auto mode. Returns number of cache blocks applied."""
@@ -140,7 +140,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
             # Remove cache control from old positions
             if cache_updates["remove"]:
                 self.history.remove_cache_control_from_messages(messages, cache_updates["remove"])
-                self.logger.debug(
+                logger.debug(
                     f"Removed conversation cache_control from positions {cache_updates['remove']}"
                 )
 
@@ -151,11 +151,11 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                 )
                 if applied_count > 0:
                     self.history.apply_conversation_cache_updates(cache_updates)
-                    self.logger.debug(
+                    logger.debug(
                         f"Applied conversation cache_control to positions {cache_updates['add']} ({applied_count} blocks)"
                     )
                 else:
-                    self.logger.debug(
+                    logger.debug(
                         f"Failed to apply conversation cache_control to positions {cache_updates['add']}"
                     )
 
@@ -231,7 +231,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
             AnthropicConverter.create_tool_results_message([(tool_use_id, tool_result)])
         )
 
-        self.logger.debug("Structured output received, treating as END_TURN")
+        logger.debug("Structured output received, treating as END_TURN")
 
         return LlmStopReason.END_TURN, [structured_content]
 
@@ -269,14 +269,14 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                     "chat_turn": self.chat_turn(),
                     "details": token_str.strip(),
                 }
-                self.logger.info("Streaming progress", data=data)
+                logger.info("Streaming progress", data=data)
 
         # Get the final message with complete usage data
         message = await stream.get_final_message()
 
         # Log final usage information
         if hasattr(message, "usage") and message.usage:
-            self.logger.info(
+            logger.info(
                 f"Streaming complete - Model: {model}, Input tokens: {message.usage.input_tokens}, Output tokens: {message.usage.output_tokens}"
             )
 
@@ -315,7 +315,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
 
         # Get cache mode configuration
         cache_mode = self._get_cache_mode()
-        self.logger.debug(f"Anthropic cache_mode: {cache_mode}")
+        logger.debug(f"Anthropic cache_mode: {cache_mode}")
 
         available_tools = await self._prepare_tools(structured_model, tools)
 
@@ -352,7 +352,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
             if cache_mode != "off" and base_args["system"]:
                 total_cache_blocks += 1  # tools+system cache block
             if total_cache_blocks > 4:
-                self.logger.warning(
+                logger.warning(
                     f"Total cache blocks ({total_cache_blocks}) exceeds Anthropic limit of 4"
                 )
 
@@ -361,7 +361,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
             base_args, params, self.ANTHROPIC_EXCLUDE_FIELDS
         )
 
-        self.logger.debug(f"{arguments}")
+        logger.debug(f"{arguments}")
 
         # Use streaming API with helper
         async with anthropic.messages.stream(**arguments) as stream:
@@ -380,7 +380,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                 )
                 self._finalize_turn_usage(turn_usage)
             except Exception as e:
-                self.logger.warning(f"Failed to track usage: {e}")
+                logger.warning(f"Failed to track usage: {e}")
 
         if isinstance(response, AuthenticationError):
             raise ProviderKeyError(
@@ -389,7 +389,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
             ) from response
         elif isinstance(response, BaseException):
             error_details = str(response)
-            self.logger.error(f"Error: {error_details}", data=BaseException)
+            logger.error(f"Error: {error_details}", data=BaseException)
 
             # Try to extract more useful information for API errors
             if hasattr(response, "status_code") and hasattr(response, "response"):
@@ -411,7 +411,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                 usage=Usage(input_tokens=0, output_tokens=0),
             )
 
-        self.logger.debug(
+        logger.debug(
             f"{model} response:",
             data=response,
         )
@@ -489,7 +489,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                     last_block = content_list[-1]
                     if isinstance(last_block, dict):
                         last_block["cache_control"] = {"type": "ephemeral"}
-                        self.logger.debug(
+                        logger.debug(
                             f"Applied cache_control to template message with role {anthropic_msg.get('role')}"
                         )
 
@@ -498,12 +498,12 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         self.history.extend(converted, is_prompt=is_template)
 
         if last_message.role == "user":
-            self.logger.debug("Last message in prompt is from user, generating assistant response")
+            logger.debug("Last message in prompt is from user, generating assistant response")
             message_param = AnthropicConverter.convert_to_anthropic(last_message)
             return await self._anthropic_completion(message_param, request_params, tools=tools)
         else:
             # For assistant messages: Return the last message content as text
-            self.logger.debug("Last message in prompt is from assistant, returning it directly")
+            logger.debug("Last message in prompt is from assistant, returning it directly")
             return last_message
 
     async def _apply_prompt_provider_specific_structured(
@@ -530,7 +530,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         self.history.extend(converted, is_prompt=False)
 
         if last_message.role == "user":
-            self.logger.debug("Last message in prompt is from user, generating structured response")
+            logger.debug("Last message in prompt is from user, generating structured response")
             message_param = AnthropicConverter.convert_to_anthropic(last_message)
 
             # Call _anthropic_completion with the structured model
@@ -545,14 +545,14 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                         parsed_model = model(**data)
                         return parsed_model, result
                     except (json.JSONDecodeError, ValueError) as e:
-                        self.logger.error(f"Failed to parse structured output: {e}")
+                        logger.error(f"Failed to parse structured output: {e}")
                         return None, result
 
             # If no valid response found
             return None, Prompt.assistant()
         else:
             # For assistant messages: Return the last message content
-            self.logger.debug("Last message in prompt is from assistant, returning it directly")
+            logger.debug("Last message in prompt is from assistant, returning it directly")
             return None, last_message
 
     @classmethod

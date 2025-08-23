@@ -1,9 +1,8 @@
 import asyncio
-import logging
 
 from mcp.server.fastmcp import FastMCP
 
-from fast_agent.agents.tool_agent_sync import ToolAgentSynchronous
+from fast_agent.agents.tool_agent import ToolAgent
 from fast_agent.core import Core
 from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.llm.model_factory import ModelFactory
@@ -50,7 +49,6 @@ def get_temperature(city: str) -> int:
     Returns:
         Temperature in degrees Celsius
     """
-    # Mock implementation
     return 22
 
 
@@ -61,12 +59,11 @@ async def main():
     # Create agent configuration
     config = AgentConfig(name="weather_bot", model="haiku")
 
-    tool_agent = ToolAgentSynchronous(
+    tool_agent = ToolAgent(
         config,
         tools=[
-            check_weather,  # Decorated with @mcp.tool()
-            #            check_weather_function,  # Plain function (will be auto-converted)
-            get_temperature,  # Regular sync function
+            check_weather,
+            get_temperature,
         ],
         context=core.context,
     )
@@ -76,6 +73,7 @@ async def main():
 
     # Test the agent
     await tool_agent.send("What's the weather like in San Francisco and what's the temperature?")
+    await core.cleanup()
 
 
 if __name__ == "__main__":

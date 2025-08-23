@@ -45,7 +45,6 @@ from mcp_agent.mcp.interfaces import (
     AugmentedLLMProtocol,
     ModelT,
 )
-from mcp_agent.mcp.mcp_aggregator import MCPAggregator
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 # Define type variables locally
@@ -55,7 +54,6 @@ MessageT = TypeVar("MessageT")
 # Forward reference for type annotations
 if TYPE_CHECKING:
     from fast_agent.context import Context
-    from mcp_agent.agents.agent import Agent
 
 
 # TODO -- move this to a constant
@@ -115,8 +113,6 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
     def __init__(
         self,
         provider: Provider,
-        agent: Optional["Agent"] = None,
-        server_names: List[str] | None = None,
         instruction: str | None = None,
         name: str | None = None,
         request_params: RequestParams | None = None,
@@ -149,9 +145,8 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         super().__init__(context=context, **kwargs)
         self.logger = get_logger(__name__)
         self.executor = self.context.executor
-        self.aggregator = agent if agent is not None else MCPAggregator(server_names or [])
-        self.name = agent._name if agent else name
-        self.instruction = agent.instruction if agent else instruction
+        self.name: str = name or "fast-agent"
+        self.instruction = instruction
         self._provider = provider
         # memory contains provider specific API types.
         self.history: Memory[MessageParamT] = SimpleMemory[MessageParamT]()
@@ -385,12 +380,6 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         """Pre-call hook to modify the message before sending it to the provider."""
         # Ensure all messages are PromptMessageMultipart before extending history
         self._message_history.extend(multipart_messages)
-        # if multipart_messages[-1].role == "user":
-        #     self.show_user_message(
-        #         render_multipart_message(multipart_messages[-1]),
-        #         model=self.default_request_params.model,
-        #         chat_turn=self.chat_turn(),
-        #     )
 
     def chat_turn(self) -> int:
         """Return the current chat turn number"""

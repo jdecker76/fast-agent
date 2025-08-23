@@ -12,7 +12,6 @@ from abc import ABC
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
     Dict,
     List,
     Mapping,
@@ -81,7 +80,6 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
     def __init__(
         self,
         config: AgentConfig,
-        functions: Optional[List[Callable]] = None,
         connection_persistence: bool = True,
         human_input_callback: Optional[HumanInputCallback] = None,
         context: Optional["Context"] = None,

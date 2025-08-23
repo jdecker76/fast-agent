@@ -281,9 +281,10 @@ class ModelFactory:
             if config.reasoning_effort:
                 kwargs["reasoning_effort"] = config.reasoning_effort.value
             llm_args = {
-                "agent": agent,
                 "model": config.model_name,
                 "request_params": request_params,
+                "name": agent.name,
+                "instructions": agent.instruction,
                 **kwargs,
             }
             llm: AugmentedLLMProtocol = llm_class(**llm_args)

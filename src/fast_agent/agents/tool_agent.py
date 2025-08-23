@@ -15,7 +15,7 @@ from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 logger = get_logger(__name__)
 
 
-class ToolAgentSynchronous(LlmAgent):
+class ToolAgent(LlmAgent):
     """
     A Tool Calling agent that uses FastMCP Tools for execution.
 

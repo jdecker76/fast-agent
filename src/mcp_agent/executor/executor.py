@@ -221,7 +221,6 @@ class AsyncioExecutor(Executor):
 
                     return result
             except Exception as e:
-                # TODO: saqadri - adding logging or other error handling here
                 return e
 
         if self._activity_semaphore:

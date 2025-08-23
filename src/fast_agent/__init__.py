@@ -47,25 +47,32 @@ def __getattr__(name: str):
     """Lazy import heavy modules to avoid circular imports during package initialization."""
     if name == "Core":
         from fast_agent.core import Core
+
         return Core
     elif name == "Context":
         from fast_agent.context import Context
+
         return Context
     elif name == "ContextDependent":
         from fast_agent.context_dependent import ContextDependent
+
         return ContextDependent
     elif name == "ServerRegistry":
         from fast_agent.mcp_server_registry import ServerRegistry
+
         return ServerRegistry
     elif name == "ProgressAction":
         from fast_agent.event_progress import ProgressAction
+
         return ProgressAction
     elif name == "ProgressEvent":
         from fast_agent.event_progress import ProgressEvent
+
         return ProgressEvent
     elif name == "ToolAgentSynchronous":
-        from fast_agent.agents.tool_agent_sync import ToolAgentSynchronous
-        return ToolAgentSynchronous
+        from fast_agent.agents.tool_agent import ToolAgent
+
+        return ToolAgent
     else:
         raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 

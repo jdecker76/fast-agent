@@ -11,7 +11,6 @@ from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.llm.model_factory import ModelFactory
-from mcp_agent.llm.provider_types import Provider
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 
