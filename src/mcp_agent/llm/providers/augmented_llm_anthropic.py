@@ -96,7 +96,6 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
     ) -> List[ToolParam]:
         """Prepare tools based on whether we're in structured output mode."""
         if structured_model:
-            # JSON mode - create a single tool for structured output
             return [
                 ToolParam(
                     name=STRUCTURED_OUTPUT_TOOL_NAME,
@@ -162,12 +161,48 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
 
         return applied_count
 
-    async def _process_structured_output(
-        self,
-        content_block: Any,
-    ) -> Tuple[str, CallToolResult, TextContent]:
+    def _is_structured_output_request(self, tool_uses: List[Any]) -> bool:
         """
-        Process a structured output tool call from Anthropic.
+        Check if the tool uses contain a structured output request.
+
+        Args:
+            tool_uses: List of tool use blocks from the response
+
+        Returns:
+            True if any tool is the structured output tool
+        """
+        return any(tool.name == STRUCTURED_OUTPUT_TOOL_NAME for tool in tool_uses)
+
+    def _build_tool_calls_dict(self, tool_uses: List[ToolUseBlock]) -> dict[str, CallToolRequest]:
+        """
+        Convert Anthropic tool use blocks into our CallToolRequest.
+
+        Args:
+            tool_uses: List of tool use blocks from Anthropic response
+
+        Returns:
+            Dictionary mapping tool_use_id to CallToolRequest objects
+        """
+        tool_calls = {}
+        for tool_use in tool_uses:
+            tool_call = CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name=tool_use.name,
+                    arguments=cast("dict[str, Any] | None", tool_use.input),
+                ),
+            )
+            tool_calls[tool_use.id] = tool_call
+        return tool_calls
+
+    async def _handle_structured_output_response(
+        self,
+        tool_use_block: ToolUseBlock,
+        structured_model: Type[ModelT],
+        messages: List[MessageParam],
+    ) -> Tuple[LlmStopReason, List[ContentBlock]]:
+        """
+        Handle a structured output tool response from Anthropic.
 
         This handles the special case where Anthropic's model was forced to use
         a 'return_structured_output' tool via tool_choice. The tool input contains
@@ -177,50 +212,28 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         to satisfy Anthropic's API requirement that every tool_use has a corresponding
         tool_result in the next message.
 
-        Returns:
-            Tuple of (tool_use_id, tool_result, content_block) for the structured data
-        """
-        tool_args = content_block.input
-        tool_use_id = content_block.id
+        Args:
+            tool_use_block: The tool use block containing structured output
+            structured_model: The model class for structured output
+            messages: The message list to append tool results to
 
-        # Show the formatted JSON response to the user
-        json_response = json.dumps(tool_args, indent=2)
-        await self.show_assistant_message(json_response)
+        Returns:
+            Tuple of (stop_reason, response_content_blocks)
+        """
+        tool_args = tool_use_block.input
+        tool_use_id = tool_use_block.id
 
         # Create the content for responses
         structured_content = TextContent(type="text", text=json.dumps(tool_args))
 
-        # Create a CallToolResult to satisfy Anthropic's API requirements
-        # This represents the "result" of our structured output "tool"
         tool_result = CallToolResult(isError=False, content=[structured_content])
+        messages.append(
+            AnthropicConverter.create_tool_results_message([(tool_use_id, tool_result)])
+        )
 
-        return tool_use_id, tool_result, structured_content
+        self.logger.debug("Structured output received, treating as END_TURN")
 
-    async def _process_tool_calls(
-        self,
-        tool_uses: List[Any],
-        available_tools: List[ToolParam],
-        structured_model: Type[ModelT] | None = None,
-    ) -> Tuple[List[Tuple[str, CallToolResult]], List[ContentBlock]]:
-        """ """
-        tool_results = []
-        responses = []
-
-        for _, content_block in enumerate(tool_uses):
-            tool_name = content_block.name
-
-            if tool_name == STRUCTURED_OUTPUT_TOOL_NAME and structured_model:
-                # Structured output: extract JSON, don't call external tools
-                (
-                    tool_use_id,
-                    tool_result,
-                    structured_content,
-                ) = await self._process_structured_output(content_block)
-                responses.append(structured_content)
-                # Add to tool_results to satisfy Anthropic's API requirement for tool_result messages
-                tool_results.append((tool_use_id, tool_result))
-
-        return tool_results, responses
+        return LlmStopReason.END_TURN, [structured_content]
 
     async def _process_stream(self, stream: AsyncMessageStream, model: str) -> Message:
         """Process the streaming response and display real-time token usage."""
@@ -297,9 +310,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
             ) from e
 
         # Always include prompt messages, but only include conversation history
-        # if use_history is True
         messages.extend(self.history.get(include_completion_history=params.use_history))
-
         messages.append(message_param)  # message_param is the current user turn
 
         # Get cache mode configuration
@@ -312,8 +323,6 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         tool_calls: dict[str, CallToolRequest] | None = None
         model = self.default_request_params.model
 
-        self._log_chat_progress(self.chat_turn(), model=model)
-
         # Create base arguments dictionary
         base_args = {
             "model": model,
@@ -323,9 +332,13 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
             "tools": available_tools,
         }
 
-        # Add tool_choice for structured output mode
         if structured_model:
             base_args["tool_choice"] = {"type": "tool", "name": STRUCTURED_OUTPUT_TOOL_NAME}
+
+        if params.maxTokens is not None:
+            base_args["max_tokens"] = params.maxTokens
+
+        self._log_chat_progress(self.chat_turn(), model=model)
 
         # Apply cache control to system prompt
         self._apply_system_cache(base_args, cache_mode)
@@ -342,9 +355,6 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                 self.logger.warning(
                     f"Total cache blocks ({total_cache_blocks}) exceeds Anthropic limit of 4"
                 )
-
-        if params.maxTokens is not None:
-            base_args["max_tokens"] = params.maxTokens
 
         # Use the base class method to prepare all arguments with Anthropic-specific exclusions
         arguments = self.prepare_provider_arguments(
@@ -369,7 +379,6 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                     response.usage, model or DEFAULT_ANTHROPIC_MODEL
                 )
                 self._finalize_turn_usage(turn_usage)
-            #                    self._show_usage(response.usage, turn_usage)
             except Exception as e:
                 self.logger.warning(f"Failed to track usage: {e}")
 
@@ -428,37 +437,13 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                 tool_uses: list[ToolUseBlock] = [
                     c for c in response.content if c.type == "tool_use"
                 ]
-
-                if tool_uses:
-                    tool_calls = {}
-                    for tool_use in tool_uses:
-                        tool_call = CallToolRequest(
-                            method="tools/call",
-                            params=CallToolRequestParams(
-                                name=tool_use.name,
-                                arguments=cast("dict[str, Any] | None", tool_use.input),
-                            ),
-                        )
-                        tool_calls[tool_use.id] = tool_call
-                    tool_results, tool_responses = await self._process_tool_calls(
-                        tool_uses, available_tools, structured_model
+                if structured_model and self._is_structured_output_request(tool_uses):
+                    stop_reason, structured_blocks = await self._handle_structured_output_response(
+                        tool_uses[0], structured_model, messages
                     )
-
-                    # Only add tool_results_message if there are actual results (required by Anthropic API)
-                    if tool_results:
-                        messages.append(
-                            AnthropicConverter.create_tool_results_message(tool_results)
-                        )
-
-                    # For structured output, we have our result and should exit after sending tool_result
-                    if structured_model and any(
-                        tool.name == STRUCTURED_OUTPUT_TOOL_NAME for tool in tool_uses
-                    ):
-                        # adjust the stop reason. we identify structured output usage as an Assistant method with this tool call and stop reason
-                        stop_reason = LlmStopReason.END_TURN
-                        response_content_blocks.extend(tool_responses)
-
-                        self.logger.debug("Structured output received, breaking iteration loop")
+                    response_content_blocks.extend(structured_blocks)
+                else:
+                    tool_calls = self._build_tool_calls_dict(tool_uses)
 
         # Only save the new conversation messages to history if use_history is true
         # Keep the prompt messages separate
@@ -472,27 +457,6 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
 
         return Prompt.assistant(
             *response_content_blocks, stop_reason=stop_reason, tool_calls=tool_calls
-        )
-
-    async def generate_messages(
-        self,
-        message_param,
-        request_params: RequestParams | None = None,
-        tools: List[Tool] | None = None,
-    ) -> PromptMessageMultipart:
-        """
-        Process a query using an LLM and available tools.
-        The default implementation uses Claude as the LLM.
-        Override this method to use a different LLM.
-
-        """
-        # Reset tool call counter for new turn
-        self._reset_turn_tool_calls()
-
-        return await self._anthropic_completion(
-            message_param=message_param,
-            request_params=request_params,
-            tools=tools,
         )
 
     async def _apply_prompt_provider_specific(
@@ -536,7 +500,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         if last_message.role == "user":
             self.logger.debug("Last message in prompt is from user, generating assistant response")
             message_param = AnthropicConverter.convert_to_anthropic(last_message)
-            return await self.generate_messages(message_param, request_params, tools)
+            return await self._anthropic_completion(message_param, request_params, tools=tools)
         else:
             # For assistant messages: Return the last message content as text
             self.logger.debug("Last message in prompt is from assistant, returning it directly")

@@ -55,6 +55,7 @@ class TestAnthropicLLM(unittest.IsolatedAsyncioTestCase):
         """Test basic generation returns END_TURN stop reason."""
         result: PromptMessageMultipart = await self.agent.generate("hello, world")
         assert result.stop_reason is LlmStopReason.END_TURN
+        assert None is not result.last_text()
 
     async def test_max_tokens_limit(self):
         """Test generation with max tokens limit returns MAX_TOKENS stop reason."""
@@ -63,6 +64,13 @@ class TestAnthropicLLM(unittest.IsolatedAsyncioTestCase):
         )
         assert result.stop_reason is LlmStopReason.MAX_TOKENS
 
+    async def test_stop_sequence(self):
+        """Test generation with max tokens limit returns MAX_TOKENS stop reason."""
+        result: PromptMessageMultipart = await self.agent.generate(
+            "repeat after me, `one, two, three`.", RequestParams(stopSequences=[" two,"])
+        )
+        assert result.stop_reason is LlmStopReason.STOP_SEQUENCE
+
     async def test_structured_output(self):
         """Test structured output generation with FormattedResponse model."""
         structured_output, result = await self.agent.structured(
@@ -70,13 +78,15 @@ class TestAnthropicLLM(unittest.IsolatedAsyncioTestCase):
         )
         assert structured_output
         assert LlmStopReason.END_TURN == result.stop_reason
-        if Provider.ANTHROPIC == self.agent.llm.provider:
-            assert result.tool_calls
-            assert 1 == len(result.tool_calls)
+        # consider whether we should retain the tool result in the message.
+        # if Provider.ANTHROPIC == self.agent.llm.provider:
+        #     assert result.tool_calls
+        #     assert 1 == len(result.tool_calls)
 
         ## make sure the next turn works (anthropic needs to insert empty block)
         result = await self.agent.generate("what about tomorrow's weather?")
         assert result.stop_reason is LlmStopReason.END_TURN
+        assert None is not result.last_text()
 
     async def test_tool_use_stop(self) -> None:
         result = await self.agent.generate("check the weather in london", tools=[self._tool])

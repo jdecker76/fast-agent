@@ -512,7 +512,7 @@ class ConsoleDisplay:
 
     def show_tool_call(
         self,
-        available_tools: List[Union[Dict[str, Any], object]],
+        available_tools: List[str],
         tool_name: str,
         tool_args: Dict[str, Any] | None,
         name: str | None = None,
@@ -522,10 +522,14 @@ class ConsoleDisplay:
             return
 
         # Get the list of matching tools for the bottom separator
-        tool_list = self._get_matching_tools(available_tools, tool_name)
+        #        tool_list = self._get_matching_tools(available_tools, tool_name)
 
         # Build right info
         right_info = f"[dim]tool request - {tool_name}[/dim]"
+
+        shortened_names: List[str] = [
+            tool_name[:11] + "…" for tool_name in available_tools if len(tool_name) > 12
+        ]
 
         # Get the shortened name of the selected tool for highlighting
         # Extract just the tool name part (after SEP) for highlighting
@@ -540,7 +544,7 @@ class ConsoleDisplay:
             message_type=MessageType.TOOL_CALL,
             name=name,
             right_info=right_info,
-            bottom_metadata=tool_list if tool_list else None,
+            bottom_metadata=shortened_names,
             highlight_items=highlight_tool,
             truncate_content=True,
         )
