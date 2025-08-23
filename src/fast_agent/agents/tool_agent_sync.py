@@ -32,8 +32,8 @@ class ToolAgentSynchronous(LlmAgent):
     ) -> None:
         super().__init__(config=config, context=context)
         # Convert everything to FastMCP Tools for execution
-        self._fast_tools = {}
-        self._mcp_tools = []
+        self._fast_tools: dict[str, FastMCPTool] = {}
+        self._mcp_tools: list[Tool] = []
 
         for tool in tools:
             if isinstance(tool, FastMCPTool):
@@ -83,7 +83,6 @@ class ToolAgentSynchronous(LlmAgent):
 
     # we take care of tool results, so skip displaying them
     def show_user_message(self, message: PromptMessageMultipart) -> None:
-        """Display a user message in a formatted panel."""
         if message.tool_results:
             return
         super().show_user_message(message)
