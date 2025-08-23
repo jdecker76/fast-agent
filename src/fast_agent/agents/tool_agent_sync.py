@@ -31,9 +31,11 @@ class ToolAgentSynchronous(LlmAgent):
         context: Context | None = None,
     ) -> None:
         super().__init__(config=config, context=context)
-        # Convert everything to FastMCP Tools for execution
-        self._fast_tools = {}
-        self._mcp_tools = []
+        # Maintain two structures:
+        # - _execution_tools: FastMCP Tools that contain the actual execution logic
+        # - _tool_schemas: MCP Tool schemas for the LLM interface (no execution logic)
+        self._execution_tools = {}
+        self._tool_schemas = []
 
         for tool in tools:
             if isinstance(tool, FastMCPTool):
@@ -44,9 +46,9 @@ class ToolAgentSynchronous(LlmAgent):
                 logger.warning(f"Skipping unknown tool type: {type(tool)}")
                 continue
 
-            self._fast_tools[fast_tool.name] = fast_tool
-            # Create MCP Tool for the LLM interface
-            self._mcp_tools.append(
+            self._execution_tools[fast_tool.name] = fast_tool
+            # Create MCP Tool schema for the LLM interface
+            self._tool_schemas.append(
                 Tool(
                     name=fast_tool.name,
                     description=fast_tool.description,
@@ -65,9 +67,8 @@ class ToolAgentSynchronous(LlmAgent):
         Messages are already normalized to List[PromptMessageMultipart].
         """
         if tools is None:
-            tools = self._mcp_tools
+            tools = self._tool_schemas
 
-        # Keep track of the conversation for tool calling loop
         while True:
             result = await super().generate_impl(
                 messages, request_params=request_params, tools=tools
@@ -75,7 +76,6 @@ class ToolAgentSynchronous(LlmAgent):
 
             if LlmStopReason.TOOL_USE == result.stop_reason:
                 messages = [await self.run_tools(result)]
-
             else:
                 break
 
@@ -95,18 +95,18 @@ class ToolAgentSynchronous(LlmAgent):
             return PromptMessageMultipart(role="user", tool_results={})
 
         tool_results: dict[str, CallToolResult] = {}
-
+        # TODO -- use gather() for parallel results, update display
         for correlation_id, tool_request in request.tool_calls.items():
             tool_name = tool_request.params.name
             tool_args = tool_request.params.arguments or {}
             self.display.show_tool_call(
                 name=self.name,
                 tool_args=tool_args,
-                available_tools=self._mcp_tools,
+                available_tools=self._tool_schemas,
                 tool_name=tool_name,
             )
 
-            fast_tool = self._fast_tools.get(tool_name)
+            fast_tool = self._execution_tools.get(tool_name)
             if fast_tool:
                 try:
                     # Use FastMCP's run method without convert_result to get raw output
