@@ -87,7 +87,7 @@ class FastAgent:
         ignore_unknown_args: bool = False,
         parse_cli_args: bool = True,
         quiet: bool = False,  # Add quiet parameter
-        **kwargs
+        **kwargs,
     ) -> None:
         """
         Initialize the fast-agent application.
@@ -204,7 +204,7 @@ class FastAgent:
             self.app = Core(
                 name=name,
                 settings=config.Settings(**self.config) if hasattr(self, "config") else None,
-                **kwargs
+                **kwargs,
             )
 
             # Stop progress display immediately if quiet mode is requested

@@ -13,6 +13,8 @@ from mcp_agent.mcp.interfaces import ModelT
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 from mcp_agent.mcp.prompts.prompt_helpers import MessageContent
 
+# TODO -- support tool usage/replay
+
 
 class PlaybackLLM(PassthroughLLM):
     """
@@ -58,7 +60,7 @@ class PlaybackLLM(PassthroughLLM):
             str,
             PromptMessage,
             PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]]
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
         ],
         request_params: RequestParams | None = None,
     ) -> PromptMessageMultipart:
@@ -69,7 +71,7 @@ class PlaybackLLM(PassthroughLLM):
         """
         # Normalize all input types to a list of PromptMessageMultipart
         multipart_messages = normalize_to_multipart_list(messages)
-        
+
         # If this is the first call (initialization) or we're loading a prompt template
         # with multiple messages (comes from apply_prompt)
         if -1 == self._current_index:
@@ -121,7 +123,7 @@ class PlaybackLLM(PassthroughLLM):
             str,
             PromptMessage,
             PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]]
+            List[Union[str, PromptMessage, PromptMessageMultipart]],
         ],
         model: Type[ModelT],
         request_params: RequestParams | None = None,

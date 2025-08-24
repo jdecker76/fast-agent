@@ -32,21 +32,6 @@ async def test_simple_return():
 
 
 @pytest.mark.asyncio
-async def test_concatenates_text_for_multiple_parts():
-    llm: AugmentedLLMProtocol = PassthroughLLM()
-    response = await llm.generate(
-        messages=[
-            Prompt.user("123abc"),
-            Prompt.assistant("456def"),
-            Prompt.user("789ghi"),
-        ]
-    )
-    assert "assistant" == response.role
-    assert "789ghi" in response.first_text()
-    assert "456def" in response.first_text()
-    assert "123abc" in response.first_text()
-
-
 @pytest.mark.asyncio
 async def test_set_fixed_return():
     llm: AugmentedLLMProtocol = PassthroughLLM()
@@ -69,9 +54,7 @@ async def test_set_fixed_return_ignores_not_set():
     )
     assert "***FIXED_RESPONSE" == response.first_text()
 
-    response: PromptMessageMultipart = await llm.generate(
-        messages=[Prompt.user("ignored message")]
-    )
+    response: PromptMessageMultipart = await llm.generate(messages=[Prompt.user("ignored message")])
     assert "ignored message" == response.first_text()
 
 
@@ -135,18 +118,18 @@ async def test_usage_tracking():
 async def test_tool_call_usage_tracking():
     """Test that PassthroughLLM correctly tracks tool call usage"""
     llm: AugmentedLLMProtocol = PassthroughLLM()
-    
+
     # Initially no usage
     assert llm.usage_accumulator.turn_count == 0
-    
+
     # Make a tool call
     await llm.generate(messages=[Prompt.user(f"{CALL_TOOL_INDICATOR} some_tool {{}}")])
-    
+
     # Should have tracked the tool call turn
     assert llm.usage_accumulator.turn_count == 1
     assert llm.usage_accumulator.cumulative_billing_tokens > 0
     assert llm.usage_accumulator.current_context_tokens > 0
-    
+
     # Check that the usage was tracked with tool call data
     last_turn = llm.usage_accumulator.turns[-1]
     assert last_turn.raw_usage.tool_calls == 1

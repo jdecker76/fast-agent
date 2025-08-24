@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, List, Optional, Tuple, Type
 from opentelemetry import trace
 from pydantic import BaseModel
 
+from fast_agent.agents.llm_agent import LlmAgent
 from mcp_agent.agents.agent import Agent
-from mcp_agent.agents.base_agent import BaseAgent
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.exceptions import AgentConfigError
 from mcp_agent.core.prompt import Prompt
@@ -60,7 +60,7 @@ class RoutingResponse(BaseModel):
     reasoning: str | None = None
 
 
-class RouterAgent(BaseAgent):
+class RouterAgent(LlmAgent):
     """
     A simplified router that uses an LLM to determine the best agent for a request,
     then dispatches the request to that agent and returns the response.

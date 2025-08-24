@@ -35,7 +35,7 @@ from mcp.types import (
 )
 from pydantic import BaseModel
 
-from fast_agent.agents.llm_agent import LlmAgent
+from fast_agent.agents.tool_agent import ToolAgent
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.exceptions import PromptExitError
 from mcp_agent.core.prompt import Prompt
@@ -69,7 +69,7 @@ DEFAULT_CAPABILITIES = AgentCapabilities(
 )
 
 
-class BaseAgent(ABC, MCPAggregator, LlmAgent):
+class BaseAgent(ABC, ToolAgent):
     """
     A base Agent class that implements the AgentProtocol interface.
 
@@ -81,31 +81,27 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         self,
         config: AgentConfig,
         connection_persistence: bool = True,
-        human_input_callback: Optional[HumanInputCallback] = None,
-        context: Optional["Context"] = None,
+        human_input_callback: HumanInputCallback | None = None,
+        context: "Context | None" = None,
         **kwargs,
     ) -> None:
-        self.config = config
-
-        MCPAggregator.__init__(
-            self,
-            context=context,
-            server_names=self.config.servers,
-            connection_persistence=connection_persistence,
-            name=self.config.name,
+        super().__init__(
             config=config,
+            context=context,
             **kwargs,
         )
 
-        LlmAgent.__init__(
-            self,
-            config=config,
+        # Create aggregator with composition
+        self._aggregator = MCPAggregator(
+            server_names=self.config.servers,
+            connection_persistence=connection_persistence,
+            name=self.config.name,
             context=context,
             **kwargs,
         )
 
         self.instruction = self.config.instruction
-        self.executor = self.context.executor if context and hasattr(context, "executor") else None
+        self.executor = context.executor if context else None
         self.logger = get_logger(f"{__name__}.{self._name}")
 
         # Store the default request params from config
@@ -114,9 +110,6 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         # set with the "attach" method
         self._llm: AugmentedLLMProtocol | None = None
 
-        # Map function names to tools
-        self._function_tool_map: Dict[str, Any] = {}
-
         if not self.config.human_input:
             self.human_input_callback = None
         else:
@@ -124,12 +117,21 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
             if not human_input_callback and context and hasattr(context, "human_input_handler"):
                 self.human_input_callback = context.human_input_handler
 
+    async def __aenter__(self):
+        """Initialize the agent and its MCP aggregator."""
+        await self._aggregator.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Clean up the agent and its MCP aggregator."""
+        await self._aggregator.__aexit__(exc_type, exc_val, exc_tb)
+
     async def initialize(self) -> None:
         """
         Initialize the agent and connect to the MCP servers.
         NOTE: This method is called automatically when the agent is used as an async context manager.
         """
-        await self.__aenter__()  # This initializes the connection manager and loads the servers
+        await self.__aenter__()
 
     async def attach_llm(
         self,
@@ -186,7 +188,12 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         Shutdown the agent and close all MCP server connections.
         NOTE: This method is called automatically when the agent is used as an async context manager.
         """
-        await super().close()
+        await self._aggregator.close()
+
+    @property
+    def initialized(self) -> bool:
+        """Check if the aggregator is initialized."""
+        return self._aggregator.initialized
 
     async def __call__(
         self,
@@ -198,10 +205,6 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         ],
     ) -> str:
         return await self.send(message)
-
-    async def generate_str(self, message: str, request_params: RequestParams | None) -> str:
-        result: PromptMessageMultipart = await self.generate([Prompt.user(message)], request_params)
-        return result.first_text()
 
     async def send(
         self,
@@ -226,7 +229,6 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         Returns:
             The agent's response as a string
         """
-        # generate() now handles normalization internally, so we can pass the message directly
         response = await self.generate(message, request_params)
         return response.last_text()
 
@@ -321,11 +323,8 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         Returns:
             ListToolsResult with available tools
         """
-        if not self.initialized:
-            await self.initialize()
-
-        # Get all tools from the parent class
-        result = await super().list_tools()
+        # Get all tools from the aggregator
+        result = await self._aggregator.list_tools()
 
         # Apply filtering if tools are specified in config
         if self.config.tools is not None:
@@ -379,7 +378,7 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
             # Call the human input tool
             return await self._call_human_input_tool(arguments)
         else:
-            return await super().call_tool(name, arguments)
+            return await self._aggregator.call_tool(name, arguments)
 
     async def _call_human_input_tool(
         self, arguments: Dict[str, Any] | None = None
@@ -461,7 +460,7 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         Returns:
             GetPromptResult containing the prompt information
         """
-        return await super().get_prompt(prompt_name, arguments, server_name)
+        return await self._aggregator.get_prompt(prompt_name, arguments, server_name)
 
     async def apply_prompt(
         self,
@@ -547,7 +546,7 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
             ValueError: If the server doesn't exist or the resource couldn't be found
         """
         # Get the raw resource result
-        result: ReadResourceResult = await self.get_resource(resource_uri, server_name)
+        result: ReadResourceResult = await self._aggregator.get_resource(resource_uri, server_name)
 
         # Convert each resource content to an EmbeddedResource
         embedded_resources: List[EmbeddedResource] = []
@@ -608,43 +607,27 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         response: PromptMessageMultipart = await self.generate([prompt], None)
         return response.first_text()
 
-    async def generate(
+    async def generate_impl(
         self,
-        messages: Union[
-            str,
-            PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
-        ],
+        messages: List[PromptMessageMultipart],
         request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
     ) -> PromptMessageMultipart:
         """
-        Create a completion with the LLM using the provided messages.
-
-        Template Method pattern: This method normalizes inputs and delegates
-        to the abstract _generate_impl() method that subclasses must implement.
-
-        Args:
-            messages: Message(s) in various formats:
-                - String: Converted to a user PromptMessageMultipart
-                - PromptMessage: Converted to PromptMessageMultipart
-                - PromptMessageMultipart: Used directly
-                - List of any combination of the above
-            request_params: Optional parameters to configure the request
-
-        Returns:
-            The LLM's response as a PromptMessageMultipart
+        Override ToolAgent's generate_impl to provide MCP tools dynamically.
         """
-        # Normalize all input types to a list of PromptMessageMultipart (Template Method pattern)
-        normalized_messages = normalize_to_multipart_list(messages)
+        if tools is None:
+            # Get tools from our aggregator instead of ToolAgent's _tool_schemas
+            tools_result = await self.list_tools()
+            tools = tools_result.tools
 
-        with self._tracer.start_as_current_span(f"Agent: '{self._name}' generate"):
-            return await self._generate_impl(normalized_messages, request_params)
+        return await super().generate_impl(messages, request_params, tools=tools)
 
     async def _generate_impl(
         self,
         normalized_messages: List[PromptMessageMultipart],
         request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
     ) -> PromptMessageMultipart:
         """
         Default implementation for regular agents - delegates to attached LLM.
@@ -654,6 +637,7 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         Args:
             normalized_messages: Already normalized list of PromptMessageMultipart
             request_params: Optional parameters to configure the request
+            tools: Optional tools to pass to the LLM
 
         Returns:
             The LLM's response as a PromptMessageMultipart
@@ -661,7 +645,45 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         assert self._llm, (
             "No LLM attached to agent. Workflow agents should override _generate_impl()."
         )
-        return await self._llm.generate(normalized_messages, request_params)
+        with self._tracer.start_as_current_span(f"Agent: '{self._name}' generate"):
+            return await self._llm.generate(normalized_messages, request_params, tools=tools)
+
+    async def run_tools(self, request: PromptMessageMultipart) -> PromptMessageMultipart:
+        """Override ToolAgent's run_tools to use MCP tools via aggregator."""
+        if not request.tool_calls:
+            self.logger.warning("No tool calls found in request", data=request)
+            return PromptMessageMultipart(role="user", tool_results={})
+
+        tool_results: dict[str, CallToolResult] = {}
+
+        # Process each tool call using our aggregator
+        for correlation_id, tool_request in request.tool_calls.items():
+            tool_name = tool_request.params.name
+            tool_args = tool_request.params.arguments or {}
+
+            # Show tool call in display (similar to ToolAgent)
+            if hasattr(self, "display"):
+                self.display.show_tool_call(
+                    name=self._name,
+                    tool_args=tool_args,
+                    available_tools=[],  # We could populate this from list_tools if needed
+                    tool_name=tool_name,
+                )
+
+            try:
+                # Use our aggregator to call the MCP tool
+                result = await self.call_tool(tool_name, tool_args)
+                tool_results[correlation_id] = result
+
+                self.logger.debug(f"MCP tool {tool_name} executed successfully")
+            except Exception as e:
+                self.logger.error(f"MCP tool {tool_name} failed: {e}")
+                tool_results[correlation_id] = CallToolResult(
+                    content=[TextContent(type="text", text=f"Error: {str(e)}")],
+                    isError=True,
+                )
+
+        return PromptMessageMultipart(role="user", tool_results=tool_results)
 
     async def apply_prompt_template(self, prompt_result: GetPromptResult, prompt_name: str) -> str:
         """
@@ -740,11 +762,8 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         Returns:
             Dictionary mapping server names to lists of Prompt objects
         """
-        if not self.initialized:
-            await self.initialize()
-
-        # Get all prompts from the parent class
-        result = await super().list_prompts(server_name)
+        # Get all prompts from the aggregator
+        result = await self._aggregator.list_prompts(server_name)
 
         # Apply filtering if prompts are specified in config
         if self.config.prompts is not None:
@@ -775,11 +794,8 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         Returns:
             Dictionary mapping server names to lists of resource URIs
         """
-        if not self.initialized:
-            await self.initialize()
-
-        # Get all resources from the parent class
-        result = await super().list_resources(server_name)
+        # Get all resources from the aggregator
+        result = await self._aggregator.list_resources(server_name)
 
         # Apply filtering if resources are specified in config
         if self.config.resources is not None:
@@ -810,11 +826,8 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         Returns:
             Dictionary mapping server names to lists of Tool objects (with original names, not namespaced)
         """
-        if not self.initialized:
-            await self.initialize()
-
-        # Get all tools from the parent class
-        result = await super().list_mcp_tools(server_name)
+        # Get all tools from the aggregator
+        result = await self._aggregator.list_mcp_tools(server_name)
 
         # Apply filtering if tools are specified in config
         if self.config.tools is not None:
@@ -884,6 +897,10 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
             documentation_url=None,
         )
 
+    async def _parse_resource_name(self, name: str, resource_type: str) -> tuple[str, str]:
+        """Delegate resource name parsing to the aggregator."""
+        return await self._aggregator._parse_resource_name(name, resource_type)
+
     async def convert(self, tool: Tool) -> AgentSkill:
         """
         Convert a Tool to an AgentSkill.
@@ -893,14 +910,14 @@ class BaseAgent(ABC, MCPAggregator, LlmAgent):
         return AgentSkill(
             id=tool.name,
             name=tool_without_namespace,
-            description=tool.description,
+            description=tool.description or "",
             tags=["tool"],
             examples=None,
-            inputModes=None,  # ["text/plain"],
+            input_modes=None,  # ["text/plain"],
             # cover TextContent | ImageContent ->
             # https://github.com/modelcontextprotocol/modelcontextprotocol/pull/223
             # https://github.com/modelcontextprotocol/modelcontextprotocol/pull/93
-            outputModes=None,  # ,["text/plain", "image/*"],
+            output_modes=None,  # ,["text/plain", "image/*"],
         )
 
     @property

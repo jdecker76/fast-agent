@@ -36,7 +36,7 @@ from mcp_agent.mcp.mcp_agent_client_session import MCPAgentClientSession
 
 if TYPE_CHECKING:
     from fast_agent.context import Context
-    from fast_agent.mcp_server_registry import InitHookCallable, ServerRegistry
+    from fast_agent.mcp_server_registry import ServerRegistry
 
 logger = get_logger(__name__)
 
@@ -88,13 +88,11 @@ class ServerConnection:
             [MemoryObjectReceiveStream, MemoryObjectSendStream, timedelta | None],
             ClientSession,
         ],
-        init_hook: Optional["InitHookCallable"] = None,
     ) -> None:
         self.server_name = server_name
         self.server_config = server_config
         self.session: ClientSession | None = None
         self._client_session_factory = client_session_factory
-        self._init_hook = init_hook
         self._transport_context_factory = transport_context_factory
         # Signal that session is fully up and initialized
         self._initialized_event = Event()
@@ -137,9 +135,6 @@ class ServerConnection:
 
         self.server_capabilities = result.capabilities
         # If there's an init hook, run it
-        if self._init_hook:
-            logger.info(f"{self.server_name}: Executing init hook.")
-            self._init_hook(self.session, self.server_config.auth)
 
         # Now the session is ready for use
         self._initialized_event.set()
@@ -325,7 +320,6 @@ class MCPConnectionManager(ContextDependent):
             [MemoryObjectReceiveStream, MemoryObjectSendStream, timedelta | None],
             ClientSession,
         ],
-        init_hook: Optional["InitHookCallable"] = None,
     ) -> ServerConnection:
         """
         Connect to a server and return a RunningServer instance that will persist
@@ -379,7 +373,6 @@ class MCPConnectionManager(ContextDependent):
             server_config=config,
             transport_context_factory=transport_context_factory,
             client_session_factory=client_session_factory,
-            init_hook=init_hook or self.server_registry.init_hooks.get(server_name),
         )
 
         async with self._lock:
@@ -397,7 +390,6 @@ class MCPConnectionManager(ContextDependent):
         self,
         server_name: str,
         client_session_factory: Callable,
-        init_hook: Optional["InitHookCallable"] = None,
     ) -> ServerConnection:
         """
         Get a running server instance, launching it if needed.
@@ -418,7 +410,6 @@ class MCPConnectionManager(ContextDependent):
         server_conn = await self.launch_server(
             server_name=server_name,
             client_session_factory=client_session_factory,
-            init_hook=init_hook,
         )
 
         # Wait until it's fully initialized, or an error occurs

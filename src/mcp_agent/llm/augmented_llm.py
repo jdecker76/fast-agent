@@ -500,7 +500,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         """Display an assistant message in a formatted panel."""
         await self.display.show_assistant_message(
             message_text,
-            aggregator=self.aggregator,
+            #            aggregator=self.aggregator,
             highlight_namespaced_tool=highlight_namespaced_tool,
             title=title,
             name=self.name,
@@ -661,7 +661,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             description=description,
             message_count=message_count,
             agent_name=self.name,
-            aggregator=self.aggregator,
+            # aggregator=self.aggregator,
             arguments=arguments,
         )
 

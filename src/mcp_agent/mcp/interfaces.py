@@ -88,7 +88,6 @@ class ServerRegistryProtocol(Protocol):
                 ClientSession,
             ]
         ] = None,
-        init_hook: Optional[Callable] = None,
     ) -> AsyncContextManager[ClientSession]:
         """Initialize a server and yield a client session."""
         ...

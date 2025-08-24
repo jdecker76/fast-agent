@@ -190,6 +190,7 @@ class MCPAgentClientSession(ClientSession, ContextDependent):
             return result
         except Exception as e:
             # Handle connection errors cleanly
+            # Looking at the MCP SDK, this should probably handle MCPError
             from anyio import ClosedResourceError
 
             if isinstance(e, ClosedResourceError):
@@ -209,7 +210,7 @@ class MCPAgentClientSession(ClientSession, ContextDependent):
         Can be overridden by subclasses to handle a notification without needing
         to listen on the message stream.
         """
-        logger.info(
+        logger.debug(
             "_received_notification: notification=",
             data=notification.model_dump(),
         )
@@ -248,6 +249,7 @@ class MCPAgentClientSession(ClientSession, ContextDependent):
         except Exception as e:
             logger.error(f"Error in tool list changed callback: {e}")
 
+    # TODO -- decide whether to make this override type safe or not (modify SDK)
     async def call_tool(
         self, name: str, arguments: dict | None = None, _meta: dict | None = None, **kwargs
     ) -> CallToolResult:

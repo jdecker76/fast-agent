@@ -5,7 +5,7 @@ This provides a streamlined implementation that adheres to AgentProtocol
 while delegating LLM operations to an attached AugmentedLLMProtocol instance.
 """
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Dict, Optional, TypeVar
 
 from mcp_agent.agents.base_agent import BaseAgent
 from mcp_agent.core.agent_types import AgentConfig
@@ -34,7 +34,6 @@ class Agent(BaseAgent):
     def __init__(
         self,
         config: AgentConfig,  # Can be AgentConfig or backward compatible str name
-        functions: Optional[List[Callable]] = None,
         connection_persistence: bool = True,
         human_input_callback: Optional[HumanInputCallback] = None,
         context: Optional["Context"] = None,
@@ -43,7 +42,6 @@ class Agent(BaseAgent):
         # Initialize with BaseAgent constructor
         super().__init__(
             config=config,
-            functions=functions,
             connection_persistence=connection_persistence,
             human_input_callback=human_input_callback,
             context=context,
