@@ -14,6 +14,7 @@ from typing import (
     Union,
 )
 
+from a2a.types import AgentCard
 from mcp import Tool
 from mcp.types import (
     GetPromptResult,
@@ -349,3 +350,23 @@ class LlmDecorator(LlmAgentProtocol):
             result.model = model_override
 
         return result
+
+    async def agent_card(self) -> AgentCard:
+        """
+        Return an A2A card describing this Agent
+        """
+        from fast_agent.agents.llm_agent import DEFAULT_CAPABILITIES
+
+        return AgentCard(
+            skills=[],
+            name=self._name,
+            description=self.instruction,
+            url=f"fast-agent://agents/{self._name}/",
+            version="0.1",
+            capabilities=DEFAULT_CAPABILITIES,
+            # TODO -- get these from the _llm
+            default_input_modes=["text/plain"],
+            default_output_modes=["text/plain"],
+            provider=None,
+            documentation_url=None,
+        )

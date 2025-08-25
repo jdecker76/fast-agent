@@ -22,7 +22,7 @@ from typing import (
     Union,
 )
 
-from a2a.types import AgentCapabilities, AgentCard, AgentSkill
+from a2a.types import AgentCard, AgentSkill
 from mcp.types import (
     CallToolResult,
     EmbeddedResource,
@@ -35,6 +35,7 @@ from mcp.types import (
 )
 from pydantic import BaseModel
 
+from fast_agent.agents.llm_agent import DEFAULT_CAPABILITIES
 from fast_agent.agents.tool_agent import ToolAgent
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.exceptions import PromptExitError
@@ -62,11 +63,6 @@ HUMAN_INPUT_TOOL_NAME = "__human_input__"
 if TYPE_CHECKING:
     from fast_agent.context import Context
     from mcp_agent.llm.usage_tracking import UsageAccumulator
-
-
-DEFAULT_CAPABILITIES = AgentCapabilities(
-    streaming=False, push_notifications=False, state_transition_history=False
-)
 
 
 class BaseAgent(ABC, ToolAgent):

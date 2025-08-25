@@ -268,6 +268,10 @@ class LlmAgentProtocol(Protocol):
         """Shut down the LLM agent"""
         ...
 
+    async def agent_card(self) -> AgentCard:
+        """Return an A2A Agent Card for this Agent"""
+        ...
+
 
 class AgentProtocol(Protocol):
     """Protocol defining the standard agent interface with flexible input types.
@@ -397,10 +401,6 @@ class AgentProtocol(Protocol):
         server_name: str | None = None,
     ) -> str:
         """Send a message with an attached MCP resource"""
-        ...
-
-    async def agent_card(self) -> AgentCard:
-        """Return an A2A Agent Card for this Agent"""
         ...
 
     async def initialize(self) -> None:

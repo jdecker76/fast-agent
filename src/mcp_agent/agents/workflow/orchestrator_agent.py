@@ -12,7 +12,6 @@ from mcp.types import TextContent
 
 from fast_agent.agents.llm_agent import LlmAgent
 from mcp_agent.agents.agent import Agent
-from mcp_agent.agents.base_agent import BaseAgent
 from mcp_agent.agents.workflow.orchestrator_models import (
     Plan,
     PlanningStep,
@@ -111,7 +110,7 @@ class OrchestratorAgent(LlmAgent):
         objective = messages[-1].all_text() if messages else ""
 
         # Initialize execution parameters
-        params = self._merge_request_params(request_params)
+        params = self._merge_request_params(request_params, None)
 
         # Execute the plan
         plan_result = await self._execute_plan(objective, params)

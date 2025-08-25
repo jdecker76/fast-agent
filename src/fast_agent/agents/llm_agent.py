@@ -10,6 +10,7 @@ This class extends LlmDecorator with LLM-specific interaction behaviors includin
 
 from typing import List
 
+from a2a.types import AgentCapabilities
 from mcp import Tool
 from rich.text import Text
 
@@ -23,6 +24,10 @@ from mcp_agent.ui.console_display import ConsoleDisplay
 
 # TODO -- move tool counting logic to relevant place
 # TODO -- decide what to do with type safety for model/chat_turn()
+
+DEFAULT_CAPABILITIES = AgentCapabilities(
+    streaming=False, push_notifications=False, state_transition_history=False
+)
 
 
 class LlmAgent(LlmDecorator):
