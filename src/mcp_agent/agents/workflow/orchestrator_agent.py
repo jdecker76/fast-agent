@@ -607,5 +607,6 @@ class OrchestratorAgent(LlmAgent):
 
         # Force orchestrator-specific settings
         params.use_history = False
+        params.max_iterations = 5
 
         return params

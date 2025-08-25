@@ -90,7 +90,7 @@ markers = [
     "simulated_endpoints: marks tests that use simulated external endpoints"
 ]
 # Other pytest options can go here too
-testpaths = ["test", "integration_tests"]
+testpaths = ["tests"]
 
 [dependency-groups]
 dev = [
