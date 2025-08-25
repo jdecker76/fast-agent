@@ -656,32 +656,47 @@ class BaseAgent(ABC, ToolAgent):
 
         tool_results: dict[str, CallToolResult] = {}
 
+        # Cache available tool names (original, not namespaced) for display
+        available_tools = [
+            namespaced_tool.tool.name 
+            for namespaced_tool in self._aggregator._namespaced_tool_map.values()
+        ]
+
         # Process each tool call using our aggregator
         for correlation_id, tool_request in request.tool_calls.items():
             tool_name = tool_request.params.name
             tool_args = tool_request.params.arguments or {}
 
-            # Show tool call in display (similar to ToolAgent)
-            if hasattr(self, "display"):
-                self.display.show_tool_call(
-                    name=self._name,
-                    tool_args=tool_args,
-                    available_tools=[],  # We could populate this from list_tools if needed
-                    tool_name=tool_name,
-                )
+            # Get the original tool name for display (not namespaced)
+            namespaced_tool = self._aggregator._namespaced_tool_map.get(tool_name)
+            display_tool_name = namespaced_tool.tool.name if namespaced_tool else tool_name
+
+            self.display.show_tool_call(
+                name=self._name,
+                tool_args=tool_args,
+                available_tools=available_tools,
+                tool_name=display_tool_name,
+            )
 
             try:
                 # Use our aggregator to call the MCP tool
                 result = await self.call_tool(tool_name, tool_args)
                 tool_results[correlation_id] = result
 
-                self.logger.debug(f"MCP tool {tool_name} executed successfully")
+                # Show tool result (like ToolAgent does)
+                self.display.show_tool_result(name=self._name, result=result)
+
+                self.logger.debug(f"MCP tool {display_tool_name} executed successfully")
             except Exception as e:
-                self.logger.error(f"MCP tool {tool_name} failed: {e}")
-                tool_results[correlation_id] = CallToolResult(
+                self.logger.error(f"MCP tool {display_tool_name} failed: {e}")
+                error_result = CallToolResult(
                     content=[TextContent(type="text", text=f"Error: {str(e)}")],
                     isError=True,
                 )
+                tool_results[correlation_id] = error_result
+
+                # Show error result too
+                self.display.show_tool_result(name=self._name, result=error_result)
 
         return PromptMessageMultipart(role="user", tool_results=tool_results)
 
@@ -884,7 +899,7 @@ class BaseAgent(ABC, ToolAgent):
         for tool in tools.tools:
             skills.append(await self.convert(tool))
 
-        return AgentCard(
+s        return AgentCard(
             skills=skills,
             name=self._name,
             description=self.instruction,

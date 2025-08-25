@@ -241,6 +241,10 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             messages, request_params, tools
         )
 
+        # Count tool calls from the response for usage tracking
+        if assistant_response.tool_calls:
+            self._current_turn_tool_calls = len(assistant_response.tool_calls)
+
         # add generic error and termination reason handling/rollback
         self._message_history.append(assistant_response)
 

@@ -528,7 +528,8 @@ class ConsoleDisplay:
         right_info = f"[dim]tool request - {tool_name}[/dim]"
 
         shortened_names: List[str] = [
-            tool_name[:11] + "…" for tool_name in available_tools if len(tool_name) > 12
+            tool_name[:11] + "…" if len(tool_name) > 12 else tool_name 
+            for tool_name in available_tools
         ]
 
         # Get the shortened name of the selected tool for highlighting
