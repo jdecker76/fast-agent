@@ -1,5 +1,6 @@
-from typing import Dict, List
+from typing import Any, Dict, List
 
+from mcp import Tool
 from mcp.types import (
     CallToolRequest,
     CallToolRequestParams,
@@ -18,9 +19,9 @@ from openai.types.chat import (
     ChatCompletionToolParam,
 )
 from pydantic_core import from_json
-from rich.text import Text
 
 from fast_agent.event_progress import ProgressAction
+from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.exceptions import ProviderKeyError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.llm.augmented_llm import (
@@ -292,7 +293,8 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
         self,
         message: OpenAIMessage,
         request_params: RequestParams | None = None,
-    ) -> List[ContentBlock]:
+        tools: List[Tool] | None = None,
+    ) -> PromptMessageMultipart:
         """
         Process a query using an LLM and available tools.
         The default implementation uses OpenAI's ChatCompletion as the LLM.
@@ -301,7 +303,7 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
 
         request_params = self.get_request_params(request_params=request_params)
 
-        responses: List[ContentBlock] = []
+        response_content_blocks: List[ContentBlock] = []
         model_name = self.default_request_params.model or DEFAULT_OPENAI_MODEL
 
         # TODO -- move this in to agent context management / agent group handling
@@ -313,7 +315,6 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
         messages.extend(self.history.get(include_completion_history=request_params.use_history))
         messages.append(message)
 
-        response = await self.aggregator.list_tools()
         available_tools: List[ChatCompletionToolParam] | None = [
             {
                 "type": "function",
@@ -323,7 +324,7 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
                     "parameters": self.adjust_schema(tool.inputSchema),
                 },
             }
-            for tool in response.tools
+            for tool in tools or []
         ]
 
         if not available_tools:
@@ -333,154 +334,92 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
                 available_tools = []
 
         # we do NOT send "stop sequences" as this causes errors with mutlimodal processing
-        for i in range(request_params.max_iterations):
-            arguments = self._prepare_api_request(messages, available_tools, request_params)
-            self.logger.debug(f"OpenAI completion requested for: {arguments}")
+        arguments: dict[str, Any] = self._prepare_api_request(
+            messages, available_tools, request_params
+        )
+        self.logger.debug(f"OpenAI completion requested for: {arguments}")
 
-            self._log_chat_progress(self.chat_turn(), model=self.default_request_params.model)
+        self._log_chat_progress(self.chat_turn(), model=self.default_request_params.model)
 
-            # Use basic streaming API
-            stream = await self._openai_client().chat.completions.create(**arguments)
-            # Process the stream
-            response = await self._process_stream(stream, self.default_request_params.model)
-            # Track usage if response is valid and has usage data
-            if (
-                hasattr(response, "usage")
-                and response.usage
-                and not isinstance(response, BaseException)
-            ):
-                try:
-                    model_name = self.default_request_params.model or DEFAULT_OPENAI_MODEL
-                    turn_usage = TurnUsage.from_openai(response.usage, model_name)
-                    self._finalize_turn_usage(turn_usage)
-                except Exception as e:
-                    self.logger.warning(f"Failed to track usage: {e}")
+        # Use basic streaming API
+        stream = await self._openai_client().chat.completions.create(**arguments)
+        # Process the stream
+        response = await self._process_stream(stream, self.default_request_params.model)
+        # Track usage if response is valid and has usage data
+        if (
+            hasattr(response, "usage")
+            and response.usage
+            and not isinstance(response, BaseException)
+        ):
+            try:
+                model_name = self.default_request_params.model or DEFAULT_OPENAI_MODEL
+                turn_usage = TurnUsage.from_openai(response.usage, model_name)
+                self._finalize_turn_usage(turn_usage)
+            except Exception as e:
+                self.logger.warning(f"Failed to track usage: {e}")
 
-            self.logger.debug(
-                "OpenAI completion response:",
-                data=response,
-            )
+        self.logger.debug(
+            "OpenAI completion response:",
+            data=response,
+        )
 
-            if isinstance(response, AuthenticationError):
-                raise ProviderKeyError(
-                    "Rejected OpenAI API key",
-                    "The configured OpenAI API key was rejected.\n"
-                    "Please check that your API key is valid and not expired.",
-                ) from response
-            elif isinstance(response, BaseException):
-                self.logger.error(f"Error: {response}")
-                break
+        if isinstance(response, AuthenticationError):
+            raise ProviderKeyError(
+                "Rejected OpenAI API key",
+                "The configured OpenAI API key was rejected.\n"
+                "Please check that your API key is valid and not expired.",
+            ) from response
+        elif isinstance(response, BaseException):
+            self.logger.error(f"Error: {response}")
 
-            if not response.choices or len(response.choices) == 0:
-                # No response from the model, we're done
-                break
+        choice = response.choices[0]
+        message = choice.message
+        # prep for image/audio gen models
+        if message.content:
+            response_content_blocks.append(TextContent(type="text", text=message.content))
 
-            choice = response.choices[0]
-            message = choice.message
-            # prep for image/audio gen models
-            if message.content:
-                responses.append(TextContent(type="text", text=message.content))
+        # ParsedChatCompletionMessage is compatible with ChatCompletionMessage
+        # since it inherits from it, so we can use it directly
+        # Convert to dict and remove None values
+        message_dict = message.model_dump()
+        message_dict = {k: v for k, v in message_dict.items() if v is not None}
+        if model_name in (
+            "deepseek-r1-distill-llama-70b",
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
+        ):
+            message_dict.pop("reasoning", None)
+            message_dict.pop("channel", None)
 
-            # ParsedChatCompletionMessage is compatible with ChatCompletionMessage
-            # since it inherits from it, so we can use it directly
-            # Convert to dict and remove None values
-            message_dict = message.model_dump()
-            message_dict = {k: v for k, v in message_dict.items() if v is not None}
-            if model_name in (
-                "deepseek-r1-distill-llama-70b",
-                "openai/gpt-oss-120b",
-                "openai/gpt-oss-20b",
-            ):
-                message_dict.pop("reasoning", None)
-                message_dict.pop("channel", None)
-
-            messages.append(message_dict)
-
-            message_text = message.content
-            if await self._is_tool_stop_reason(choice.finish_reason) and message.tool_calls:
-                if message_text:
-                    await self.show_assistant_message(
-                        message_text,
-                        message.tool_calls[
-                            0
-                        ].function.name,  # TODO support displaying multiple tool calls
-                    )
-                else:
-                    await self.show_assistant_message(
-                        Text(
-                            "the assistant requested tool calls",
-                            style="dim green italic",
-                        ),
-                        message.tool_calls[0].function.name,
-                    )
-
-                tool_results = []
-
-                for tool_call in message.tool_calls:
-                    self.show_tool_call(
-                        available_tools,
-                        tool_call.function.name,
-                        tool_call.function.arguments,
-                    )
-                    tool_call_request = CallToolRequest(
-                        method="tools/call",
-                        params=CallToolRequestParams(
-                            name=tool_call.function.name,
-                            arguments={}
-                            if not tool_call.function.arguments
-                            or tool_call.function.arguments.strip() == ""
-                            else from_json(tool_call.function.arguments, allow_partial=True),
-                        ),
-                    )
-
-                    try:
-                        result = await self.call_tool(tool_call_request, tool_call.id)
-                        self.show_tool_result(result)
-                        tool_results.append((tool_call.id, result))
-                        responses.extend(result.content)
-                    except Exception as e:
-                        self.logger.error(f"Tool call {tool_call.id} failed with error: {e}")
-                        # Still add the tool_call_id with an error result to prevent missing responses
-                        error_result = CallToolResult(
-                            content=[TextContent(type="text", text=f"Tool call failed: {str(e)}")]
-                        )
-                        tool_results.append((tool_call.id, error_result))
-
-                converted_messages = OpenAIConverter.convert_function_results_to_openai(
-                    tool_results
+        messages.append(message_dict)
+        stop_reason = LlmStopReason.END_TURN
+        requested_tool_calls: Dict[str, CallToolRequest] | None = None
+        if await self._is_tool_stop_reason(choice.finish_reason) and message.tool_calls:
+            requested_tool_calls = {}
+            stop_reason = LlmStopReason.TOOL_USE
+            for tool_call in message.tool_calls:
+                tool_call_request = CallToolRequest(
+                    method="tools/call",
+                    params=CallToolRequestParams(
+                        name=tool_call.function.name,
+                        arguments={}
+                        if not tool_call.function.arguments
+                        or tool_call.function.arguments.strip() == ""
+                        else from_json(tool_call.function.arguments, allow_partial=True),
+                    ),
                 )
-                messages.extend(converted_messages)
+                requested_tool_calls[tool_call.id] = tool_call_request
 
-                self.logger.debug(
-                    f"Iteration {i}: Tool call results: {str(tool_results) if tool_results else 'None'}"
-                )
-            elif choice.finish_reason == "length":
-                # We have reached the max tokens limit
-                self.logger.debug(f"Iteration {i}: Stopping because finish_reason is 'length'")
-                if request_params and request_params.maxTokens is not None:
-                    message_text = Text(
-                        f"the assistant has reached the maximum token limit ({request_params.maxTokens})",
-                        style="dim green italic",
-                    )
-                else:
-                    message_text = Text(
-                        "the assistant has reached the maximum token limit",
-                        style="dim green italic",
-                    )
-
-                await self.show_assistant_message(message_text)
-                break
-            elif choice.finish_reason == "content_filter":
-                # The response was filtered by the content filter
-                self.logger.debug(
-                    f"Iteration {i}: Stopping because finish_reason is 'content_filter'"
-                )
-                break
-            elif choice.finish_reason == "stop":
-                self.logger.debug(f"Iteration {i}: Stopping because finish_reason is 'stop'")
-                if message_text:
-                    await self.show_assistant_message(message_text, "")
-                break
+            # TODO -- move this to the conversion method for results
+        #   converted_messages = OpenAIConverter.convert_function_results_to_openai(tool_results)
+        #
+        elif choice.finish_reason == "length":
+            stop_reason = LlmStopReason.MAX_TOKENS
+            # We have reached the max tokens limit
+            self.logger.debug(" Stopping because finish_reason is 'length'")
+        elif choice.finish_reason == "content_filter":
+            stop_reason = LlmStopReason.SAFETY
+            self.logger.debug(" Stopping because finish_reason is 'content_filter'")
 
         if request_params.use_history:
             # Get current prompt messages
@@ -496,7 +435,9 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
 
         self._log_chat_finished(model=self.default_request_params.model)
 
-        return responses
+        return Prompt.assistant(
+            *response_content_blocks, stop_reason=stop_reason, tool_calls=requested_tool_calls
+        )
 
     async def _is_tool_stop_reason(self, finish_reason: str) -> bool:
         return True
@@ -505,6 +446,7 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
         self,
         multipart_messages: List["PromptMessageMultipart"],
         request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
         is_template: bool = False,
     ) -> PromptMessageMultipart:
         # Reset tool call counter for new turn

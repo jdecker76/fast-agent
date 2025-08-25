@@ -48,7 +48,7 @@ class TestAnthropicLLM(unittest.IsolatedAsyncioTestCase):
         await self.core.initialize()
 
         self.agent: LlmAgent = LlmAgent(self.test_config, self.core.context)
-        await self.agent.attach_llm(ModelFactory.create_factory("haiku"))
+        await self.agent.attach_llm(ModelFactory.create_factory("gpt-4.1-mini"))
 
     async def test_basic_generation(self):
         """Test basic generation returns END_TURN stop reason."""

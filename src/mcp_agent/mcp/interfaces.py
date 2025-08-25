@@ -158,6 +158,8 @@ class AugmentedLLMProtocol(Protocol):
 
         This is the primary LLM interface for structured output that works directly with
         List[PromptMessageMultipart] for efficient internal usage.
+        Tool Use is not supported with this Structured Outputs - use a "Chain" agent to combine
+        tools and structured outputs.
 
         Args:
             messages: List of PromptMessageMultipart objects

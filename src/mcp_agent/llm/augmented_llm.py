@@ -297,6 +297,8 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
 
         # Store MCP metadata in context variable
         final_request_params = self.get_request_params(request_params)
+
+        # TODO -- this doesn't need to go here anymore.
         if final_request_params.mcp_metadata:
             _mcp_metadata_var.set(final_request_params.mcp_metadata)
 
