@@ -7,8 +7,10 @@ other agents, chaining their outputs together.
 
 from typing import Any, List, Optional, Tuple, Type
 
+from mcp import Tool
 from mcp.types import TextContent
 
+from fast_agent.agents.llm_agent import LlmAgent
 from mcp_agent.agents.agent import Agent
 from mcp_agent.agents.base_agent import BaseAgent
 from mcp_agent.core.agent_types import AgentConfig, AgentType
@@ -18,7 +20,7 @@ from mcp_agent.mcp.interfaces import ModelT
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 
-class ChainAgent(BaseAgent):
+class ChainAgent(LlmAgent):
     """
     A chain agent that processes requests through a series of specialized agents in sequence.
     Passes the output of each agent to the next agent in the chain.
@@ -52,10 +54,11 @@ class ChainAgent(BaseAgent):
         self.agents = agents
         self.cumulative = cumulative
 
-    async def _generate_impl(
+    async def generate_impl(
         self,
-        normalized_messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageMultipart],
         request_params: Optional[RequestParams] = None,
+        tools: list[Tool] | None = None,
     ) -> PromptMessageMultipart:
         """
         Chain the request through multiple agents in sequence.
@@ -68,14 +71,16 @@ class ChainAgent(BaseAgent):
             The response from the final agent in the chain
         """
         # Get the original user message (last message in the list)
-        user_message = normalized_messages[-1] if normalized_messages else None
+        user_message = messages[-1] if messages else None
 
         if not self.cumulative:
-            response: PromptMessageMultipart = await self.agents[0].generate(normalized_messages)
+            response: PromptMessageMultipart = await self.agents[0].generate_impl(
+                messages, request_params, tools
+            )
             # Process the rest of the agents in the chain
             for agent in self.agents[1:]:
                 next_message = Prompt.user(*response.content)
-                response = await agent.generate([next_message])
+                response = await agent.generate_impl([next_message], request_params, tools)
 
             return response
 
@@ -92,9 +97,9 @@ class ChainAgent(BaseAgent):
         # Process through each agent in sequence
         for i, agent in enumerate(self.agents):
             # In cumulative mode, include the original message and all previous responses
-            chain_messages = normalized_messages.copy()
+            chain_messages = messages.copy()
             chain_messages.extend(all_responses)
-            current_response = await agent.generate(chain_messages, request_params)
+            current_response = await agent.generate_impl(chain_messages, request_params, tools)
 
             # Store the response
             all_responses.append(current_response)
@@ -115,9 +120,9 @@ class ChainAgent(BaseAgent):
             content=[TextContent(type="text", text=response_text)],
         )
 
-    async def structured(
+    async def structured_impl(
         self,
-        prompt: List[PromptMessageMultipart],
+        messages: List[PromptMessageMultipart],
         model: Type[ModelT],
         request_params: Optional[RequestParams] = None,
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
@@ -133,7 +138,7 @@ class ChainAgent(BaseAgent):
             The parsed response from the final agent, or None if parsing fails
         """
         # Generate response through the chain
-        response = await self.generate(prompt, request_params)
+        response = await self.generate(messages, request_params)
         last_agent = self.agents[-1]
         try:
             return await last_agent.structured([response], model, request_params)

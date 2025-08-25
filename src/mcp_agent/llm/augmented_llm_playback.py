@@ -1,5 +1,6 @@
 from typing import Any, List, Type, Union
 
+from mcp import Tool
 from mcp.types import PromptMessage
 
 from mcp_agent.core.exceptions import ModelConfigError
@@ -63,6 +64,7 @@ class PlaybackLLM(PassthroughLLM):
             List[Union[str, PromptMessage, PromptMessageMultipart]],
         ],
         request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
     ) -> PromptMessageMultipart:
         """
         Handle playback of messages in two modes:
@@ -100,7 +102,7 @@ class PlaybackLLM(PassthroughLLM):
         # Track usage for this playback "turn"
         try:
             input_content = str(multipart_messages) if multipart_messages else ""
-            output_content = MessageContent.get_first_text(response)
+            output_content = MessageContent.get_first_text(response) or ""
 
             turn_usage = create_turn_usage_from_messages(
                 input_content=input_content,
@@ -119,21 +121,13 @@ class PlaybackLLM(PassthroughLLM):
 
     async def structured(
         self,
-        messages: Union[
-            str,
-            PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
-        ],
+        messages: List[PromptMessageMultipart],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
     ) -> tuple[ModelT | None, PromptMessageMultipart]:
         """
         Handle structured requests by returning the next assistant message.
         """
-        # Normalize all input types to a list of PromptMessageMultipart
-        # (though we don't use multipart_messages in this method, we normalize for consistency)
-        _ = normalize_to_multipart_list(messages)
 
         if -1 == self._current_index:
             raise ModelConfigError("Use generate() to load playback history")

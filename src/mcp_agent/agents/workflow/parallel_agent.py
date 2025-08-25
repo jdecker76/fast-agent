@@ -4,15 +4,15 @@ from typing import Any, List, Optional, Tuple
 from mcp.types import TextContent
 from opentelemetry import trace
 
+from fast_agent.agents.llm_agent import LlmAgent
 from mcp_agent.agents.agent import Agent
-from mcp_agent.agents.base_agent import BaseAgent
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.mcp.interfaces import ModelT
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 
-class ParallelAgent(BaseAgent):
+class ParallelAgent(LlmAgent):
     """
     LLMs can sometimes work simultaneously on a task (fan-out)
     and have their outputs aggregated programmatically (fan-in).
@@ -48,10 +48,11 @@ class ParallelAgent(BaseAgent):
         self.fan_out_agents = fan_out_agents
         self.include_request = include_request
 
-    async def _generate_impl(
+    async def generate_impl(
         self,
-        normalized_messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageMultipart],
         request_params: Optional[RequestParams] = None,
+        tools: List[Tool] | None = None,
     ) -> PromptMessageMultipart:
         """
         Execute fan-out agents in parallel and aggregate their results with the fan-in agent.
@@ -68,16 +69,11 @@ class ParallelAgent(BaseAgent):
         with tracer.start_as_current_span(f"Parallel: '{self._name}' generate"):
             # Execute all fan-out agents in parallel
             responses: List[PromptMessageMultipart] = await asyncio.gather(
-                *[
-                    agent.generate(normalized_messages, request_params)
-                    for agent in self.fan_out_agents
-                ]
+                *[agent.generate(messages, request_params) for agent in self.fan_out_agents]
             )
 
             # Extract the received message from the input
-            received_message: Optional[str] = (
-                normalized_messages[-1].all_text() if normalized_messages else None
-            )
+            received_message: Optional[str] = messages[-1].all_text() if messages else None
 
             # Convert responses to strings for aggregation
             string_responses = []

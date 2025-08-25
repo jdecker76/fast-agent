@@ -225,9 +225,6 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
                 parts[1].strip() if len(parts) > 1 else f"{self.name or 'assistant'}_prompts.txt"
             )
             await self._save_history(filename)
-            self.show_user_message(
-                f"History saved to {filename}", model=self.default_request_params.model, chat_turn=0
-            )
             return Prompt.assistant(f"History saved to {filename}")
 
         self._precall(messages)
@@ -511,10 +508,6 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             title=title,
             name=self.name,
         )
-
-    def show_user_message(self, message, model: str | None, chat_turn: int) -> None:
-        """Display a user message in a formatted panel."""
-        self.display.show_user_message(message, model, chat_turn, name=self.name)
 
     def _log_chat_progress(
         self, chat_turn: Optional[int] = None, model: Optional[str] = None

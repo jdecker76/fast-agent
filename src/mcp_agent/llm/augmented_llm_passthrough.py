@@ -13,6 +13,7 @@ from mcp_agent.llm.augmented_llm import (
 from mcp_agent.llm.provider_types import Provider
 from mcp_agent.llm.usage_tracking import create_turn_usage_from_messages
 from mcp_agent.logging.logger import get_logger
+from mcp_agent.mcp.helpers.content_helpers import get_text
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 CALL_TOOL_INDICATOR = "***CALL_TOOL"
@@ -99,7 +100,10 @@ class PassthroughLLM(AugmentedLLM):
         if len(last_message.tool_results or {}) > 0:
             assert last_message.tool_results
             concatenated_content = " ".join(
-                [str(tool_result.content) for tool_result in last_message.tool_results.values()]
+                [
+                    (get_text(tool_result.content[0]) or "<empty>")
+                    for tool_result in last_message.tool_results.values()
+                ]
             )
             result = Prompt.assistant(concatenated_content, stop_reason=stop_reason)
 
@@ -108,8 +112,13 @@ class PassthroughLLM(AugmentedLLM):
                 self._fixed_response, tool_calls=tool_calls, stop_reason=stop_reason
             )
         else:
+            concatenated_content = "\n".join(
+                [message.all_text() for message in multipart_messages if "user" == message.role]
+            )
             result = Prompt.assistant(
-                multipart_messages[-1], tool_calls=tool_calls, stop_reason=stop_reason
+                concatenated_content,
+                tool_calls=tool_calls,
+                stop_reason=stop_reason,
             )
 
         turn_usage = create_turn_usage_from_messages(

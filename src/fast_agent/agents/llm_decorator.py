@@ -316,10 +316,10 @@ class LlmDecorator(LlmAgentProtocol):
 
     def _merge_request_params(
         self,
-        base_params: Optional[RequestParams],
-        override_params: Optional[RequestParams],
-        model_override: Optional[str] = None,
-    ) -> Optional[RequestParams]:
+        base_params: RequestParams | None,
+        override_params: RequestParams | None,
+        model_override: str | None = None,
+    ) -> RequestParams | None:
         """
         Merge request parameters with proper precedence.
 
