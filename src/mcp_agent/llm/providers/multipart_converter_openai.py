@@ -115,6 +115,8 @@ class OpenAIConverter:
 
         # For user messages, convert each content block
         content_blocks: List[ContentBlock] = []
+        
+        _logger.debug(f"Converting {len(content)} content items for role '{role}'")
 
         for item in content:
             try:
@@ -123,7 +125,9 @@ class OpenAIConverter:
                     content_blocks.append({"type": "text", "text": text})
 
                 elif is_image_content(item):
-                    content_blocks.append(OpenAIConverter._convert_image_content(item))
+                    image_block = OpenAIConverter._convert_image_content(item)
+                    content_blocks.append(image_block)
+                    _logger.debug(f"Added image content block: {image_block.get('type', 'unknown')}")
 
                 elif is_resource_content(item):
                     block = OpenAIConverter._convert_embedded_resource(item)
@@ -155,7 +159,9 @@ class OpenAIConverter:
             content_blocks = OpenAIConverter._concatenate_text_blocks(content_blocks)
 
         # Return user message with content blocks
-        return {"role": role, "content": content_blocks}
+        result = {"role": role, "content": content_blocks}
+        _logger.debug(f"Final message for role '{role}': {len(content_blocks)} content blocks")
+        return result
 
     @staticmethod
     def _concatenate_text_blocks(blocks: List[ContentBlock]) -> List[ContentBlock]:
@@ -481,7 +487,13 @@ class OpenAIConverter:
 
         # Convert to OpenAI format (returns a list now)
         user_messages = OpenAIConverter.convert_to_openai(non_text_multipart)
-
+        
+        # Debug logging to understand what's happening with image conversion
+        _logger.debug(f"Tool result conversion: non_text_content={len(non_text_content)} items, "
+                     f"user_messages={len(user_messages)} messages")
+        if not user_messages:
+            _logger.warning(f"No user messages generated for non-text content: {[type(item).__name__ for item in non_text_content]}")
+            
         return (tool_message, user_messages)
 
     @staticmethod
@@ -490,10 +502,10 @@ class OpenAIConverter:
         concatenate_text_blocks: bool = False,
     ) -> List[Dict[str, Any]]:
         """
-        Convert a list of function call results to OpenAI messages.
+        Convert function call results to OpenAI messages.
 
         Args:
-            results: List of (tool_call_id, result) tuples
+            results: Dictionary mapping tool_call_id to CallToolResult
             concatenate_text_blocks: If True, adjacent text blocks will be combined
 
         Returns:

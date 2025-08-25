@@ -297,7 +297,7 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
 
     async def _openai_completion(
         self,
-        message: OpenAIMessage,
+        message: OpenAIMessage | None,
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
     ) -> PromptMessageMultipart:
@@ -319,7 +319,8 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
             messages.append(ChatCompletionSystemMessageParam(role="system", content=system_prompt))
 
         messages.extend(self.history.get(include_completion_history=request_params.use_history))
-        messages.append(message)
+        if message is not None:
+            messages.append(message)
 
         available_tools: List[ChatCompletionToolParam] | None = [
             {
@@ -473,12 +474,18 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
             return last_message
 
         # For user messages: Convert and send for completion
-        # convert_to_openai now returns a list, but for the last message we expect a single message
+        # convert_to_openai returns a list of messages (tool results can generate multiple messages)
         converted_messages = OpenAIConverter.convert_to_openai(last_message)
-        if len(converted_messages) != 1:
-            self.logger.warning(f"Expected single message for completion, got {len(converted_messages)}")
-        message_param: OpenAIMessage = converted_messages[0] if converted_messages else {"role": "user", "content": ""}
-        return await self._openai_completion(message_param, request_params, tools)
+        
+        if not converted_messages:
+            # Fallback for empty conversion
+            converted_messages = [{"role": "user", "content": ""}]
+        
+        # Add all converted messages to history - they will all be sent to OpenAI together
+        self.history.extend(converted_messages, is_prompt=False)
+        
+        # Call completion without additional messages (all messages are now in history)
+        return await self._openai_completion(None, request_params, tools)
 
     def _prepare_api_request(
         self, messages, tools: List[ChatCompletionToolParam] | None, request_params: RequestParams
