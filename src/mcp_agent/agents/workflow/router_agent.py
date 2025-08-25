@@ -204,6 +204,10 @@ class RouterAgent(LlmAgent):
         Returns:
             The response from the selected agent
         """
+
+        # implementation note. the duplication between generated and structured
+        # is probably the most readable. alt could be a _get_route_agent or
+        # some form of dynamic dispatch.. but only if this gets more complex
         tracer = trace.get_tracer(__name__)
         with tracer.start_as_current_span(f"Routing: '{self._name}' generate"):
             route, warn = await self._route_request(messages[-1])
@@ -217,41 +221,38 @@ class RouterAgent(LlmAgent):
             # Dispatch the request to the selected agent
             return await agent.generate_impl(messages, request_params)
 
-    # async def structured(
-    #     self,
-    #     messages: str
-    #     | PromptMessage
-    #     | PromptMessageMultipart
-    #     | List[str | PromptMessage | PromptMessageMultipart],
-    #     model: Type[ModelT],
-    #     request_params: Optional[RequestParams] = None,
-    # ) -> Tuple[ModelT | None, PromptMessageMultipart]:
-    #     """
-    #     Route the request to the most appropriate agent and parse its response.
+    async def structured_impl(
+        self,
+        messages: List[PromptMessageMultipart],
+        model: Type[ModelT],
+        request_params: Optional[RequestParams] = None,
+    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+        """
+        Route the request to the most appropriate agent and parse its response.
 
-    #     Args:
-    #         messages: Messages to route
-    #         model: Pydantic model to parse the response into
-    #         request_params: Optional request parameters
+        Args:
+            messages: Messages to route
+            model: Pydantic model to parse the response into
+            request_params: Optional request parameters
 
-    #     Returns:
-    #         The parsed response from the selected agent, or None if parsing fails
-    #     """
+        Returns:
+            The parsed response from the selected agent, or None if parsing fails
+        """
 
-    #     tracer = trace.get_tracer(__name__)
-    #     with tracer.start_as_current_span(f"Routing: '{self._name}' structured"):
-    #         route, warn = await self._route_request(messages[-1])
+        tracer = trace.get_tracer(__name__)
+        with tracer.start_as_current_span(f"Routing: '{self._name}' structured"):
+            route, warn = await self._route_request(messages[-1])
 
-    #         if not route:
-    #             return None, Prompt.assistant(
-    #                 warn or "No routing result or warning received (structured)"
-    #             )
+            if not route:
+                return None, Prompt.assistant(
+                    warn or "No routing result or warning received (structured)"
+                )
 
-    #         # Get the selected agent
-    #         agent: Agent = self.agent_map[route.agent]
+            # Get the selected agent
+            agent: Agent = self.agent_map[route.agent]
 
-    #         # Dispatch the request to the selected agent
-    #         return await agent.structured(messages, model, request_params)
+            # Dispatch the request to the selected agent
+            return await agent.structured_impl(messages, model, request_params)
 
     async def _route_request(
         self, message: PromptMessageMultipart
