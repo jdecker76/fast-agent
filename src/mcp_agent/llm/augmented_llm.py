@@ -15,11 +15,9 @@ from typing import (
 
 from mcp import Tool
 from mcp.types import (
-    CallToolRequest,
     CallToolResult,
     GetPromptResult,
     PromptMessage,
-    TextContent,
 )
 from openai import NotGiven
 from openai.lib._parsing import type_to_response_format_param as _type_to_response_format
@@ -28,7 +26,6 @@ from rich.text import Text
 
 from fast_agent.context_dependent import ContextDependent
 from fast_agent.event_progress import ProgressAction
-from mcp_agent.core.exceptions import PromptExitError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.llm.memory import Memory, SimpleMemory

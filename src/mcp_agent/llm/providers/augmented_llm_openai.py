@@ -4,7 +4,6 @@ from mcp import Tool
 from mcp.types import (
     CallToolRequest,
     CallToolRequestParams,
-    CallToolResult,
     ContentBlock,
     TextContent,
 )
@@ -476,14 +475,14 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
         # For user messages: Convert and send for completion
         # convert_to_openai returns a list of messages (tool results can generate multiple messages)
         converted_messages = OpenAIConverter.convert_to_openai(last_message)
-        
+
         if not converted_messages:
             # Fallback for empty conversion
             converted_messages = [{"role": "user", "content": ""}]
-        
+
         # Add all converted messages to history - they will all be sent to OpenAI together
         self.history.extend(converted_messages, is_prompt=False)
-        
+
         # Call completion without additional messages (all messages are now in history)
         return await self._openai_completion(None, request_params, tools)
 

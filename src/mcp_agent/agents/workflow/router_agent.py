@@ -8,7 +8,6 @@ by determining the best agent for a request and dispatching to it.
 from typing import TYPE_CHECKING, List, Optional, Tuple, Type
 
 from mcp import Tool
-from mcp.types import PromptMessage
 from opentelemetry import trace
 from pydantic import BaseModel
 

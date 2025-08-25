@@ -9,7 +9,6 @@ from google.genai import (
 from mcp.types import (
     CallToolRequest,
     CallToolRequestParams,
-    CallToolResult,
     ContentBlock,
     TextContent,
 )
