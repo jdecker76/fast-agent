@@ -12,7 +12,6 @@ from mcp.types import TextContent
 
 from fast_agent.agents.llm_agent import LlmAgent
 from mcp_agent.agents.agent import Agent
-from mcp_agent.agents.base_agent import BaseAgent
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.core.request_params import RequestParams
@@ -98,7 +97,11 @@ class ChainAgent(LlmAgent):
         for i, agent in enumerate(self.agents):
             # In cumulative mode, include the original message and all previous responses
             chain_messages = messages.copy()
-            chain_messages.extend(all_responses)
+
+            # Convert previous assistant responses to user messages for the next agent
+            for prev_response in all_responses:
+                chain_messages.append(Prompt.user(prev_response.all_text()))
+
             current_response = await agent.generate_impl(chain_messages, request_params, tools)
 
             # Store the response
@@ -109,9 +112,6 @@ class ChainAgent(LlmAgent):
                 f"<fastagent:response agent='{agent._name}'>{response_text}</fastagent:response>"
             )
             final_results.append(attributed_response)
-
-            if i < len(self.agents) - 1:
-                [Prompt.user(current_response.all_text())]
 
         # For cumulative mode, return the properly formatted output with XML tags
         response_text = "\n\n".join(final_results)
