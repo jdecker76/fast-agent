@@ -10,10 +10,11 @@ or a maximum number of refinements is attempted.
 from enum import Enum
 from typing import Any, List, Optional, Tuple, Type
 
+from mcp import Tool
 from pydantic import BaseModel, Field
 
+from fast_agent.agents.llm_agent import LlmAgent
 from mcp_agent.agents.agent import Agent
-from mcp_agent.agents.base_agent import BaseAgent
 from mcp_agent.core.agent_types import AgentType
 from mcp_agent.core.exceptions import AgentConfigError
 from mcp_agent.core.prompt import Prompt
@@ -54,7 +55,7 @@ class EvaluationResult(BaseModel):
     )
 
 
-class EvaluatorOptimizerAgent(BaseAgent):
+class EvaluatorOptimizerAgent(LlmAgent):
     """
     An agent that implements the evaluator-optimizer workflow pattern.
 
@@ -104,10 +105,11 @@ class EvaluatorOptimizerAgent(BaseAgent):
         self.max_refinements = max_refinements
         self.refinement_history = []
 
-    async def _generate_impl(
+    async def generate_impl(
         self,
-        normalized_messages: List[PromptMessageMultipart],
-        request_params: Optional[RequestParams] = None,
+        messages: List[PromptMessageMultipart],
+        request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
     ) -> PromptMessageMultipart:
         """
         Generate a response through evaluation-guided refinement.
@@ -126,10 +128,10 @@ class EvaluatorOptimizerAgent(BaseAgent):
         self.refinement_history = []
 
         # Extract the user request
-        request = normalized_messages[-1].all_text() if normalized_messages else ""
+        request = messages[-1].all_text() if messages else ""
 
         # Initial generation
-        response = await self.generator_agent.generate(normalized_messages, request_params)
+        response = await self.generator_agent.generate(messages, request_params)
         best_response = response
 
         # Refinement loop
@@ -204,11 +206,11 @@ class EvaluatorOptimizerAgent(BaseAgent):
 
         return best_response
 
-    async def structured(
+    async def structured_impl(
         self,
         messages: List[PromptMessageMultipart],
         model: Type[ModelT],
-        request_params: Optional[RequestParams] = None,
+        request_params: RequestParams | None = None,
     ) -> Tuple[ModelT | None, PromptMessageMultipart]:
         """
         Generate an optimized response and parse it into a structured format.

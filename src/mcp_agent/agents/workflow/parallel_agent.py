@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any, List, Optional, Tuple
 
+from mcp import Tool
 from mcp.types import TextContent
 from opentelemetry import trace
 
