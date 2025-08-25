@@ -139,8 +139,14 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
                 # Use base class method for token estimation and progress emission
                 estimated_tokens = self._update_streaming_progress(content, model, estimated_tokens)
 
-        # Get the final completion with usage data
-        final_completion = state.get_final_completion()
+        # Check if we hit the length limit to avoid LengthFinishReasonError
+        current_snapshot = state.current_completion_snapshot
+        if current_snapshot.choices and current_snapshot.choices[0].finish_reason == "length":
+            # Return the current snapshot directly to avoid exception
+            final_completion = current_snapshot
+        else:
+            # Get the final completion with usage data (may include structured output parsing)
+            final_completion = state.get_final_completion()
 
         # Log final usage information
         if hasattr(final_completion, "usage") and final_completion.usage:
@@ -340,11 +346,12 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
         self.logger.debug(f"OpenAI completion requested for: {arguments}")
 
         self._log_chat_progress(self.chat_turn(), model=self.default_request_params.model)
+        model_name = self.default_request_params.model or DEFAULT_OPENAI_MODEL
 
         # Use basic streaming API
         stream = await self._openai_client().chat.completions.create(**arguments)
         # Process the stream
-        response = await self._process_stream(stream, self.default_request_params.model)
+        response = await self._process_stream(stream, model_name)
         # Track usage if response is valid and has usage data
         if (
             hasattr(response, "usage")
@@ -352,7 +359,6 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
             and not isinstance(response, BaseException)
         ):
             try:
-                model_name = self.default_request_params.model or DEFAULT_OPENAI_MODEL
                 turn_usage = TurnUsage.from_openai(response.usage, model_name)
                 self._finalize_turn_usage(turn_usage)
             except Exception as e:
@@ -409,10 +415,6 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
                     ),
                 )
                 requested_tool_calls[tool_call.id] = tool_call_request
-
-            # TODO -- move this to the conversion method for results
-        #   converted_messages = OpenAIConverter.convert_function_results_to_openai(tool_results)
-        #
         elif choice.finish_reason == "length":
             stop_reason = LlmStopReason.MAX_TOKENS
             # We have reached the max tokens limit
@@ -461,7 +463,8 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
         )
         converted = []
         for msg in messages_to_add:
-            converted.append(OpenAIConverter.convert_to_openai(msg))
+            # convert_to_openai now returns a list of messages
+            converted.extend(OpenAIConverter.convert_to_openai(msg))
 
         # TODO -- this looks like a defect from previous apply_prompt implementation.
         self.history.extend(converted, is_prompt=is_template)
@@ -469,21 +472,13 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
         if "assistant" == last_message.role:
             return last_message
 
-        # For assistant messages: Return the last message (no completion needed)
-        message_param: OpenAIMessage = OpenAIConverter.convert_to_openai(last_message)
-        responses: List[ContentBlock] = await self._openai_completion(
-            message_param,
-            request_params,
-        )
-        return Prompt.assistant(*responses)
-
-    async def pre_tool_call(self, tool_call_id: str | None, request: CallToolRequest):
-        return request
-
-    async def post_tool_call(
-        self, tool_call_id: str | None, request: CallToolRequest, result: CallToolResult
-    ):
-        return result
+        # For user messages: Convert and send for completion
+        # convert_to_openai now returns a list, but for the last message we expect a single message
+        converted_messages = OpenAIConverter.convert_to_openai(last_message)
+        if len(converted_messages) != 1:
+            self.logger.warning(f"Expected single message for completion, got {len(converted_messages)}")
+        message_param: OpenAIMessage = converted_messages[0] if converted_messages else {"role": "user", "content": ""}
+        return await self._openai_completion(message_param, request_params, tools)
 
     def _prepare_api_request(
         self, messages, tools: List[ChatCompletionToolParam] | None, request_params: RequestParams
