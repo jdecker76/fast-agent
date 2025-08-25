@@ -658,7 +658,7 @@ class BaseAgent(ABC, ToolAgent):
 
         # Cache available tool names (original, not namespaced) for display
         available_tools = [
-            namespaced_tool.tool.name 
+            namespaced_tool.tool.name
             for namespaced_tool in self._aggregator._namespaced_tool_map.values()
         ]
 
@@ -899,7 +899,7 @@ class BaseAgent(ABC, ToolAgent):
         for tool in tools.tools:
             skills.append(await self.convert(tool))
 
-s        return AgentCard(
+        return AgentCard(
             skills=skills,
             name=self._name,
             description=self.instruction,
