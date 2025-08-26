@@ -93,6 +93,7 @@ class BaseAgent(ABC, ToolAgent):
             connection_persistence=connection_persistence,
             name=self.config.name,
             context=context,
+            config=self.config,  # Pass the full config for access to elicitation_handler
             **kwargs,
         )
 
@@ -553,6 +554,26 @@ class BaseAgent(ABC, ToolAgent):
             embedded_resources.append(embedded_resource)
 
         return embedded_resources
+
+    async def get_resource(
+        self, resource_uri: str, server_name: str | None = None
+    ) -> ReadResourceResult:
+        """
+        Get a resource from an MCP server.
+
+        Args:
+            resource_uri: URI of the resource to retrieve
+            server_name: Optional name of the MCP server to retrieve the resource from
+
+        Returns:
+            ReadResourceResult containing the resource data
+
+        Raises:
+            ValueError: If the server doesn't exist or the resource couldn't be found
+        """
+        # Get the raw resource result
+        result: ReadResourceResult = await self._aggregator.get_resource(resource_uri, server_name)
+        return result
 
     async def with_resource(
         self,

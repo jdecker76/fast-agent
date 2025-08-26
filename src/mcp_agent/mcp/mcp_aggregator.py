@@ -102,11 +102,13 @@ class MCPAggregator(ContextDependent):
         connection_persistence: bool = True,
         context: Optional["Context"] = None,
         name: str = None,
+        config: Optional[Any] = None,  # Accept the agent config for elicitation_handler access
         **kwargs,
     ) -> None:
         """
         :param server_names: A list of server names to connect to.
         :param connection_persistence: Whether to maintain persistent connections to servers (default: True).
+        :param config: Optional agent config containing elicitation_handler and other settings.
         Note: The server names must be resolvable by the gen_client function, and specified in the server registry.
         """
         super().__init__(
@@ -117,6 +119,7 @@ class MCPAggregator(ContextDependent):
         self.server_names = server_names
         self.connection_persistence = connection_persistence
         self.agent_name = name
+        self.config = config  # Store the config for access in session factory
         self._persistent_connection_manager: MCPConnectionManager = None
 
         # Set up logger with agent name in namespace if available
@@ -211,29 +214,27 @@ class MCPAggregator(ContextDependent):
         """
         Create a session factory function for the given server.
         This centralizes the logic for creating MCPAgentClientSession instances.
-        
+
         Args:
             server_name: The name of the server to create a session for
-            
+
         Returns:
             A factory function that creates MCPAgentClientSession instances
         """
+
         def session_factory(read_stream, write_stream, read_timeout, **kwargs):
-            # Get agent's model and name if this aggregator is part of an agent
+            # Get agent's model and name from config if available
             agent_model: str | None = None
             agent_name: str | None = None
             elicitation_handler = None
             api_key: str | None = None
 
-            # Import here to avoid circular dependency
-            from mcp_agent.agents.base_agent import BaseAgent
-
-            if isinstance(self, BaseAgent):
-                if hasattr(self, "config"):
-                    agent_model = self.config.model
-                    agent_name = self.config.name
-                    elicitation_handler = self.config.elicitation_handler
-                    api_key = self.config.api_key
+            # Access config directly if it was passed from BaseAgent
+            if self.config:
+                agent_model = self.config.model
+                agent_name = self.config.name
+                elicitation_handler = self.config.elicitation_handler
+                api_key = self.config.api_key
 
             return MCPAgentClientSession(
                 read_stream,
@@ -247,7 +248,7 @@ class MCPAggregator(ContextDependent):
                 tool_list_changed_callback=self._handle_tool_list_changed,
                 **kwargs,  # Pass through any additional kwargs like server_config
             )
-        
+
         return session_factory
 
     async def load_servers(self) -> None:
@@ -568,7 +569,8 @@ class MCPAggregator(ContextDependent):
                     await asyncio.sleep(0.1)
 
                     server_connection = await self._persistent_connection_manager.get_server(
-                        server_name, client_session_factory=self._create_session_factory(server_name)
+                        server_name,
+                        client_session_factory=self._create_session_factory(server_name),
                     )
                     result = await try_execute(server_connection.session)
                 else:
@@ -1049,7 +1051,8 @@ class MCPAggregator(ContextDependent):
                 # Fetch new tools from the server
                 if self.connection_persistence:
                     server_connection = await self._persistent_connection_manager.get_server(
-                        server_name, client_session_factory=self._create_session_factory(server_name)
+                        server_name,
+                        client_session_factory=self._create_session_factory(server_name),
                     )
                     tools_result = await server_connection.session.list_tools()
                     new_tools = tools_result.tools or []

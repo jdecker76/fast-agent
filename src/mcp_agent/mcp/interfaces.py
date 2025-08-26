@@ -194,6 +194,7 @@ class AugmentedLLMProtocol(Protocol):
         ...
 
     # TODO -- prompt_name and display should probably be at agent level.
+    # TODO -- GetPromptResult will need to change for compatibility with MCP Minus
     async def apply_prompt_template(
         self, prompt_result: "GetPromptResult", prompt_name: str
     ) -> str:
