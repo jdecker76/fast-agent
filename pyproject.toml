@@ -72,11 +72,13 @@ include = [
     "src/mcp_agent/**/*.txt",    
     "src/mcp_agent/**/*.example",
     "src/mcp_agent/py.typed",
+    "src/fast_agent/**/*.py",
+    "src/fast_agent/py.typed",
     "examples/**/*",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/mcp_agent"]
+packages = ["src/mcp_agent", "src/fast_agent"]
 artifacts = [
     "src/mcp_agent/resources/examples/**/*",
 ]
