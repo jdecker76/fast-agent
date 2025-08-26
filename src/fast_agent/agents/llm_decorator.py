@@ -1,8 +1,5 @@
 """
-Base Decorator class that implements simple delegation to an AugmentedLLMProtocol.
-
-This class provides a pure delegation wrapper around AugmentedLLMProtocol instances,
-focusing only on core delegation functionality without LLM interaction behaviors.
+Decorator for LlmAgent, normalizes PromptMessageMultipart, allows easy extension of Agents
 """
 
 from typing import (
@@ -42,7 +39,7 @@ LLM = TypeVar("LLM", bound=AugmentedLLMProtocol)
 
 class LlmDecorator(LlmAgentProtocol):
     """
-    A pure delegation wrapper around AugmentedLLMProtocol instances.
+    A pure delegation wrapper around LlmAgent instances.
 
     This class provides simple delegation to an attached LLM without adding
     any LLM interaction behaviors. Subclasses can add specialized logic
