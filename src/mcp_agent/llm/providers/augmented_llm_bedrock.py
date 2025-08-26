@@ -1680,15 +1680,15 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         """Apply structured output for Bedrock using prompt engineering with a simplified schema."""
         request_params = self.get_request_params(request_params)
 
-        # Generate a simplified, human-readable schema
-        simplified_schema = self._generate_simplified_schema(model)
+        # Generate the same strict JSON Schema other providers use
+        strict_schema = AugmentedLLM.model_to_schema_str(model)
 
         # Build the new simplified prompt
         prompt_parts = [
             "You are a JSON generator. Respond with JSON that strictly follows the provided schema. Do not add any commentary or explanation.",
             "",
             "JSON Schema:",
-            simplified_schema,
+            strict_schema,
             "",
             "IMPORTANT RULES:",
             "- You MUST respond with only raw JSON data. No other text, commentary, or markdown is allowed.",
@@ -1699,13 +1699,21 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
             "Now, generate the valid JSON response for the following request:",
         ]
 
-        # Add the new prompt to the last user message
-        multipart_messages[-1].add_text("\n".join(prompt_parts))
+        # IMPORTANT: Do NOT mutate the caller's messages. Create a deep copy of the last
+        # user message, append the schema to the copy only, and pass just that copy into
+        # the provider-specific path. This prevents contamination of routed messages.
+        try:
+            temp_last = multipart_messages[-1].model_copy(deep=True)
+        except Exception:
+            # Fallback: construct a minimal copy if model_copy is unavailable
+            temp_last = PromptMessageMultipart(role=multipart_messages[-1].role, content=list(multipart_messages[-1].content))
 
-        self.logger.info(f"DEBUG: Prompt messages: {multipart_messages[-1].content}")
+        temp_last.add_text("\n".join(prompt_parts))
+
+        self.logger.debug("DEBUG: Using copied last message for structured schema; original left untouched")
 
         result: PromptMessageMultipart = await self._apply_prompt_provider_specific(
-            multipart_messages, request_params
+            [temp_last], request_params
         )
         return self._structured_from_multipart(result, model)
 
