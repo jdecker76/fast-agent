@@ -43,6 +43,20 @@ def get_text(content: ContentBlock) -> Optional[str]:
         if isinstance(content.resource, TextResourceContents):
             return content.resource.text
 
+    if isinstance(content, ResourceLink):
+        # For ResourceLink, return a formatted string with all available metadata
+        # This provides full context about the resource to LLMs and other consumers
+        name = content.name or "unknown"
+        uri_str = str(content.uri)
+        mime_type = content.mimeType or "unknown"
+        description = content.description or "No description"
+
+        return (
+            f"Linked Resource ${name} MIME type {mime_type}>\n"
+            f"Resource Link: {uri_str}\n"
+            f"${description}\n"
+        )
+
     return None
 
 

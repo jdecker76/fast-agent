@@ -5,7 +5,6 @@ from mcp.types import (
     EmbeddedResource,
     ImageContent,
     PromptMessage,
-    ResourceLink,
     TextContent,
 )
 from openai.types.chat import ChatCompletionMessageParam
@@ -71,7 +70,7 @@ class OpenAIConverter:
             messages = OpenAIConverter.convert_function_results_to_openai(
                 multipart_msg.tool_results, concatenate_text_blocks
             )
-            
+
             # If there's also content, convert and append it
             if multipart_msg.content:
                 role = multipart_msg.role
@@ -80,7 +79,7 @@ class OpenAIConverter:
                 )
                 if content_msg:  # Only append if non-empty
                     messages.append(content_msg)
-            
+
             return messages
 
         # Regular content conversion (no tool_results)
@@ -115,7 +114,7 @@ class OpenAIConverter:
 
         # For user messages, convert each content block
         content_blocks: List[ContentBlock] = []
-        
+
         _logger.debug(f"Converting {len(content)} content items for role '{role}'")
 
         for item in content:
@@ -127,7 +126,9 @@ class OpenAIConverter:
                 elif is_image_content(item):
                     image_block = OpenAIConverter._convert_image_content(item)
                     content_blocks.append(image_block)
-                    _logger.debug(f"Added image content block: {image_block.get('type', 'unknown')}")
+                    _logger.debug(
+                        f"Added image content block: {image_block.get('type', 'unknown')}"
+                    )
 
                 elif is_resource_content(item):
                     block = OpenAIConverter._convert_embedded_resource(item)
@@ -135,9 +136,9 @@ class OpenAIConverter:
                         content_blocks.append(block)
 
                 elif is_resource_link(item):
-                    block = OpenAIConverter._convert_resource_link(item)
-                    if block:
-                        content_blocks.append(block)
+                    text = get_text(item)
+                    if text:
+                        content_blocks.append({"type": "text", "text": text})
 
                 else:
                     _logger.warning(f"Unsupported content type: {type(item)}")
@@ -263,32 +264,6 @@ class OpenAIConverter:
             return "application/octet-stream"
 
         return "text/plain"
-
-    @staticmethod
-    def _convert_resource_link(
-        resource: ResourceLink,
-    ) -> Optional[ContentBlock]:
-        """
-        Convert ResourceLink to OpenAI content block.
-
-        Args:
-            resource: The resource link to convert
-
-        Returns:
-            An OpenAI content block or None if conversion failed
-        """
-        name = resource.name or "unknown"
-        uri_str = str(resource.uri)
-        mime_type = resource.mimeType or "unknown"
-        description = resource.description or "No description"
-
-        # Create a text block with the resource link information
-        return {
-            "type": "text",
-            "text": f"Linked Resource ${name} MIME type {mime_type}>\n"
-            f"Resource Link: {uri_str}\n"
-            f"${description}\n",
-        }
 
     @staticmethod
     def _convert_embedded_resource(
@@ -460,7 +435,7 @@ class OpenAIConverter:
             converted_messages = OpenAIConverter.convert_to_openai(
                 temp_multipart, concatenate_text_blocks=concatenate_text_blocks
             )
-            
+
             # Extract text from content blocks (convert_to_openai now returns a list)
             if converted_messages:
                 tool_message_content = OpenAIConverter._extract_text_from_content_blocks(
@@ -487,13 +462,17 @@ class OpenAIConverter:
 
         # Convert to OpenAI format (returns a list now)
         user_messages = OpenAIConverter.convert_to_openai(non_text_multipart)
-        
+
         # Debug logging to understand what's happening with image conversion
-        _logger.debug(f"Tool result conversion: non_text_content={len(non_text_content)} items, "
-                     f"user_messages={len(user_messages)} messages")
+        _logger.debug(
+            f"Tool result conversion: non_text_content={len(non_text_content)} items, "
+            f"user_messages={len(user_messages)} messages"
+        )
         if not user_messages:
-            _logger.warning(f"No user messages generated for non-text content: {[type(item).__name__ for item in non_text_content]}")
-            
+            _logger.warning(
+                f"No user messages generated for non-text content: {[type(item).__name__ for item in non_text_content]}"
+            )
+
         return (tool_message, user_messages)
 
     @staticmethod
