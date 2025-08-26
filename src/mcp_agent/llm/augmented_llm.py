@@ -15,14 +15,12 @@ from typing import (
 
 from mcp import Tool
 from mcp.types import (
-    CallToolResult,
     GetPromptResult,
     PromptMessage,
 )
 from openai import NotGiven
 from openai.lib._parsing import type_to_response_format_param as _type_to_response_format
 from pydantic_core import from_json
-from rich.text import Text
 
 from fast_agent.context_dependent import ContextDependent
 from fast_agent.event_progress import ProgressAction
@@ -155,9 +153,6 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
 
         self.display = ConsoleDisplay(config=self.context.config)
 
-        # Tool call counter for current turn
-        self._current_turn_tool_calls = 0
-
         # Initialize default parameters, passing model info
         model_kwargs = kwargs.copy()
         if model:
@@ -235,9 +230,7 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             messages, request_params, tools
         )
 
-        # Count tool calls from the response for usage tracking
-        if assistant_response.tool_calls:
-            self._current_turn_tool_calls = len(assistant_response.tool_calls)
+        self.usage_accumulator.count_tools(len(assistant_response.tool_calls or {}))
 
         # add generic error and termination reason handling/rollback
         self._message_history.append(assistant_response)
@@ -471,40 +464,35 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         # Many LLM implementations will allow the same type for input and output messages
         return cast("MessageParamT", message)
 
-    def show_tool_result(self, result: CallToolResult) -> None:
-        """Display a tool result in a formatted panel."""
-        self.display.show_tool_result(result, name=self.name)
+    # def show_tool_result(self, result: CallToolResult) -> None:
+    #     """Display a tool result in a formatted panel."""
+    #     self.display.show_tool_result(result, name=self.name)
 
-    def show_tool_call(self, available_tools, tool_name, tool_args) -> None:
-        """Display a tool call in a formatted panel."""
-        self._current_turn_tool_calls += 1
-        self.display.show_tool_call(available_tools, tool_name, tool_args, name=self.name)
-
-    def _reset_turn_tool_calls(self) -> None:
-        """Reset tool call counter for new turn."""
-        self._current_turn_tool_calls = 0
+    # def show_tool_call(self, available_tools, tool_name, tool_args) -> None:
+    #     """Display a tool call in a formatted panel."""
+    #     self._current_turn_tool_calls += 1
+    #     self.display.show_tool_call(available_tools, tool_name, tool_args, name=self.name)
 
     def _finalize_turn_usage(self, turn_usage: "TurnUsage") -> None:
         """Set tool call count on TurnUsage and add to accumulator."""
-        turn_usage.set_tool_calls(self._current_turn_tool_calls)
         self._usage_accumulator.add_turn(turn_usage)
 
-    async def show_assistant_message(
-        self,
-        message_text: str | Text | None,
-        highlight_namespaced_tool: str = "",
-        title: str = "ASSISTANT",
-    ) -> None:
-        if message_text is None:
-            message_text = Text("No content to display", style="dim green italic")
-        """Display an assistant message in a formatted panel."""
-        await self.display.show_assistant_message(
-            message_text,
-            #            aggregator=self.aggregator,
-            highlight_namespaced_tool=highlight_namespaced_tool,
-            title=title,
-            name=self.name,
-        )
+    # async def show_assistant_message(
+    #     self,
+    #     message_text: str | Text | None,
+    #     highlight_namespaced_tool: str = "",
+    #     title: str = "ASSISTANT",
+    # ) -> None:
+    #     if message_text is None:
+    #         message_text = Text("No content to display", style="dim green italic")
+    #     """Display an assistant message in a formatted panel."""
+    #     await self.display.show_assistant_message(
+    #         message_text,
+    #         #            aggregator=self.aggregator,
+    #         highlight_namespaced_tool=highlight_namespaced_tool,
+    #         title=title,
+    #         name=self.name,
+    #     )
 
     def _log_chat_progress(
         self, chat_turn: Optional[int] = None, model: Optional[str] = None
@@ -593,7 +581,6 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
             description=description,
             message_count=message_count,
             agent_name=self.name,
-            # aggregator=self.aggregator,
             arguments=arguments,
         )
 

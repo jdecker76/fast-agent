@@ -321,7 +321,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
 
         response_content_blocks: List[ContentBlock] = []
         tool_calls: dict[str, CallToolRequest] | None = None
-        model = self.default_request_params.model
+        model = self.default_request_params.model or DEFAULT_ANTHROPIC_MODEL
 
         # Create base arguments dictionary
         base_args = {

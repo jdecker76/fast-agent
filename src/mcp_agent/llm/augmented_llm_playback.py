@@ -85,19 +85,11 @@ class PlaybackLLM(PassthroughLLM):
             # Reset the index to the beginning for proper playback
             self._current_index = 0
 
-            await self.show_assistant_message(
-                message_text=f"HISTORY LOADED ({len(self._messages)} messages)",
-                title="ASSISTANT/PLAYBACK",
-            )
-
             # In PlaybackLLM, we always return "HISTORY LOADED" on initialization,
             # regardless of the prompt content. The next call will return messages.
-            return Prompt.assistant("HISTORY LOADED")
+            return Prompt.assistant(f"HISTORY LOADED ({len(self._messages)}) messages")
 
         response = self._get_next_assistant_message()
-        await self.show_assistant_message(
-            message_text=MessageContent.get_first_text(response), title="ASSISTANT/PLAYBACK"
-        )
 
         # Track usage for this playback "turn"
         try:
