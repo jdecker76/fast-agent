@@ -48,7 +48,7 @@ async def test_model_factory_creates_playback():
 async def test_basic_playback_function(llm):
     """Test that ModelFactory correctly creates a PlaybackLLM instance"""
     result = await llm.generate([Prompt.user("hello, world!")])
-    assert "HISTORY LOADED" == result.first_text()
+    assert "HISTORY LOADED (1) messages" == result.first_text()
 
 
 @pytest.mark.asyncio

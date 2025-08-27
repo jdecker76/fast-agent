@@ -452,7 +452,6 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
         is_template: bool = False,
     ) -> PromptMessageMultipart:
         # Reset tool call counter for new turn
-        self._reset_turn_tool_calls()
 
         last_message = multipart_messages[-1]
 
