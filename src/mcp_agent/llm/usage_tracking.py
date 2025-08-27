@@ -234,7 +234,7 @@ class UsageAccumulator(BaseModel):
     # not ideal way to do it, but works well enough. full history would be available through the
     # message_history; maybe we consolidate there and put turn_usage on the turn.
     def count_tools(self, tool_calls: int) -> None:
-        if self.turns[-1]:
+        if self.turns and self.turns[-1]:
             self.turns[-1].tool_calls = tool_calls
 
     @computed_field

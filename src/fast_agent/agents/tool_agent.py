@@ -14,6 +14,13 @@ from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 logger = get_logger(__name__)
 
+DEFAULT_MAX_TOOL_CALLS = 20
+
+
+# should we have MAX_TOOL_CALLS instead to constrain by number of tools rather than turns...?
+DEFAULT_MAX_ITERATIONS = 20
+"""Maximum number of User/Assistant turns to take"""
+
 
 class ToolAgent(LlmAgent):
     """
@@ -67,6 +74,8 @@ class ToolAgent(LlmAgent):
         if tools is None:
             tools = self._tool_schemas
 
+        iterations = 0
+
         while True:
             result = await super().generate_impl(
                 messages, request_params=request_params, tools=tools
@@ -77,6 +86,10 @@ class ToolAgent(LlmAgent):
             else:
                 break
 
+            iterations += 1
+            if iterations > DEFAULT_MAX_ITERATIONS:
+                logger.warning("Max iterations reached, stopping tool loop")
+                break
         return result
 
     # we take care of tool results, so skip displaying them

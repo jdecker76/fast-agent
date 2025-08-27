@@ -22,7 +22,6 @@ from mcp_agent.core.request_params import RequestParams
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 from mcp_agent.ui.console_display import ConsoleDisplay
 
-# TODO -- move tool counting logic to relevant place
 # TODO -- decide what to do with type safety for model/chat_turn()
 
 DEFAULT_CAPABILITIES = AgentCapabilities(
@@ -48,13 +47,6 @@ class LlmAgent(LlmDecorator):
 
         # Initialize display component
         self.display = ConsoleDisplay(config=self._context.config if self._context else None)
-
-        # Tool call tracking for current turn
-        self._current_turn_tool_calls = 0
-
-    def _reset_turn_tool_calls(self) -> None:
-        """Reset tool call counter for new turn."""
-        self._current_turn_tool_calls = 0
 
     async def show_assistant_message(
         self,
@@ -101,7 +93,7 @@ class LlmAgent(LlmDecorator):
 
             case _:
                 additional_message.append(
-                    f"Generation stopped for an unhandled reason ({message.stop_reason or 'unknown'})",
+                    f"\n\nGeneration stopped for an unhandled reason ({message.stop_reason or 'unknown'})",
                     style="dim red italic",
                 )
 
@@ -132,10 +124,10 @@ class LlmAgent(LlmDecorator):
         Enhanced generate implementation that resets tool call tracking.
         Messages are already normalized to List[PromptMessageMultipart].
         """
-        self._reset_turn_tool_calls()
         if "user" == messages[-1].role:
             self.show_user_message(message=messages[-1])
 
+        # TODO -- we should merge the request parameters here with the LLM defaults?
         # TODO - manage error catch, recovery, pause
         result = await super().generate_impl(messages, request_params, tools)
 

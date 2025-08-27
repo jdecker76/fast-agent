@@ -99,10 +99,8 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
     BASE_EXCLUDE_FIELDS = {PARAM_METADATA}
 
     """
-    The basic building block of agentic systems is an LLM enhanced with augmentations
-    such as retrieval, tools, and memory provided from a collection of MCP servers.
-    Our current models can actively use these capabilities—generating their own search queries,
-    selecting appropriate tools, and determining what information to retain.
+    Implementation of the Llm Protocol - intended be subclassed for Provider
+    or behaviour specific reasons. Contains convenience and template methods.
     """
 
     def __init__(
@@ -120,16 +118,12 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         **kwargs: dict[str, Any],
     ) -> None:
         """
-        Initialize the LLM with a list of server names and an instruction.
-        If a name is provided, it will be used to identify the LLM.
-        If an agent is provided, all other properties are optional
 
         Args:
-            agent: Optional Agent that owns this LLM
-            server_names: List of MCP server names to connect to
+            provider: LLM API Provider
             instruction: System prompt for the LLM
-            name: Optional name identifier for the LLM
-            request_params: RequestParams to configure LLM behavior
+            name: Name for the LLM (usually attached Agent name)
+            request_params: RequestParams to configure LLM behaviour
             type_converter: Provider-specific format converter class
             context: Application context
             model: Optional model name override
@@ -464,35 +458,9 @@ class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT
         # Many LLM implementations will allow the same type for input and output messages
         return cast("MessageParamT", message)
 
-    # def show_tool_result(self, result: CallToolResult) -> None:
-    #     """Display a tool result in a formatted panel."""
-    #     self.display.show_tool_result(result, name=self.name)
-
-    # def show_tool_call(self, available_tools, tool_name, tool_args) -> None:
-    #     """Display a tool call in a formatted panel."""
-    #     self._current_turn_tool_calls += 1
-    #     self.display.show_tool_call(available_tools, tool_name, tool_args, name=self.name)
-
     def _finalize_turn_usage(self, turn_usage: "TurnUsage") -> None:
         """Set tool call count on TurnUsage and add to accumulator."""
         self._usage_accumulator.add_turn(turn_usage)
-
-    # async def show_assistant_message(
-    #     self,
-    #     message_text: str | Text | None,
-    #     highlight_namespaced_tool: str = "",
-    #     title: str = "ASSISTANT",
-    # ) -> None:
-    #     if message_text is None:
-    #         message_text = Text("No content to display", style="dim green italic")
-    #     """Display an assistant message in a formatted panel."""
-    #     await self.display.show_assistant_message(
-    #         message_text,
-    #         #            aggregator=self.aggregator,
-    #         highlight_namespaced_tool=highlight_namespaced_tool,
-    #         title=title,
-    #         name=self.name,
-    #     )
 
     def _log_chat_progress(
         self, chat_turn: Optional[int] = None, model: Optional[str] = None
