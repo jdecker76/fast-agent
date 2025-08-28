@@ -2,6 +2,7 @@ import json
 import os
 import re
 from enum import Enum
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union, cast
 
 from mcp.types import ContentBlock, TextContent
@@ -29,10 +30,6 @@ except ImportError:
     ClientError = Exception
     NoCredentialsError = Exception
 
-try:
-    from anthropic.types import ToolParam
-except ImportError:
-    ToolParam = None
 
 from mcp.types import (
     CallToolRequest,
@@ -75,45 +72,47 @@ class ToolSchemaType(Enum):
     ANTHROPIC = "anthropic"  # Native Anthropic tool calling format
 
 
+@dataclass
+class ModelCapabilities:
+    """Unified per-model capability cache to avoid scattered caches.
+
+    Fields use simple strings to minimize coupling; values are documented inline:
+    - schema: one of {"default", "system_prompt", "anthropic", "none"}
+    - system_mode: one of {"system", "inject"}
+    - stream_with_tools: one of {"stream_ok", "non_stream"}
+    - tool_name_policy: one of {"preserve", "underscores"}
+    - structured_strategy: one of {"strict_schema", "simplified_schema"}
+    - reasoning_support: one of {"supported", "unsupported"}
+    - supports_tools: one of {"yes", "no"}
+    """
+
+    schema: str | None = None
+    system_mode: str | None = None
+    stream_with_tools: str | None = None
+    tool_name_policy: str | None = None
+    structured_strategy: str | None = None
+    reasoning_support: str | None = None
+    supports_tools: str | None = None
+
+
 class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
     """
     AWS Bedrock implementation of AugmentedLLM using the Converse API.
     Supports all Bedrock models including Nova, Claude, Meta, etc.
     """
 
-    # Bedrock-specific parameter exclusions
-    BEDROCK_EXCLUDE_FIELDS = {
-        AugmentedLLM.PARAM_MESSAGES,
-        AugmentedLLM.PARAM_MODEL,
-        AugmentedLLM.PARAM_SYSTEM_PROMPT,
-        AugmentedLLM.PARAM_STOP_SEQUENCES,
-        AugmentedLLM.PARAM_MAX_TOKENS,
-        AugmentedLLM.PARAM_METADATA,
-        AugmentedLLM.PARAM_USE_HISTORY,
-        AugmentedLLM.PARAM_MAX_ITERATIONS,
-        AugmentedLLM.PARAM_PARALLEL_TOOL_CALLS,
-        AugmentedLLM.PARAM_TEMPLATE_VARS,
-        AugmentedLLM.PARAM_MCP_METADATA,
-    }
+    # No provider-specific exclusion set; arguments are built explicitly for Bedrock
 
     @classmethod
     def matches_model_pattern(cls, model_name: str) -> bool:
-        """Check if a model name matches Bedrock model patterns."""
-        # Bedrock model patterns
-        bedrock_patterns = [
-            r"^amazon\.nova.*",  # Amazon Nova models
-            r"^anthropic\.claude.*",  # Anthropic Claude models
-            r"^meta\.llama.*",  # Meta Llama models
-            r"^mistral\..*",  # Mistral models
-            r"^cohere\..*",  # Cohere models
-            r"^ai21\..*",  # AI21 models
-            r"^stability\..*",  # Stability AI models
-            r"^openai\..*",  # OpenAI models
-        ]
+        """Return True if model_name exists in the Bedrock model list loaded at init.
 
-        import re
+        Uses the centralized discovery in bedrock_utils; no regex, no fallbacks.
+        """
+        from mcp_agent.llm.providers.bedrock_utils import all_bedrock_models
 
-        return any(re.match(pattern, model_name) for pattern in bedrock_patterns)
+        available = set(all_bedrock_models(prefix=""))
+        return model_name in available
 
     def __init__(self, *args, **kwargs) -> None:
         """Initialize the Bedrock LLM with AWS credentials and region."""
@@ -153,23 +152,12 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         self._bedrock_client = None
         self._bedrock_runtime_client = None
 
-        # YAML-backed resolver removed; runtime detection with caches is used instead
+        # Unified per-model capabilities cache to avoid model/family-specific conditionals
+        # Key: cleaned model id (e.g., without "bedrock." or regional prefix)
+        self._capabilities: Dict[str, ModelCapabilities] = {}
 
-        # Runtime caches (resolver-free behavioral caching)
-        # Tool schema cache per model: "anthropic" | "default" | "system_prompt" | "none"
-        self._tool_schema_cache: Dict[str, str] = {}
-        # System prompt mode cache per model: "system" (send as system param) | "inject" (inject into first user message)
-        self._system_prompt_mode_cache: Dict[str, str] = {}
         # One-shot hint to force non-streaming on next completion (used by structured outputs)
         self._force_non_streaming_once: bool = False
-        # Cache whether a model supports streaming when tools are present: "stream_ok" | "non_stream"
-        self._stream_with_tools_cache: Dict[str, str] = {}
-        # Cache tool name policy for Nova/default schema: "preserve" | "underscores"
-        self._tool_name_policy_cache: Dict[str, str] = {}
-        # Cache structured strategy per model: "strict" | "simplified"
-        self._structured_strategy_cache: Dict[str, str] = {}
-        # Cache reasoning support per model: "supported" | "unsupported"
-        self._reasoning_cache: Dict[str, str] = {}
 
         # Set up reasoning-related attributes
         self._reasoning_effort = kwargs.get("reasoning_effort", None)
@@ -309,123 +297,55 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         return bedrock_tools
 
     def _convert_tools_system_prompt_format(self, tools: "ListToolsResult") -> str:
-        """Convert MCP tools to system prompt format.
-
-        Uses different formats based on the model:
-        - Scout models: Comprehensive system prompt format
-        - Other models: Minimal format
-        """
+        """Convert MCP tools to system prompt format."""
         if not tools.tools:
             return ""
 
-        # Create mapping from tool names to original names (no cleaning needed for Llama)
+        # Create mapping from tool names to original names (no cleaning needed)
         self.tool_name_mapping = {}
 
-        self.logger.debug(
-            f"Converting {len(tools.tools)} MCP tools to Llama native system prompt format"
+        self.logger.debug(f"Converting {len(tools.tools)} MCP tools to system prompt format")
+
+        prompt_parts = [
+            "You have the following tools available to help answer the user's request. You can call one or more functions at a time. The functions are described here in JSON-schema format:",
+            "",
+        ]
+
+        # Add each tool definition in JSON format
+        for tool in tools.tools:
+            self.logger.debug(f"Converting MCP tool: {tool.name}")
+
+            # Use original tool name (no hyphen replacement)
+            tool_name = tool.name
+
+            # Store mapping (identity mapping since no name cleaning)
+            self.tool_name_mapping[tool_name] = tool.name
+
+            # Create tool definition
+            tool_def = {
+                "type": "function",
+                "function": {
+                    "name": tool_name,
+                    "description": tool.description or f"Tool: {tool.name}",
+                    "parameters": tool.inputSchema or {"type": "object", "properties": {}},
+                },
+            }
+
+            prompt_parts.append(json.dumps(tool_def))
+
+        # Add the response format instructions
+        prompt_parts.extend(
+            [
+                "",
+                "To call one or more tools, provide the tool calls on a new line as a JSON-formatted array. Explain your steps in a neutral tone. Then, only call the tools you can for the first step, then end your turn. If you previously received an error, you can try to call the tool again. Give up after 3 errors.",
+                "",
+                "Conform precisely to the single-line format of this example:",
+                "Tool Call:",
+                '[{"name": "SampleTool", "arguments": {"foo": "bar"}},{"name": "SampleTool", "arguments": {"foo": "other"}}]',
+                "",
+                "When calling a tool you must supply valid JSON with both 'name' and 'arguments' keys with the function name and function arguments respectively. Do not add any preamble, labels or extra text, just the single JSON string in one of the specified formats",
+            ]
         )
-
-        # Check if this is a Scout model
-        model_id = self.default_request_params.model or DEFAULT_BEDROCK_MODEL
-        clean_model = model_id.replace("bedrock.", "")
-        is_scout = re.search(r"meta\.llama4-scout", clean_model)
-
-        if is_scout:
-            # Use comprehensive system prompt format for Scout models
-            prompt_parts = [
-                "You are a helpful assistant with access to the following functions. Use them if required:",
-                "",
-            ]
-
-            # Add each tool definition in JSON format
-            for tool in tools.tools:
-                self.logger.debug(f"Converting MCP tool: {tool.name}")
-
-                # Use original tool name (no hyphen replacement for Llama)
-                tool_name = tool.name
-
-                # Store mapping (identity mapping since no name cleaning)
-                self.tool_name_mapping[tool_name] = tool.name
-
-                # Create tool definition in the format Llama expects
-                tool_def = {
-                    "type": "function",
-                    "function": {
-                        "name": tool_name,
-                        "description": tool.description or f"Tool: {tool.name}",
-                        "parameters": tool.inputSchema or {"type": "object", "properties": {}},
-                    },
-                }
-
-                prompt_parts.append(json.dumps(tool_def))
-
-            # Add comprehensive response format instructions for Scout
-            prompt_parts.extend(
-                [
-                    "",
-                    "## Rules for Function Calling:",
-                    "1. When you need to call a function, use the following format:",
-                    "   [function_name(arguments)]",
-                    "2. You can call multiple functions in a single response if needed",
-                    "3. Always provide the function results in your response to the user",
-                    "4. If a function call fails, explain the error and try an alternative approach",
-                    "5. Only call functions when necessary to answer the user's question",
-                    "",
-                    "## Response Rules:",
-                    "- Always provide a complete answer to the user's question",
-                    "- Include function results in your response",
-                    "- Be helpful and informative",
-                    "- If you cannot answer without calling a function, call the appropriate function first",
-                    "",
-                    "## Boundaries:",
-                    "- Only call functions that are explicitly provided above",
-                    "- Do not make up function names or parameters",
-                    "- Follow the exact function signature provided",
-                    "- Always validate your function calls before making them",
-                ]
-            )
-        else:
-            # Use minimal format for other Llama models
-            prompt_parts = [
-                "You have the following tools available to help answer the user's request. You can call one or more functions at a time. The functions are described here in JSON-schema format:",
-                "",
-            ]
-
-            # Add each tool definition in JSON format
-            for tool in tools.tools:
-                self.logger.debug(f"Converting MCP tool: {tool.name}")
-
-                # Use original tool name (no hyphen replacement for Llama)
-                tool_name = tool.name
-
-                # Store mapping (identity mapping since no name cleaning)
-                self.tool_name_mapping[tool_name] = tool.name
-
-                # Create tool definition in the format Llama expects
-                tool_def = {
-                    "type": "function",
-                    "function": {
-                        "name": tool_name,
-                        "description": tool.description or f"Tool: {tool.name}",
-                        "parameters": tool.inputSchema or {"type": "object", "properties": {}},
-                    },
-                }
-
-                prompt_parts.append(json.dumps(tool_def))
-
-            # Add the response format instructions based on community best practices
-            prompt_parts.extend(
-                [
-                    "",
-                    "To call one or more tools, provide the tool calls on a new line as a JSON-formatted array. Explain your steps in a neutral tone. Then, only call the tools you can for the first step, then end your turn. If you previously received an error, you can try to call the tool again. Give up after 3 errors.",
-                    "",
-                    "Conform precisely to the single-line format of this example:",
-                    "Tool Call:",
-                    '[{"name": "SampleTool", "arguments": {"foo": "bar"}},{"name": "SampleTool", "arguments": {"foo": "other"}}]',
-                    "",
-                    "When calling a tool you must supply valid JSON with both 'name' and 'arguments' keys with the function name and function arguments respectively. Do not add any preamble, labels or extra text, just the single JSON string in one of the specified formats",
-                ]
-            )
 
         system_prompt = "\n".join(prompt_parts)
         self.logger.debug(f"Generated Llama native system prompt: {system_prompt}")
@@ -467,49 +387,6 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
             f"Converted {len(bedrock_tools)} tools to Anthropic format with toolSpec wrapper"
         )
         return bedrock_tools
-
-    def _convert_mcp_tools_to_bedrock(
-        self, tools: "ListToolsResult"
-    ) -> Union[List[Dict[str, Any]], str]:
-        """Convert MCP tools to appropriate Bedrock format based on model type."""
-        # This legacy method is retained for compatibility but is no longer used
-        # for schema selection. Fallback logic now lives in _bedrock_completion.
-        # Default to Nova format.
-        self._tool_name_policy_for_conversion = "preserve"
-        return self._convert_tools_nova_format(tools)
-
-    def _add_tools_to_request(
-        self,
-        converse_args: Dict[str, Any],
-        available_tools: Union[List[Dict[str, Any]], str],
-        model_id: str,
-    ) -> None:
-        """Add tools to the request in the appropriate format based on model type."""
-        # Retained for backward compatibility; not used in new fallback path.
-        converse_args["toolConfig"] = {"tools": available_tools}
-        self.logger.debug(f"Added {len(available_tools)} tools to request (compat path)")
-
-    def _parse_nova_tool_response(self, processed_response: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Parse Nova-format tool response (toolUse format)."""
-        tool_uses = [
-            content_item
-            for content_item in processed_response.get("content", [])
-            if "toolUse" in content_item
-        ]
-
-        parsed_tools = []
-        for tool_use_item in tool_uses:
-            tool_use = tool_use_item["toolUse"]
-            parsed_tools.append(
-                {
-                    "type": "nova",
-                    "name": tool_use["name"],
-                    "arguments": tool_use["input"],
-                    "id": tool_use["toolUseId"],
-                }
-            )
-
-        return parsed_tools
 
     def _parse_system_prompt_tool_response(
         self, processed_response: Dict[str, Any]
@@ -674,26 +551,44 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
     def _parse_tool_response(
         self, processed_response: Dict[str, Any], model_id: str
     ) -> List[Dict[str, Any]]:
-        """Parse tool response based on model type."""
-        # Resolver-free: infer parser from runtime cache or model prefix
+        """Parse tool responses using cached schema, without model/family heuristics."""
         clean_id = (model_id or "").replace("bedrock.", "")
         if clean_id.startswith("us."):
             clean_id = clean_id[3:]
-        cached = self._tool_schema_cache.get(clean_id)
-        if cached == "system_prompt":
+
+        caps = self._capabilities.get(clean_id) or ModelCapabilities()
+        schema = caps.schema
+
+        # Choose parser strictly by cached schema
+        if schema == "system_prompt":
             return self._parse_system_prompt_tool_response(processed_response)
-        if cached == "anthropic":
-            return self._parse_anthropic_tool_response(processed_response)
-        # Heuristic when no cache
-        if clean_id.startswith("anthropic."):
+        if schema == "anthropic":
             return self._parse_anthropic_tool_response(processed_response)
 
-        # Try Nova/default parser first
-        parsed = self._parse_nova_tool_response(processed_response)
-        if parsed:
-            return parsed
+        # Default/Nova: detect toolUse objects
+        tool_uses = [
+            c
+            for c in processed_response.get("content", [])
+            if isinstance(c, dict) and "toolUse" in c
+        ]
+        if tool_uses:
+            parsed_tools: List[Dict[str, Any]] = []
+            for item in tool_uses:
+                tu = item.get("toolUse", {})
+                if not isinstance(tu, dict):
+                    continue
+                parsed_tools.append(
+                    {
+                        "type": "nova",
+                        "name": tu.get("name"),
+                        "arguments": tu.get("input", {}),
+                        "id": tu.get("toolUseId"),
+                    }
+                )
+            if parsed_tools:
+                return parsed_tools
 
-        # Family-agnostic fallback: detect plain-text tool call arrays (e.g., Tool Call: [ {...} ])
+        # Family-agnostic fallback: parse JSON array embedded in text
         try:
             text_content = ""
             for content_item in processed_response.get("content", []):
@@ -703,7 +598,6 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                 import json as _json
                 import re as _re
 
-                # Extract first JSON array from text
                 match = _re.search(r"\[(?:.|\n)*?\]", text_content)
                 if match:
                     arr = _json.loads(match.group(0))
@@ -1052,17 +946,14 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
             base_system_text = self.instruction or params.systemPrompt
 
             # Determine tool schema fallback order and caches
-            def _clean_model_id(mid: str) -> str:
-                clean = (mid or "").replace("bedrock.", "")
-                if clean.startswith("us."):
-                    clean = clean[3:]
-                return clean
-
-            clean_id = _clean_model_id(model or DEFAULT_BEDROCK_MODEL)
-            cached_schema = self._tool_schema_cache.get(clean_id)
-            if cached_schema and cached_schema != "none":
-                schema_order = [cached_schema]
+            clean_id = (model or DEFAULT_BEDROCK_MODEL).replace("bedrock.", "")
+            if clean_id.startswith("us."):
+                clean_id = clean_id[3:]
+            caps = self._capabilities.get(clean_id) or ModelCapabilities()
+            if caps.schema and caps.schema != "none":
+                schema_order = [caps.schema]
             else:
+                # Restore original fallback order: Anthropic models try anthropic first, others skip it
                 if clean_id.startswith("anthropic."):
                     schema_order = ["anthropic", "default", "system_prompt"]
                 else:
@@ -1084,10 +975,10 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                     if schema_choice == "anthropic":
                         tools_payload = self._convert_tools_anthropic_format(tool_list)
                     elif schema_choice == "default":
-                        # Resolver-free tool name policy with cache
-                        name_policy = getattr(self, "_tool_name_policy_cache", {}).get(
-                            clean_id, "preserve"
-                        )
+                        # Tool name policy via unified capabilities
+                        name_policy = (
+                            self._capabilities.get(clean_id) or ModelCapabilities()
+                        ).tool_name_policy or "preserve"
                         self._tool_name_policy_for_conversion = (
                             "replace_hyphens_with_underscores"
                             if name_policy == "underscores"
@@ -1098,7 +989,9 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                         tools_payload = self._convert_tools_system_prompt_format(tool_list)
 
                 # System prompt handling with cache
-                system_mode = self._system_prompt_mode_cache.get(clean_id, "system")
+                system_mode = (
+                    self._capabilities.get(clean_id) or ModelCapabilities()
+                ).system_mode or "system"
                 system_text = base_system_text
 
                 if (
@@ -1167,7 +1060,9 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                 reasoning_enabled = False
                 if reasoning_budget > 0:
                     # Check if this model supports reasoning (with caching)
-                    cached_reasoning = self._reasoning_cache.get(clean_id)
+                    cached_reasoning = (
+                        self._capabilities.get(clean_id) or ModelCapabilities()
+                    ).reasoning_support
                     if cached_reasoning == "supported":
                         # We know this model supports reasoning
                         converse_args["performanceConfig"] = {
@@ -1217,7 +1112,9 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                         self._force_non_streaming_once = False
 
                     # Evaluate cache for streaming-with-tools
-                    cache_pref = str(self._stream_with_tools_cache.get(clean_stream_key) or "")
+                    cache_pref = (
+                        self._capabilities.get(clean_stream_key) or ModelCapabilities()
+                    ).stream_with_tools or ""
                     use_streaming = True
                     attempted_streaming = False
 
@@ -1261,7 +1158,8 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                             self.logger.debug(
                                 f"Model {clean_id} doesn't support reasoning, retrying without: {e}"
                             )
-                            self._reasoning_cache[clean_id] = "unsupported"
+                            caps.reasoning_support = "unsupported"
+                            self._capabilities[clean_id] = caps
 
                             # Remove reasoning and retry
                             if "performanceConfig" in converse_args:
@@ -1289,12 +1187,12 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                             raise
 
                     # Success: cache the working schema choice if not already cached
-                    if not cached_schema:
-                        self._tool_schema_cache[clean_id] = schema_choice
+                    if not caps.schema:
+                        caps.schema = schema_choice
 
                     # Cache successful reasoning if we tried it
-                    if reasoning_budget > 0 and self._reasoning_cache.get(clean_id) != "supported":
-                        self._reasoning_cache[clean_id] = "supported"
+                    if reasoning_budget > 0 and caps.reasoning_support != "supported":
+                        caps.reasoning_support = "supported"
 
                     # If Nova/default worked and we used preserve but server complains, flip cache for next time
                     if (
@@ -1305,12 +1203,13 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                         # Heuristic: if tool names include '-', prefer underscores next time
                         try:
                             if any("-" in t.name for t in (tool_list.tools if tool_list else [])):
-                                self._tool_name_policy_cache[clean_id] = "underscores"
+                                caps.tool_name_policy = "underscores"
                         except Exception:
                             pass
                     # Cache streaming-with-tools behavior on success
                     if has_tools and attempted_streaming:
-                        self._stream_with_tools_cache[clean_stream_key] = "stream_ok"
+                        caps.stream_with_tools = "stream_ok"
+                    self._capabilities[clean_id] = caps
                     break
                 except (ClientError, BotoCoreError) as e:
                     error_msg = str(e)
@@ -1318,7 +1217,7 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                     self.logger.error(f"Bedrock API error (schema={schema_choice}): {error_msg}")
 
                     # If streaming with tools failed and cache undecided, fallback to non-streaming and cache
-                    if has_tools and self._stream_with_tools_cache.get(clean_stream_key) is None:
+                    if has_tools and (caps.stream_with_tools is None):
                         try:
                             self.logger.debug(
                                 f"Falling back to non-streaming API for {model} after streaming error"
@@ -1327,9 +1226,10 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                             processed_response = self._process_non_streaming_response(
                                 response, model or DEFAULT_BEDROCK_MODEL
                             )
-                            self._stream_with_tools_cache[clean_stream_key] = "non_stream"
-                            if not cached_schema:
-                                self._tool_schema_cache[clean_id] = schema_choice
+                            caps.stream_with_tools = "non_stream"
+                            if not caps.schema:
+                                caps.schema = schema_choice
+                            self._capabilities[clean_id] = caps
                             break
                         except (ClientError, BotoCoreError) as e_fallback:
                             last_error_msg = str(e_fallback)
@@ -1349,7 +1249,8 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                         )
                     ):
                         tried_system_fallback = True
-                        self._system_prompt_mode_cache[clean_id] = "inject"
+                        caps.system_mode = "inject"
+                        self._capabilities[clean_id] = caps
                         self.logger.info(
                             f"Switching system mode to inject for {clean_id} and retrying same schema"
                         )
@@ -1385,9 +1286,9 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                                 (isinstance(tools_payload, list) and len(tools_payload) > 0)
                                 or (isinstance(tools_payload, str) and tools_payload.strip())
                             )
-                            cache_pref = str(
-                                self._stream_with_tools_cache.get(clean_stream_key) or ""
-                            )
+                            cache_pref = (
+                                self._capabilities.get(clean_stream_key) or ModelCapabilities()
+                            ).stream_with_tools or ""
                             if cache_pref == "non_stream" or not has_tools:
                                 response = client.converse(**converse_args)
                                 processed_response = self._process_non_streaming_response(
@@ -1398,8 +1299,9 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                                 processed_response = await self._process_stream(
                                     response, model or DEFAULT_BEDROCK_MODEL
                                 )
-                            if not cached_schema:
-                                self._tool_schema_cache[clean_id] = schema_choice
+                            if not caps.schema:
+                                caps.schema = schema_choice
+                            self._capabilities[clean_id] = caps
                             break
                         except (ClientError, BotoCoreError) as e2:
                             last_error_msg = str(e2)
@@ -1417,7 +1319,8 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
 
             if processed_response is None:
                 # All attempts failed; mark schema as none to avoid repeated retries this process
-                self._tool_schema_cache[clean_id] = "none"
+                caps.schema = "none"
+                self._capabilities[clean_id] = caps
                 processed_response = {
                     "content": [
                         {"text": f"Error during generation: {last_error_msg or 'Unknown error'}"}
@@ -1459,18 +1362,12 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
             # Handle different stop reasons
             stop_reason = processed_response.get("stop_reason", "end_turn")
 
-            # For Llama native format, check for tool calls even if stop_reason is "end_turn"
-            # Resolver-free: determine if we should parse for system-prompt tool calls
-            sys_prompt_schema = False
+            # Determine if we should parse for system-prompt tool calls (unified capabilities)
             clean_id_tmp = (model or DEFAULT_BEDROCK_MODEL).replace("bedrock.", "")
             if clean_id_tmp.startswith("us."):
                 clean_id_tmp = clean_id_tmp[3:]
-            cached_schema_tmp = self._tool_schema_cache.get(clean_id_tmp)
-            if cached_schema_tmp == "system_prompt":
-                sys_prompt_schema = True
-            elif cached_schema_tmp is None and clean_id_tmp.startswith("llama."):
-                # Heuristic: treat as potential system-prompt schema on Llama family when unknown
-                sys_prompt_schema = True
+            caps_tmp = self._capabilities.get(clean_id_tmp) or ModelCapabilities()
+            sys_prompt_schema = caps_tmp.schema == "system_prompt"
 
             if sys_prompt_schema and stop_reason == "end_turn":
                 # Check if there's a tool call in the response
@@ -1499,14 +1396,12 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                             args_signature = str(parsed_tools[0].get("arguments", {}))
                         current_signature = f"{normalized_name}|{args_signature}"
 
-                        # Identify system-prompt schema mode
+                        # Identify system-prompt schema mode via unified capabilities
                         clean_id_loop = (model or DEFAULT_BEDROCK_MODEL).replace("bedrock.", "")
                         if clean_id_loop.startswith("us."):
                             clean_id_loop = clean_id_loop[3:]
-                        cached_schema_loop = self._tool_schema_cache.get(clean_id_loop)
-                        is_system_prompt_schema_loop = cached_schema_loop == "system_prompt" or (
-                            cached_schema_loop is None and clean_id_loop.startswith("llama.")
-                        )
+                        caps_loop = self._capabilities.get(clean_id_loop) or ModelCapabilities()
+                        is_system_prompt_schema_loop = caps_loop.schema == "system_prompt"
 
                         if is_system_prompt_schema_loop:
                             if current_signature == last_tool_signature:
@@ -1623,16 +1518,12 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                     tool_result_responses = responses.copy()
                     responses.clear()
 
-                    # Now, create the message with tool results based on the runtime schema type.
+                    # Decide result formatting based on unified capabilities
                     clean_id_tmp = (model or DEFAULT_BEDROCK_MODEL).replace("bedrock.", "")
                     if clean_id_tmp.startswith("us."):
                         clean_id_tmp = clean_id_tmp[3:]
-                    cached_schema_tmp = self._tool_schema_cache.get(clean_id_tmp)
-                    is_system_prompt_schema = False
-                    if cached_schema_tmp == "system_prompt":
-                        is_system_prompt_schema = True
-                    elif cached_schema_tmp is None and clean_id_tmp.startswith("llama."):
-                        is_system_prompt_schema = True
+                    caps_tmp = self._capabilities.get(clean_id_tmp) or ModelCapabilities()
+                    is_system_prompt_schema = caps_tmp.schema == "system_prompt"
 
                     if is_system_prompt_schema:
                         # For system prompt models (like Llama), format results as a simple text message.
@@ -1911,9 +1802,8 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         clean_id = (model_to_check or "").replace("bedrock.", "")
         if clean_id.startswith("us."):
             clean_id = clean_id[3:]
-        strategy = self._structured_strategy_cache.get(clean_id)  # type: ignore[assignment]
-        if not strategy:
-            strategy = "strict_schema"
+        caps_struct = self._capabilities.get(clean_id) or ModelCapabilities()
+        strategy = caps_struct.structured_strategy or "strict_schema"
 
         if strategy == "simplified_schema":
             schema_text = self._generate_simplified_schema(model)

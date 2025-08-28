@@ -19,11 +19,7 @@ app = FastMCP(name="Bedrock Test Server")
     description="Returns the weather for a specified location.",
 )
 def check_weather(location: str) -> str:
-    # Write the location to a text file (matches main smoke test server)
-    with open("weather_location.txt", "w") as f:
-        f.write(location)
-
-    # Return sunny weather condition (matches main smoke test server)
+    # Return sunny weather condition
     return "It's sunny in " + location
 
 

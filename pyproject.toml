@@ -92,7 +92,8 @@ markers = [
 
 # Filter out utcnow depreciation warnings from the boto3 library
 filterwarnings = [
-    "ignore:datetime\\.datetime\\.utcnow\\(\\) is deprecated.*:DeprecationWarning:botocore\\.auth"
+    "ignore:datetime\\.datetime\\.utcnow\\(\\) is deprecated.*:DeprecationWarning:botocore\\.auth",
+    "ignore:datetime\\.datetime\\.utcnow\\(\\) is deprecated.*:DeprecationWarning:botocore\\.endpoint$",
 ]
 
 # Other pytest options can go here too
