@@ -539,8 +539,9 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
             except json.JSONDecodeError as e:
                 self.logger.warning(f"Failed to parse Tool Call JSON array: {json_str} - {e}")
 
-        # Fallback: try to parse any JSON array in the text
-        array_match = re.search(r"\[.*?\]", text_content, re.DOTALL)
+        # Fallback: try to parse JSON arrays that look like tool calls
+        # Look for arrays containing objects with "name" fields - avoid simple citations
+        array_match = re.search(r'\[.*?\{.*?"name".*?\}.*?\]', text_content, re.DOTALL)
         if array_match:
             json_str = array_match.group(0)
             try:
@@ -558,7 +559,7 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                             )
                     return tool_calls
             except json.JSONDecodeError as e:
-                self.logger.warning(f"Failed to parse JSON array: {json_str} - {e}")
+                self.logger.debug(f"Failed to parse JSON array: {json_str} - {e}")
 
         # Fallback: try to parse as single JSON object (backward compatibility)
         try:
@@ -1300,7 +1301,7 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                 except (ClientError, BotoCoreError) as e:
                     error_msg = str(e)
                     last_error_msg = error_msg
-                    self.logger.error(f"Bedrock API error (schema={schema_choice}): {error_msg}")
+                    self.logger.debug(f"Bedrock API error (schema={schema_choice}): {error_msg}")
 
                     # If streaming with tools failed and cache undecided, fallback to non-streaming and cache
                     if has_tools and (caps.stream_with_tools is None):
@@ -1319,7 +1320,7 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                             break
                         except (ClientError, BotoCoreError) as e_fallback:
                             last_error_msg = str(e_fallback)
-                            self.logger.error(
+                            self.logger.debug(
                                 f"Bedrock API error after non-streaming fallback: {last_error_msg}"
                             )
                             # continue to other fallbacks (e.g., system inject or next schema)
@@ -1390,7 +1391,7 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                             break
                         except (ClientError, BotoCoreError) as e2:
                             last_error_msg = str(e2)
-                            self.logger.error(
+                            self.logger.debug(
                                 f"Bedrock API error after system inject fallback: {last_error_msg}"
                             )
                             # Fall through to next schema
@@ -1452,6 +1453,12 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
             sys_prompt_schema = caps_tmp.schema == ToolSchemaType.SYSTEM_PROMPT
 
             if sys_prompt_schema and stop_reason == "end_turn":
+                # Only parse for tools if text contains actual function call structure
+                message_text = ""
+                for content_item in processed_response.get("content", []):
+                    if isinstance(content_item, dict) and content_item.get("type") == "text":
+                        message_text += content_item.get("text", "")
+
                 # Check if there's a tool call in the response
                 parsed_tools = self._parse_tool_response(processed_response, model)
                 if parsed_tools:
