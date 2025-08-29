@@ -1175,8 +1175,6 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                 # Nova-specific recommendations (when not using reasoning)
                 if model and "nova" in (model or "").lower() and reasoning_budget == 0:
                     inference_config.setdefault("topP", 1.0)
-                    if params.temperature is None:  # Only set default if user didn't specify
-                        inference_config.setdefault("temperature", 1.0)
                     # Merge/attach additionalModelRequestFields for topK
                     existing_amrf = converse_args.get("additionalModelRequestFields", {})
                     merged_amrf = {**existing_amrf, **{"inferenceConfig": {"topK": 1}}}
