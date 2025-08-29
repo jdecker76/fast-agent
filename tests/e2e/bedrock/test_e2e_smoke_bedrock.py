@@ -1,4 +1,5 @@
 import os
+import sys
 from typing import List, Annotated
 
 import pytest
@@ -8,6 +9,15 @@ from mcp_agent.core.request_params import RequestParams
 from mcp_agent.mcp.helpers.content_helpers import split_thinking_content
 from pydantic import BaseModel, Field
 from mcp_agent.llm.providers.bedrock_utils import all_bedrock_models
+from mcp_agent.llm.providers.augmented_llm_bedrock import BedrockAugmentedLLM
+
+
+@pytest.fixture(scope="module", autouse=True)
+def debug_cache_at_end():
+    """Print cache state after all tests in this module complete."""
+    yield
+    sys.stdout.write("\n=== FINAL CACHE STATE (test_e2e_smoke_bedrock.py) ===\n")
+    BedrockAugmentedLLM.debug_cache()
 
 
 def _bedrock_models_for_smoke() -> List[str]:
