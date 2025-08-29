@@ -164,11 +164,17 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         """Return True if model_name exists in the Bedrock model list loaded at init.
 
         Uses the centralized discovery in bedrock_utils; no regex, no fallbacks.
+        Gracefully handles environments without AWS access by returning False.
         """
         from mcp_agent.llm.providers.bedrock_utils import all_bedrock_models
 
-        available = set(all_bedrock_models(prefix=""))
-        return model_name in available
+        try:
+            available = set(all_bedrock_models(prefix=""))
+            return model_name in available
+        except Exception:
+            # If AWS calls fail (no credentials, region not configured, etc.),
+            # assume this is not a Bedrock model
+            return False
 
     def __init__(self, *args, **kwargs) -> None:
         """Initialize the Bedrock LLM with AWS credentials and region."""
