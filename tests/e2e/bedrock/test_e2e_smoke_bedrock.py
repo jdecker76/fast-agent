@@ -1,15 +1,14 @@
-import os
 import sys
-from typing import List, Annotated
+from typing import Annotated, List
 
 import pytest
+from pydantic import BaseModel, Field
 
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.core.request_params import RequestParams
-from mcp_agent.mcp.helpers.content_helpers import split_thinking_content
-from pydantic import BaseModel, Field
-from mcp_agent.llm.providers.bedrock_utils import all_bedrock_models
 from mcp_agent.llm.providers.augmented_llm_bedrock import BedrockAugmentedLLM
+from mcp_agent.llm.providers.bedrock_utils import all_bedrock_models
+from mcp_agent.mcp.helpers.content_helpers import split_thinking_content
 
 
 @pytest.fixture(scope="module", autouse=True)

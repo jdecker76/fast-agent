@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Collection, Dict, List, Optional, Set, TypedDict, Literal, cast
+from typing import Collection, Dict, List, Literal, Optional, Set, TypedDict, cast
 
 # Lightweight, runtime-only loader for AWS Bedrock models.
 # - Fetches once per process via boto3 (region from session; env override supported)
@@ -9,7 +9,7 @@ from typing import Collection, Dict, List, Optional, Set, TypedDict, Literal, ca
 
 try:
     import boto3
-except Exception as exc:  # pragma: no cover - import error path
+except Exception:  # pragma: no cover - import error path
     boto3 = None  # type: ignore[assignment]
 
 
@@ -113,14 +113,14 @@ def all_model_summaries(
     results: List[ModelSummary] = []
 
     effective_output: Set[Modality] = (
-        set(output_modalities) if output_modalities is not None else {cast(Modality, "TEXT")}
+        set(output_modalities) if output_modalities is not None else {cast("Modality", "TEXT")}
     )
     effective_input: Optional[Set[Modality]] = (
-        set(input_modalities) if input_modalities is not None else {cast(Modality, "TEXT")}
+        set(input_modalities) if input_modalities is not None else {cast("Modality", "TEXT")}
     )
     provider_filter: Optional[Set[str]] = set(providers) if providers is not None else None
     effective_inference: Set[InferenceType] = (
-        set(inference_types) if inference_types is not None else {cast(InferenceType, "ON_DEMAND")}
+        set(inference_types) if inference_types is not None else {cast("InferenceType", "ON_DEMAND")}
     )
 
     for summary in cache.values():

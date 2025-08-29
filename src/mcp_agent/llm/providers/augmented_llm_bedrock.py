@@ -2,9 +2,9 @@ import json
 import os
 import re
 import sys
-from enum import Enum, auto
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union, cast
+from enum import Enum, auto
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Type, Union, cast
 
 from mcp.types import ContentBlock, TextContent
 from rich.text import Text
@@ -36,7 +36,6 @@ from mcp.types import (
     CallToolRequest,
     CallToolRequestParams,
 )
-
 
 DEFAULT_BEDROCK_MODEL = "amazon.nova-lite-v1:0"
 
@@ -1488,12 +1487,12 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                                 # Return the last tool result content to avoid infinite loops
                                 if tool_result_responses:
                                     return cast(
-                                        List[ContentBlock | CallToolRequestParams],
+                                        "List[ContentBlock | CallToolRequestParams]",
                                         tool_result_responses,
                                     )
                                 # Fallback: return a minimal text indicating no content
                                 return cast(
-                                    List[ContentBlock | CallToolRequestParams],
+                                    "List[ContentBlock | CallToolRequestParams]",
                                     [TextContent(text="[No content in tool result]")],
                                 )
                     # Override stop_reason to handle as tool_use
@@ -1699,7 +1698,7 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                     item.text = item.text.lstrip()
                     break
 
-        return cast(List[ContentBlock | CallToolRequestParams], responses)
+        return cast("List[ContentBlock | CallToolRequestParams]", responses)
 
     async def generate_messages(
         self,

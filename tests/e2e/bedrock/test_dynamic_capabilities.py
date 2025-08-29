@@ -1,12 +1,11 @@
-import os
 import sys
 from typing import List
 
 import pytest
 
 from mcp_agent.core.prompt import Prompt
-from mcp_agent.llm.providers.bedrock_utils import all_bedrock_models
 from mcp_agent.llm.providers.augmented_llm_bedrock import BedrockAugmentedLLM
+from mcp_agent.llm.providers.bedrock_utils import all_bedrock_models
 
 
 @pytest.fixture(scope="module", autouse=True)
