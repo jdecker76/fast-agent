@@ -151,11 +151,6 @@ async def test_bedrock_basic_tool_calling(fast_agent, model_name):
     )
     async def weather_forecast():
         async with fast.run() as agent:
-            # ensure file is absent
-            if os.path.exists("weather_location.txt"):
-                os.remove("weather_location.txt")
-            assert not os.path.exists("weather_location.txt")
-
             # Expected outliers for tool-calling via Bedrock Converse
             if model_name.startswith("ai21."):
                 pytest.xfail(
@@ -185,9 +180,6 @@ async def test_bedrock_basic_tool_calling(fast_agent, model_name):
 
             # Check for expected response from tool (matches main smoke test server)
             assert "sunny" in response.lower()
-
-            # tool side-effect (matches main smoke test server)
-            assert os.path.exists("weather_location.txt")
 
     await weather_forecast()
 

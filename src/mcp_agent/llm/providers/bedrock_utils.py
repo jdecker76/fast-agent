@@ -89,9 +89,7 @@ def refresh_bedrock_models(region: Optional[str] = None) -> None:
     _ensure_loaded(resolved_region)
 
 
-def _matches_modalities(
-    model_modalities: List[Modality], requested: Collection[Modality]
-) -> bool:
+def _matches_modalities(model_modalities: List[Modality], requested: Collection[Modality]) -> bool:
     # include if all requested are present in the model's modalities
     return set(requested).issubset(set(model_modalities))
 
@@ -216,4 +214,3 @@ __all__ = [
     "list_providers",
     "refresh_bedrock_models",
 ]
-
