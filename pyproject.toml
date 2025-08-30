@@ -91,6 +91,13 @@ markers = [
     "integration: marks tests as integration tests",
     "simulated_endpoints: marks tests that use simulated external endpoints"
 ]
+
+# Filter out utcnow depreciation warnings from the boto3 library
+filterwarnings = [
+    "ignore:datetime\\.datetime\\.utcnow\\(\\) is deprecated.*:DeprecationWarning:botocore\\.auth",
+    "ignore:datetime\\.datetime\\.utcnow\\(\\) is deprecated.*:DeprecationWarning:botocore\\.endpoint$",
+]
+
 # Other pytest options can go here too
 testpaths = ["tests"]
 
