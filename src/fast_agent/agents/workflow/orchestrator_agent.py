@@ -87,7 +87,6 @@ class OrchestratorAgent(LlmAgent):
         self.plan_iterations = plan_iterations
         # For tracking state during execution
         self.plan_result: Optional[PlanResult] = None
-        self.initialized = False
 
     async def generate_impl(
         self,
@@ -162,8 +161,6 @@ class OrchestratorAgent(LlmAgent):
             if not getattr(agent, "initialized", False):
                 self.logger.debug(f"Initializing agent: {agent_name}")
                 await agent.initialize()
-
-        self.initialized = True
 
     async def shutdown(self) -> None:
         """Shutdown the orchestrator agent and worker agents."""

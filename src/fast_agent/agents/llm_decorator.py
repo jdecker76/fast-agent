@@ -64,12 +64,23 @@ class LlmDecorator(LlmAgentProtocol):
 
         # Initialize the LLM to None (will be set by attach_llm)
         self._llm: Optional[AugmentedLLMProtocol] = None
+        self._initialized = False
+
+    @property
+    def initialized(self) -> bool:
+        """Check if the agent is initialized."""
+        return self._initialized
+    
+    @initialized.setter
+    def initialized(self, value: bool) -> None:
+        """Set the initialized state."""
+        self._initialized = value
 
     async def initialize(self) -> None:
-        pass
+        self.initialized = True
 
     async def shutdown(self) -> None:
-        pass
+        self.initialized = False
 
     @property
     def agent_type(self) -> AgentType:

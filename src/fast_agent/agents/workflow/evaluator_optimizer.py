@@ -234,10 +234,10 @@ class EvaluatorOptimizerAgent(LlmAgent):
         await super().initialize()
 
         # Initialize generator and evaluator agents if not already initialized
-        if not getattr(self.generator_agent, "initialized", False):
+        if not self.generator_agent.initialized:
             await self.generator_agent.initialize()
 
-        if not getattr(self.evaluator_agent, "initialized", False):
+        if not self.evaluator_agent.initialized:
             await self.evaluator_agent.initialize()
 
         self.initialized = True

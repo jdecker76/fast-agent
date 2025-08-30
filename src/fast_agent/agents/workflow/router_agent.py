@@ -99,7 +99,6 @@ class RouterAgent(LlmAgent):
         self.agents = agents
         self.routing_instruction = routing_instruction
         self.agent_map = {agent._name: agent for agent in agents}
-        self.initialized = False
 
         # Set up base router request parameters with just the base instruction for now
         base_params = {"systemPrompt": ROUTING_SYSTEM_INSTRUCTION, "use_history": False}
@@ -131,8 +130,6 @@ class RouterAgent(LlmAgent):
             )
             self._default_request_params.systemPrompt = combined_system_prompt
             self.instruction = combined_system_prompt
-
-            self.initialized = True
 
     async def shutdown(self) -> None:
         """Shutdown the router and all agents."""

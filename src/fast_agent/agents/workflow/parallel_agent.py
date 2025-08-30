@@ -168,11 +168,11 @@ class ParallelAgent(LlmAgent):
         await super().initialize()
 
         # Initialize fan-in and fan-out agents if not already initialized
-        if not getattr(self.fan_in_agent, "initialized", False):
+        if not self.fan_in_agent.initialized:
             await self.fan_in_agent.initialize()
 
         for agent in self.fan_out_agents:
-            if not getattr(agent, "initialized", False):
+            if not agent.initialized:
                 await agent.initialize()
 
     async def shutdown(self) -> None:

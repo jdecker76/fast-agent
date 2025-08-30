@@ -261,6 +261,11 @@ class LlmAgentProtocol(Protocol):
         """Return the type of this agent"""
         ...
 
+    @property
+    def initialized(self) -> bool:
+        """Return True if the agent has been initialized"""
+        ...
+
     async def initialize(self) -> None:
         """Initialize the LLM agent"""
         ...

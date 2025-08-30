@@ -372,7 +372,6 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                 )
 
         logger.debug(f"{arguments}")
-        print(f"{arguments}")
         # Use streaming API with helper
         async with anthropic.messages.stream(**arguments) as stream:
             # Process the stream

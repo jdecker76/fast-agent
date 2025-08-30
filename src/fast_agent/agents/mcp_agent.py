@@ -189,8 +189,14 @@ class McpAgent(ABC, ToolAgent):
 
     @property
     def initialized(self) -> bool:
-        """Check if the aggregator is initialized."""
-        return self._aggregator.initialized
+        """Check if both the agent and aggregator are initialized."""
+        return self._initialized and self._aggregator.initialized
+    
+    @initialized.setter
+    def initialized(self, value: bool) -> None:
+        """Set the initialized state of both agent and aggregator."""
+        self._initialized = value
+        self._aggregator.initialized = value
 
     async def __call__(
         self,
