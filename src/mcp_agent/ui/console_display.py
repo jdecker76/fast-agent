@@ -13,7 +13,6 @@ from mcp_agent.core.mermaid_utils import (
     detect_diagram_type,
     extract_mermaid_diagrams,
 )
-from mcp_agent.mcp.common import SEP
 
 # Constants
 HUMAN_INPUT_TOOL_NAME = "__human_input__"
@@ -136,7 +135,6 @@ class ConsoleDisplay:
         self._markup = config.logger.enable_markup if config else True
         self._escape_xml = True
 
-
     def display_message(
         self,
         content: Any,
@@ -183,7 +181,9 @@ class ConsoleDisplay:
         self._create_combined_separator_status(left, right_info)
 
         # Display the content
-        self._display_content(content, truncate_content, is_error, message_type, check_markdown_markers=False)
+        self._display_content(
+            content, truncate_content, is_error, message_type, check_markdown_markers=False
+        )
 
         # Handle bottom separator with optional metadata
         console.console.print()
@@ -193,13 +193,13 @@ class ConsoleDisplay:
             display_items = bottom_metadata
             if max_item_length:
                 display_items = self._shorten_items(bottom_metadata, max_item_length)
-            
+
             # Normalize highlight_items
             if highlight_items is None:
                 highlight_items = []
             elif isinstance(highlight_items, str):
                 highlight_items = [highlight_items]
-            
+
             # Shorten highlight items to match if we shortened display items
             if max_item_length:
                 highlight_items = self._shorten_items(highlight_items, max_item_length)
@@ -279,8 +279,10 @@ class ConsoleDisplay:
             except (JSONDecodeError, TypeError, ValueError):
                 # Check if content appears to be primarily XML
                 xml_pattern = r"^<[a-zA-Z_][a-zA-Z0-9_-]*[^>]*>"
-                is_xml_content = bool(re.match(xml_pattern, content.strip())) and content.count("<") > 5
-                
+                is_xml_content = (
+                    bool(re.match(xml_pattern, content.strip())) and content.count("<") > 5
+                )
+
                 if is_xml_content:
                     # Display XML content with syntax highlighting for better readability
                     syntax = Syntax(content, "xml", theme=CODE_STYLE, line_numbers=False)
@@ -433,18 +435,15 @@ class ConsoleDisplay:
     def _shorten_items(self, items: List[str], max_length: int) -> List[str]:
         """
         Shorten items to max_length with ellipsis if needed.
-        
+
         Args:
             items: List of strings to potentially shorten
             max_length: Maximum length for each item
-            
+
         Returns:
             List of shortened strings
         """
-        return [
-            item[:max_length-1] + "…" if len(item) > max_length else item 
-            for item in items
-        ]
+        return [item[: max_length - 1] + "…" if len(item) > max_length else item for item in items]
 
     def _format_bottom_metadata(
         self, items: List[str], highlight_items: List[str], highlight_color: str
@@ -536,7 +535,7 @@ class ConsoleDisplay:
         name: str | None = None,
     ) -> None:
         """Display a tool call in the new visual style.
-        
+
         Args:
             tool_name: Name of the tool being called
             tool_args: Arguments being passed to the tool
@@ -565,7 +564,7 @@ class ConsoleDisplay:
 
     async def show_tool_update(self, updated_server: str, agent_name: str | None = None) -> None:
         """Show a tool update for a server in the new visual style.
-        
+
         Args:
             updated_server: Name of the server being updated
             agent_name: Optional agent name to display
@@ -600,7 +599,6 @@ class ConsoleDisplay:
             get_app().invalidate()  # Forces prompt_toolkit to redraw
         except:  # noqa: E722
             pass  # No active prompt_toolkit session
-
 
     def _create_combined_separator_status(self, left_content: str, right_info: str = "") -> None:
         """
@@ -652,7 +650,7 @@ class ConsoleDisplay:
         model: str | None = None,
     ) -> None:
         """Display an assistant message in a formatted panel.
-        
+
         Args:
             message_text: The message content to display
             bottom_items: Optional list of items for bottom separator (e.g., servers, destinations)

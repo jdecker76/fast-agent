@@ -8,7 +8,7 @@ This class extends LlmDecorator with LLM-specific interaction behaviors includin
 - Chat display integration
 """
 
-from typing import List, Optional
+from typing import List
 
 from a2a.types import AgentCapabilities
 from mcp import Tool
@@ -56,7 +56,7 @@ class LlmAgent(LlmDecorator):
         max_item_length: int | None = None,
     ) -> None:
         """Display an assistant message with appropriate styling based on stop reason.
-        
+
         Args:
             message: The message to display
             bottom_items: Optional items for bottom bar (e.g., servers, destinations)
@@ -114,7 +114,9 @@ class LlmAgent(LlmDecorator):
             highlight_items=highlight_items,
             max_item_length=max_item_length,
             name=self.name,
-            model=self._llm.default_request_params.model if self._llm and hasattr(self._llm, 'default_request_params') else None,
+            model=self._llm.default_request_params.model
+            if self._llm and hasattr(self._llm, "default_request_params")
+            else None,
         )
 
     def show_user_message(self, message: PromptMessageMultipart) -> None:
