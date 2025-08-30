@@ -79,7 +79,7 @@ class PromptMessageMultipart(BaseModel):
 
         return "<no text>"
 
-    def last_text(self) -> str:
+    def last_text(self) -> str | None:
         """
         Get the last available text content from a message. This will usually be the final
         generation from the Assistant.
@@ -95,7 +95,7 @@ class PromptMessageMultipart(BaseModel):
             if text is not None:
                 return text
 
-        return "<no text>"
+        return None
 
     def all_text(self) -> str:
         """
