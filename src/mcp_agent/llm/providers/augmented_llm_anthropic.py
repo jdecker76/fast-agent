@@ -121,15 +121,13 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
     def _apply_system_cache(self, base_args: dict, cache_mode: str) -> None:
         """Apply cache control to system prompt if cache mode allows it."""
         system_content: SystemParam | None = base_args.get("system")
-        
+
         if cache_mode != "off" and system_content:
             # Convert string to list format with cache control
             if isinstance(system_content, str):
                 base_args["system"] = [
                     TextBlockParam(
-                        type="text",
-                        text=system_content,
-                        cache_control={"type": "ephemeral"}
+                        type="text", text=system_content, cache_control={"type": "ephemeral"}
                     )
                 ]
                 logger.debug(
@@ -337,10 +335,12 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         base_args = {
             "model": model,
             "messages": messages,
-            "system": self.instruction or params.systemPrompt,
             "stop_sequences": params.stopSequences,
             "tools": available_tools,
         }
+
+        if self.instruction or params.systemPrompt:
+            base_args["system"] = self.instruction or params.systemPrompt
 
         if structured_model:
             base_args["tool_choice"] = {"type": "tool", "name": STRUCTURED_OUTPUT_TOOL_NAME}
@@ -349,7 +349,6 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
             base_args["max_tokens"] = params.maxTokens
 
         self._log_chat_progress(self.chat_turn(), model=model)
-
         # Use the base class method to prepare all arguments with Anthropic-specific exclusions
         # Do this BEFORE applying cache control so metadata doesn't override cached fields
         arguments = self.prepare_provider_arguments(
@@ -373,7 +372,7 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
                 )
 
         logger.debug(f"{arguments}")
-
+        print(f"{arguments}")
         # Use streaming API with helper
         async with anthropic.messages.stream(**arguments) as stream:
             # Process the stream

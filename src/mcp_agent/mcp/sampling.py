@@ -47,7 +47,6 @@ def create_sampling_llm(
     agent = Agent(
         config=sampling_agent_config(params),
         context=app_context,
-        connection_persistence=False,
     )
 
     # Create the LLM using the factory
@@ -176,4 +175,4 @@ def sampling_agent_config(
     if params and params.systemPrompt is not None:
         instruction = params.systemPrompt
 
-    return AgentConfig(name="sampling_agent", instruction=instruction, servers=[])
+    return AgentConfig(name="sampling_agent", instruction=instruction)
