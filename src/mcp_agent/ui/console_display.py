@@ -14,7 +14,6 @@ from mcp_agent.core.mermaid_utils import (
     extract_mermaid_diagrams,
 )
 from mcp_agent.mcp.common import SEP
-from mcp_agent.mcp.mcp_aggregator import MCPAggregator
 
 # Constants
 HUMAN_INPUT_TOOL_NAME = "__human_input__"
@@ -137,47 +136,6 @@ class ConsoleDisplay:
         self._markup = config.logger.enable_markup if config else True
         self._escape_xml = True
 
-    def _render_content_smartly(self, content: str, check_markdown_markers: bool = False) -> None:
-        """
-        Helper method to intelligently render content based on its type.
-
-        - Pure XML: Use syntax highlighting for readability
-        - Markdown (with markers): Use markdown rendering with proper escaping
-        - Plain text: Display as-is (when check_markdown_markers=True and no markers found)
-
-        Args:
-            content: The text content to render
-            check_markdown_markers: If True, only use markdown rendering when markers are present
-        """
-        import re
-
-        from rich.markdown import Markdown
-
-        # Check if content appears to be primarily XML
-        xml_pattern = r"^<[a-zA-Z_][a-zA-Z0-9_-]*[^>]*>"
-        is_xml_content = bool(re.match(xml_pattern, content.strip())) and content.count("<") > 5
-
-        if is_xml_content:
-            # Display XML content with syntax highlighting for better readability
-            from rich.syntax import Syntax
-
-            syntax = Syntax(content, "xml", theme=CODE_STYLE, line_numbers=False)
-            console.console.print(syntax, markup=self._markup)
-        elif check_markdown_markers:
-            # Check for markdown markers before deciding to use markdown rendering
-            if any(marker in content for marker in ["##", "**", "*", "`", "---", "###"]):
-                # Has markdown markers - render as markdown with escaping
-                prepared_content = _prepare_markdown_content(content, self._escape_xml)
-                md = Markdown(prepared_content, code_theme=CODE_STYLE)
-                console.console.print(md, markup=self._markup)
-            else:
-                # Plain text - display as-is
-                console.console.print(content, markup=self._markup)
-        else:
-            # Always treat as markdown with proper escaping
-            prepared_content = _prepare_markdown_content(content, self._escape_xml)
-            md = Markdown(prepared_content, code_theme=CODE_STYLE)
-            console.console.print(md, markup=self._markup)
 
     def display_message(
         self,
@@ -187,8 +145,8 @@ class ConsoleDisplay:
         right_info: str = "",
         bottom_metadata: List[str] | None = None,
         highlight_items: str | List[str] | None = None,
+        max_item_length: int | None = None,
         is_error: bool = False,
-        model: str | None = None,
         truncate_content: bool = True,
     ) -> None:
         """
@@ -201,8 +159,8 @@ class ConsoleDisplay:
             right_info: Information to display on the right side of the header
             bottom_metadata: Optional list of items for bottom separator
             highlight_items: Item(s) to highlight in bottom metadata
+            max_item_length: Optional max length for bottom metadata items (with ellipsis)
             is_error: For tool results, whether this is an error (uses red color)
-            model: Optional model name to include in right info
             truncate_content: Whether to truncate long content
         """
         # Get configuration for this message type
@@ -225,21 +183,30 @@ class ConsoleDisplay:
         self._create_combined_separator_status(left, right_info)
 
         # Display the content
-        self._display_content(content, truncate_content, is_error, message_type)
+        self._display_content(content, truncate_content, is_error, message_type, check_markdown_markers=False)
 
         # Handle bottom separator with optional metadata
         console.console.print()
 
         if bottom_metadata:
+            # Apply shortening if requested
+            display_items = bottom_metadata
+            if max_item_length:
+                display_items = self._shorten_items(bottom_metadata, max_item_length)
+            
             # Normalize highlight_items
             if highlight_items is None:
                 highlight_items = []
             elif isinstance(highlight_items, str):
                 highlight_items = [highlight_items]
+            
+            # Shorten highlight items to match if we shortened display items
+            if max_item_length:
+                highlight_items = self._shorten_items(highlight_items, max_item_length)
 
             # Format the metadata with highlighting
             metadata_text = self._format_bottom_metadata(
-                bottom_metadata, highlight_items, config["highlight_color"]
+                display_items, highlight_items, config["highlight_color"]
             )
 
             # Create the separator line with metadata
@@ -263,6 +230,7 @@ class ConsoleDisplay:
         truncate: bool = True,
         is_error: bool = False,
         message_type: Optional[MessageType] = None,
+        check_markdown_markers: bool = False,
     ) -> None:
         """
         Display content in the appropriate format.
@@ -272,11 +240,14 @@ class ConsoleDisplay:
             truncate: Whether to truncate long content
             is_error: Whether this is error content (affects styling)
             message_type: Type of message to determine appropriate styling
+            check_markdown_markers: If True, only use markdown rendering when markers are present
         """
         import json
+        import re
 
         from rich.markdown import Markdown
         from rich.pretty import Pretty
+        from rich.syntax import Syntax
 
         from mcp_agent.mcp.helpers.content_helpers import get_text, is_text_content
 
@@ -306,27 +277,56 @@ class ConsoleDisplay:
                 else:
                     console.console.print(pretty_obj, markup=self._markup)
             except (JSONDecodeError, TypeError, ValueError):
-                # Check if it looks like markdown
-                if any(marker in content for marker in ["##", "**", "*", "`", "---", "###"]):
-                    # Escape HTML/XML tags while preserving code blocks
-                    prepared_content = _prepare_markdown_content(content, self._escape_xml)
-                    md = Markdown(prepared_content, code_theme=CODE_STYLE)
-                    # Markdown handles its own styling, don't apply style
-                    console.console.print(md, markup=self._markup)
-                else:
-                    # Plain text
-                    if (
-                        truncate
-                        and self.config
-                        and self.config.logger.truncate_tools
-                        and len(content) > 360
-                    ):
-                        content = content[:360] + "..."
-                    # Apply style only if specified (None means default white)
-                    if style:
-                        console.console.print(content, style=style, markup=self._markup)
+                # Check if content appears to be primarily XML
+                xml_pattern = r"^<[a-zA-Z_][a-zA-Z0-9_-]*[^>]*>"
+                is_xml_content = bool(re.match(xml_pattern, content.strip())) and content.count("<") > 5
+                
+                if is_xml_content:
+                    # Display XML content with syntax highlighting for better readability
+                    syntax = Syntax(content, "xml", theme=CODE_STYLE, line_numbers=False)
+                    console.console.print(syntax, markup=self._markup)
+                elif check_markdown_markers:
+                    # Check for markdown markers before deciding to use markdown rendering
+                    if any(marker in content for marker in ["##", "**", "*", "`", "---", "###"]):
+                        # Has markdown markers - render as markdown with escaping
+                        prepared_content = _prepare_markdown_content(content, self._escape_xml)
+                        md = Markdown(prepared_content, code_theme=CODE_STYLE)
+                        console.console.print(md, markup=self._markup)
                     else:
-                        console.console.print(content, markup=self._markup)
+                        # Plain text - display as-is
+                        if (
+                            truncate
+                            and self.config
+                            and self.config.logger.truncate_tools
+                            and len(content) > 360
+                        ):
+                            content = content[:360] + "..."
+                        if style:
+                            console.console.print(content, style=style, markup=self._markup)
+                        else:
+                            console.console.print(content, markup=self._markup)
+                else:
+                    # Check if it looks like markdown
+                    if any(marker in content for marker in ["##", "**", "*", "`", "---", "###"]):
+                        # Escape HTML/XML tags while preserving code blocks
+                        prepared_content = _prepare_markdown_content(content, self._escape_xml)
+                        md = Markdown(prepared_content, code_theme=CODE_STYLE)
+                        # Markdown handles its own styling, don't apply style
+                        console.console.print(md, markup=self._markup)
+                    else:
+                        # Plain text
+                        if (
+                            truncate
+                            and self.config
+                            and self.config.logger.truncate_tools
+                            and len(content) > 360
+                        ):
+                            content = content[:360] + "..."
+                        # Apply style only if specified (None means default white)
+                        if style:
+                            console.console.print(content, style=style, markup=self._markup)
+                        else:
+                            console.console.print(content, markup=self._markup)
         elif isinstance(content, Text):
             # Rich Text object - check if it contains markdown
             plain_text = content.plain
@@ -430,6 +430,22 @@ class ConsoleDisplay:
             else:
                 console.console.print(pretty_obj, markup=self._markup)
 
+    def _shorten_items(self, items: List[str], max_length: int) -> List[str]:
+        """
+        Shorten items to max_length with ellipsis if needed.
+        
+        Args:
+            items: List of strings to potentially shorten
+            max_length: Maximum length for each item
+            
+        Returns:
+            List of shortened strings
+        """
+        return [
+            item[:max_length-1] + "…" if len(item) > max_length else item 
+            for item in items
+        ]
+
     def _format_bottom_metadata(
         self, items: List[str], highlight_items: List[str], highlight_color: str
     ) -> Text:
@@ -512,32 +528,28 @@ class ConsoleDisplay:
 
     def show_tool_call(
         self,
-        available_tools: List[str],
         tool_name: str,
         tool_args: Dict[str, Any] | None,
+        bottom_items: List[str] | None = None,
+        highlight_items: str | List[str] | None = None,
+        max_item_length: int | None = None,
         name: str | None = None,
     ) -> None:
-        """Display a tool call in the new visual style."""
+        """Display a tool call in the new visual style.
+        
+        Args:
+            tool_name: Name of the tool being called
+            tool_args: Arguments being passed to the tool
+            bottom_items: Optional list of items for bottom separator (e.g., available tools)
+            highlight_items: Item(s) to highlight in the bottom separator
+            max_item_length: Optional max length for bottom items (with ellipsis)
+            name: Optional agent name
+        """
         if not self.config or not self.config.logger.show_tools:
             return
 
-        # Get the list of matching tools for the bottom separator
-        #        tool_list = self._get_matching_tools(available_tools, tool_name)
-
         # Build right info
         right_info = f"[dim]tool request - {tool_name}[/dim]"
-
-        shortened_names: List[str] = [
-            tool_name[:11] + "…" if len(tool_name) > 12 else tool_name 
-            for tool_name in available_tools
-        ]
-
-        # Get the shortened name of the selected tool for highlighting
-        # Extract just the tool name part (after SEP) for highlighting
-        highlight_tool = tool_name.split(SEP)[1] if SEP in tool_name else tool_name
-        # Shorten it if needed to match what's displayed
-        if len(highlight_tool) > 12:
-            highlight_tool = highlight_tool[:11] + "…"
 
         # Display using unified method
         self.display_message(
@@ -545,20 +557,21 @@ class ConsoleDisplay:
             message_type=MessageType.TOOL_CALL,
             name=name,
             right_info=right_info,
-            bottom_metadata=shortened_names,
-            highlight_items=highlight_tool,
+            bottom_metadata=bottom_items,
+            highlight_items=highlight_items,
+            max_item_length=max_item_length,
             truncate_content=True,
         )
 
-    async def show_tool_update(self, aggregator: MCPAggregator | None, updated_server: str) -> None:
-        """Show a tool update for a server in the new visual style."""
+    async def show_tool_update(self, updated_server: str, agent_name: str | None = None) -> None:
+        """Show a tool update for a server in the new visual style.
+        
+        Args:
+            updated_server: Name of the server being updated
+            agent_name: Optional agent name to display
+        """
         if not self.config or not self.config.logger.show_tools:
             return
-
-        # Check if aggregator is actually an agent (has name attribute)
-        agent_name = None
-        if aggregator and hasattr(aggregator, "name") and aggregator.name:
-            agent_name = aggregator.name
 
         # Combined separator and status line
         if agent_name:
@@ -588,49 +601,6 @@ class ConsoleDisplay:
         except:  # noqa: E722
             pass  # No active prompt_toolkit session
 
-    def _get_matching_tools(
-        self,
-        available_tools: List[Union[Dict[str, Any], object]],
-        selected_tool_name: str,
-    ) -> List[str]:
-        """Get list of matching tool names for the selected tool's namespace."""
-        matching_tools = []
-        selected_namespace = (
-            selected_tool_name.split(SEP)[0] if SEP in selected_tool_name else selected_tool_name
-        )
-
-        for display_tool in available_tools:
-            # Handle both OpenAI and Anthropic tool formats
-            if isinstance(display_tool, dict):
-                if "function" in display_tool:
-                    # OpenAI format
-                    tool_call_name = display_tool["function"]["name"]
-                else:
-                    # Anthropic format
-                    tool_call_name = display_tool["name"]
-            else:
-                # Handle potential object format (e.g., Pydantic models)
-                tool_call_name = (
-                    display_tool.function.name
-                    if hasattr(display_tool, "function")
-                    else display_tool.name
-                )
-
-            # Check if this tool is in the same namespace
-            tool_namespace = (
-                tool_call_name.split(SEP)[0] if SEP in tool_call_name else tool_call_name
-            )
-            if tool_namespace == selected_namespace:
-                # Get the display name (shortened if needed)
-                parts = (
-                    tool_call_name.split(SEP)
-                    if SEP in tool_call_name
-                    else [tool_call_name, tool_call_name]
-                )
-                shortened_name = parts[1] if len(parts[1]) <= 12 else parts[1][:11] + "…"
-                matching_tools.append(shortened_name)
-
-        return matching_tools
 
     def _create_combined_separator_status(self, left_content: str, right_info: str = "") -> None:
         """
@@ -675,29 +645,25 @@ class ConsoleDisplay:
     async def show_assistant_message(
         self,
         message_text: Union[str, Text],
-        aggregator: Optional["MCPAggregator"] = None,
-        highlight_namespaced_tool: str = "",
-        title: str = "ASSISTANT",
+        bottom_items: List[str] | None = None,
+        highlight_items: str | List[str] | None = None,
+        max_item_length: int | None = None,
         name: str | None = None,
         model: str | None = None,
     ) -> None:
-        """Display an assistant message in a formatted panel."""
+        """Display an assistant message in a formatted panel.
+        
+        Args:
+            message_text: The message content to display
+            bottom_items: Optional list of items for bottom separator (e.g., servers, destinations)
+            highlight_items: Item(s) to highlight in the bottom separator
+            max_item_length: Optional max length for bottom items (with ellipsis)
+            title: Title for the message (default "ASSISTANT")
+            name: Optional agent name
+            model: Optional model name for right info
+        """
         if not self.config or not self.config.logger.show_chat:
             return
-
-        # Build server list for bottom separator
-        servers = []
-        # if aggregator:
-        #     for server_name in await aggregator.list_servers():
-        #         servers.append(server_name)
-
-        # Determine which server to highlight
-        highlight_server = None
-        if highlight_namespaced_tool:
-            if SEP in highlight_namespaced_tool:
-                highlight_server = highlight_namespaced_tool.split(SEP)[0]
-            else:
-                highlight_server = highlight_namespaced_tool
 
         # Build right info
         right_info = f"[dim]{model}[/dim]" if model else ""
@@ -708,8 +674,9 @@ class ConsoleDisplay:
             message_type=MessageType.ASSISTANT,
             name=name,
             right_info=right_info,
-            bottom_metadata=servers if servers else None,
-            highlight_items=highlight_server,
+            bottom_metadata=bottom_items,
+            highlight_items=highlight_items,
+            max_item_length=max_item_length,
             truncate_content=False,  # Assistant messages shouldn't be truncated
         )
 
@@ -781,37 +748,30 @@ class ConsoleDisplay:
         description: Optional[str] = None,
         message_count: int = 0,
         agent_name: Optional[str] = None,
-        aggregator=None,
+        server_list: List[str] | None = None,
+        highlight_server: str | None = None,
         arguments: Optional[dict[str, str]] = None,
     ) -> None:
         """
         Display information about a loaded prompt template.
 
         Args:
-            prompt_name: The name of the prompt that was loaded (should be namespaced)
+            prompt_name: The name of the prompt that was loaded
             description: Optional description of the prompt
             message_count: Number of messages added to the conversation history
             agent_name: Name of the agent using the prompt
-            aggregator: Optional aggregator instance to use for server highlighting
+            server_list: Optional list of servers to display
+            highlight_server: Optional server name to highlight
             arguments: Optional dictionary of arguments passed to the prompt template
         """
         if not self.config or not self.config.logger.show_tools:
             return
 
-        # Get server name from the namespaced prompt_name
-        mcp_server_name = None
-        if SEP in prompt_name:
-            # Extract the server from the namespaced prompt name
-            mcp_server_name = prompt_name.split(SEP)[0]
-        elif aggregator and aggregator.server_names:
-            # Fallback to first server if not namespaced
-            mcp_server_name = aggregator.server_names[0]
-
         # Build the server list with highlighting
         display_server_list = Text()
-        if aggregator:
-            for server_name in await aggregator.list_servers():
-                style = "green" if server_name == mcp_server_name else "dim white"
+        if server_list:
+            for server_name in server_list:
+                style = "green" if server_name == highlight_server else "dim white"
                 display_server_list.append(f"[{server_name}] ", style)
 
         # Create content text
@@ -944,7 +904,8 @@ class ConsoleDisplay:
 
             # Display content based on its type (check for markdown markers in parallel results)
             content = result["content"]
-            self._render_content_smartly(content, check_markdown_markers=True)
+            # Use _display_content with check_markdown_markers flag for parallel results
+            self._display_content(content, truncate=False, check_markdown_markers=True)
 
         # Summary
         console.console.print()

@@ -5,7 +5,7 @@ This provides a simplified implementation that routes messages to agents
 by determining the best agent for a request and dispatching to it.
 """
 
-from typing import TYPE_CHECKING, List, Optional, Tuple, Type
+from typing import TYPE_CHECKING, List, Optional, Tuple, Type, Union
 
 from mcp import Tool
 from opentelemetry import trace
@@ -119,7 +119,7 @@ class RouterAgent(LlmAgent):
 
             # Initialize all agents if not already initialized
             for agent in self.agents:
-                if not getattr(agent, "initialized", False):
+                if not agent.initialized:
                     await agent.initialize()
 
             complete_routing_instruction = await self._generate_routing_instruction(
@@ -276,6 +276,9 @@ class RouterAgent(LlmAgent):
             ), None
 
         assert self._llm
+        # Display the user's routing request
+        self.display.show_user_message(message.first_text(), name=self._name)
+
         # No need to add routing instruction here - it's already in the system prompt
         response, _ = await self._llm.structured(
             [message],
@@ -296,6 +299,17 @@ class RouterAgent(LlmAgent):
             assert response
             logger.info(
                 f"Routing structured request to agent: {response.agent or 'error'} (confidence: {response.confidence or ''})"
+            )
+
+            routing_message = f"Routing to: {response.agent}"
+            if response.reasoning:
+                routing_message += f" ({response.reasoning})"
+
+            await self.display.show_assistant_message(
+                routing_message,
+                bottom_items=list(self.agent_map.keys()),
+                highlight_items=[response.agent],
+                name=self._name,
             )
 
             return response, None

@@ -1,5 +1,5 @@
 import json
-from typing import Any, List, Tuple, Type, cast
+from typing import Any, List, Tuple, Type, Union, cast
 
 from anthropic import AsyncAnthropic, AuthenticationError
 from anthropic.lib.streaming import AsyncMessageStream
@@ -7,6 +7,7 @@ from anthropic.types import (
     Message,
     MessageParam,
     TextBlock,
+    TextBlockParam,
     ToolParam,
     ToolUseBlock,
     ToolUseBlockParam,
@@ -43,6 +44,9 @@ from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-0"
 STRUCTURED_OUTPUT_TOOL_NAME = "return_structured_output"
+
+# Type alias for system field - can be string or list of text blocks with cache control
+SystemParam = Union[str, List[TextBlockParam]]
 
 logger = get_logger(__name__)
 
@@ -116,20 +120,26 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
 
     def _apply_system_cache(self, base_args: dict, cache_mode: str) -> None:
         """Apply cache control to system prompt if cache mode allows it."""
-        if cache_mode != "off" and base_args["system"]:
-            if isinstance(base_args["system"], str):
+        system_content: SystemParam | None = base_args.get("system")
+        
+        if cache_mode != "off" and system_content:
+            # Convert string to list format with cache control
+            if isinstance(system_content, str):
                 base_args["system"] = [
-                    {
-                        "type": "text",
-                        "text": base_args["system"],
-                        "cache_control": {"type": "ephemeral"},
-                    }
+                    TextBlockParam(
+                        type="text",
+                        text=system_content,
+                        cache_control={"type": "ephemeral"}
+                    )
                 ]
                 logger.debug(
                     "Applied cache_control to system prompt (caches tools+system in one block)"
                 )
+            # If it's already a list (shouldn't happen in current flow but type-safe)
+            elif isinstance(system_content, list):
+                logger.debug("System prompt already in list format")
             else:
-                logger.debug(f"System prompt is not a string: {type(base_args['system'])}")
+                logger.debug(f"Unexpected system prompt type: {type(system_content)}")
 
     async def _apply_conversation_cache(self, messages: List[MessageParam], cache_mode: str) -> int:
         """Apply conversation caching if in auto mode. Returns number of cache blocks applied."""
@@ -340,8 +350,14 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
 
         self._log_chat_progress(self.chat_turn(), model=model)
 
-        # Apply cache control to system prompt
-        self._apply_system_cache(base_args, cache_mode)
+        # Use the base class method to prepare all arguments with Anthropic-specific exclusions
+        # Do this BEFORE applying cache control so metadata doesn't override cached fields
+        arguments = self.prepare_provider_arguments(
+            base_args, params, self.ANTHROPIC_EXCLUDE_FIELDS
+        )
+
+        # Apply cache control to system prompt AFTER merging arguments
+        self._apply_system_cache(arguments, cache_mode)
 
         # Apply conversation caching
         applied_count = await self._apply_conversation_cache(messages, cache_mode)
@@ -349,17 +365,12 @@ class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
         # Verify we don't exceed Anthropic's 4 cache block limit
         if applied_count > 0:
             total_cache_blocks = applied_count
-            if cache_mode != "off" and base_args["system"]:
+            if cache_mode != "off" and arguments["system"]:
                 total_cache_blocks += 1  # tools+system cache block
             if total_cache_blocks > 4:
                 logger.warning(
                     f"Total cache blocks ({total_cache_blocks}) exceeds Anthropic limit of 4"
                 )
-
-        # Use the base class method to prepare all arguments with Anthropic-specific exclusions
-        arguments = self.prepare_provider_arguments(
-            base_args, params, self.ANTHROPIC_EXCLUDE_FIELDS
-        )
 
         logger.debug(f"{arguments}")
 

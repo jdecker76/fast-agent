@@ -691,7 +691,7 @@ class BaseAgent(ABC, ToolAgent):
             self.display.show_tool_call(
                 name=self._name,
                 tool_args=tool_args,
-                available_tools=available_tools,
+                bottom_items=available_tools,
                 tool_name=display_tool_name,
             )
 
@@ -928,6 +928,71 @@ class BaseAgent(ABC, ToolAgent):
             provider=None,
             documentation_url=None,
         )
+
+    async def show_assistant_message(
+        self,
+        message: PromptMessageMultipart,
+        bottom_items: List[str] | None = None,
+        highlight_items: str | List[str] | None = None,
+        max_item_length: int | None = None,
+    ) -> None:
+        """
+        Display an assistant message with MCP servers in the bottom bar.
+
+        This override adds the list of connected MCP servers to the bottom bar
+        and highlights servers that were used for tool calls in this message.
+        """
+        # Get the list of MCP servers (if not provided)
+        if bottom_items is None:
+            if self._aggregator and self._aggregator.server_names:
+                server_names = self._aggregator.server_names
+            else:
+                server_names = []
+        else:
+            server_names = bottom_items
+
+        # Extract servers from tool calls in the message for highlighting
+        if highlight_items is None:
+            highlight_servers = self._extract_servers_from_message(message)
+        else:
+            # Convert to list if needed
+            if isinstance(highlight_items, str):
+                highlight_servers = [highlight_items]
+            else:
+                highlight_servers = highlight_items
+
+        # Call parent's implementation with server information
+        await super().show_assistant_message(
+            message=message,
+            bottom_items=server_names,
+            highlight_items=highlight_servers,
+            max_item_length=max_item_length or 12,
+        )
+
+    def _extract_servers_from_message(self, message: PromptMessageMultipart) -> List[str]:
+        """
+        Extract server names from tool calls in the message.
+
+        Args:
+            message: The message containing potential tool calls
+
+        Returns:
+            List of server names that were called
+        """
+        servers = []
+
+        # Check if message has tool calls
+        if message.tool_calls:
+            for tool_request in message.tool_calls.values():
+                tool_name = tool_request.params.name
+
+                # Use aggregator's mapping to find the server for this tool
+                if tool_name in self._aggregator._namespaced_tool_map:
+                    namespaced_tool = self._aggregator._namespaced_tool_map[tool_name]
+                    if namespaced_tool.server_name not in servers:
+                        servers.append(namespaced_tool.server_name)
+
+        return servers
 
     async def _parse_resource_name(self, name: str, resource_type: str) -> tuple[str, str]:
         """Delegate resource name parsing to the aggregator."""
