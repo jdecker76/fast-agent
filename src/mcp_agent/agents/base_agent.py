@@ -65,7 +65,7 @@ if TYPE_CHECKING:
     from mcp_agent.llm.usage_tracking import UsageAccumulator
 
 
-class BaseAgent(ABC, ToolAgent):
+class McpAgent(ABC, ToolAgent):
     """
     A base Agent class that implements the AgentProtocol interface.
 

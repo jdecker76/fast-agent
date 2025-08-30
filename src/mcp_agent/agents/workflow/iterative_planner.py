@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple, Type
 from mcp.types import TextContent
 
 from mcp_agent.agents.agent import Agent
-from mcp_agent.agents.base_agent import BaseAgent
+from mcp_agent.agents.base_agent import McpAgent
 from mcp_agent.agents.workflow.orchestrator_models import (
     Plan,
     PlanningStep,
@@ -150,7 +150,7 @@ Complete the plan by providing an appropriate answer for the original objective.
 """
 
 
-class IterativePlanner(BaseAgent):
+class IterativePlanner(McpAgent):
     """
     An agent that implements the orchestrator workflow pattern.
 

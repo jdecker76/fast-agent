@@ -1,6 +1,6 @@
 import pytest
 
-from mcp_agent.agents.base_agent import BaseAgent
+from mcp_agent.agents.base_agent import McpAgent
 from mcp_agent.core.prompt import Prompt
 
 
@@ -220,7 +220,7 @@ async def test_custom_agent(fast_agent):
     # Use the FastAgent instance from the test directory fixture
     fast = fast_agent
 
-    class MyAgent(BaseAgent):
+    class MyAgent(McpAgent):
         async def send(self, message, request_params=None):
             return "it's a-me!...Mario! "
 
@@ -240,7 +240,7 @@ async def test_setting_an_agent_as_default(fast_agent):
     # Use the FastAgent instance from the test directory fixture
     fast = fast_agent
 
-    class MyAgent(BaseAgent):
+    class MyAgent(McpAgent):
         async def send(self, message, request_params=None):
             return "it's a-me!...Mario! "
 
