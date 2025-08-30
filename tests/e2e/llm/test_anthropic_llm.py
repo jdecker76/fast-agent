@@ -22,7 +22,16 @@ class FormattedResponse(BaseModel):
 
 
 class TestAnthropicLLM(unittest.IsolatedAsyncioTestCase):
-    """Test cases for Anthropic LLM functionality."""
+    """Test cases for Anthropic LLM functionality.
+
+    To run tests with a specific model, set the TEST_MODEL environment variable:
+        TEST_MODEL=claude-3-5-sonnet-20241022 python -m pytest test_anthropic_llm.py
+
+    To run tests with multiple models, set TEST_MODELS (comma-separated):
+        TEST_MODELS=gpt-4.1-mini,claude-3-5-haiku-20241022 python -m pytest test_anthropic_llm.py
+
+    Default model is gpt-4.1-mini if not specified.
+    """
 
     _input_schema = {
         "type": "object",
@@ -36,6 +45,19 @@ class TestAnthropicLLM(unittest.IsolatedAsyncioTestCase):
         inputSchema=_input_schema,
     )
 
+    @classmethod
+    def get_test_models(cls):
+        """Get models to test from environment variables."""
+        # Check for TEST_MODELS (multiple models)
+        if os.environ.get("TEST_MODELS"):
+            return os.environ.get("TEST_MODELS").split(",")
+        # Check for TEST_MODEL (single model)
+        elif os.environ.get("TEST_MODEL"):
+            return [os.environ.get("TEST_MODEL")]
+        # Default model
+        else:
+            return ["gpt-4.1-mini"]
+
     async def asyncSetUp(self):
         """Set up test environment with Core and agent."""
         self.test_config = AgentConfig("test")
@@ -47,14 +69,21 @@ class TestAnthropicLLM(unittest.IsolatedAsyncioTestCase):
         self.core = Core(settings=config_path)
         await self.core.initialize()
 
+        # Get the model to use from environment or default
+        models = self.get_test_models()
+        self.model = models[0]  # For now, use the first model in unittest style
+
         self.agent: LlmAgent = LlmAgent(self.test_config, self.core.context)
-        await self.agent.attach_llm(ModelFactory.create_factory("gpt-4.1-mini"))
+        await self.agent.attach_llm(ModelFactory.create_factory(self.model))
+
+        # Store model name for debugging
+        self._testMethodDoc = f"{self._testMethodDoc or ''} [Model: {self.model}]"
 
     async def test_basic_generation(self):
         """Test basic generation returns END_TURN stop reason."""
         result: PromptMessageMultipart = await self.agent.generate("hello, world")
         assert result.stop_reason is LlmStopReason.END_TURN
-        assert None is not result.last_text()
+        assert result.last_text() is not None
 
     async def test_max_tokens_limit(self):
         """Test generation with max tokens limit returns MAX_TOKENS stop reason."""
@@ -64,7 +93,7 @@ class TestAnthropicLLM(unittest.IsolatedAsyncioTestCase):
         assert result.stop_reason is LlmStopReason.MAX_TOKENS
 
     async def test_stop_sequence(self):
-        """Test generation with max tokens limit returns MAX_TOKENS stop reason."""
+        """Test generation with stop sequence returns STOP_SEQUENCE stop reason."""
         result: PromptMessageMultipart = await self.agent.generate(
             "repeat after me, `one, two, three`.", RequestParams(stopSequences=[" two,"])
         )
@@ -85,7 +114,7 @@ class TestAnthropicLLM(unittest.IsolatedAsyncioTestCase):
         ## make sure the next turn works (anthropic needs to insert empty block)
         result = await self.agent.generate("what about tomorrow's weather?")
         assert result.stop_reason is LlmStopReason.END_TURN
-        assert None is not result.last_text()
+        assert result.last_text() is not None
 
     async def test_tool_use_stop(self) -> None:
         result = await self.agent.generate("check the weather in london", tools=[self._tool])
