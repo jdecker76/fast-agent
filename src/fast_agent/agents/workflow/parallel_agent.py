@@ -6,7 +6,6 @@ from mcp.types import TextContent
 from opentelemetry import trace
 
 from fast_agent.agents.llm_agent import LlmAgent
-from mcp_agent.agents.agent import Agent
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.mcp.interfaces import ModelT
@@ -29,8 +28,8 @@ class ParallelAgent(LlmAgent):
     def __init__(
         self,
         config: AgentConfig,
-        fan_in_agent: Agent,
-        fan_out_agents: List[Agent],
+        fan_in_agent: LlmAgent,
+        fan_out_agents: List[LlmAgent],
         include_request: bool = True,
         **kwargs,
     ) -> None:

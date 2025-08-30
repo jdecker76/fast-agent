@@ -7,7 +7,7 @@ while delegating LLM operations to an attached AugmentedLLMProtocol instance.
 
 from typing import TYPE_CHECKING, Any, Dict, Optional, TypeVar
 
-from mcp_agent.agents.base_agent import McpAgent
+from fast_agent.agents.mcp_agent import McpAgent
 from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.human_input.types import HumanInputCallback
 from mcp_agent.logging.logger import get_logger

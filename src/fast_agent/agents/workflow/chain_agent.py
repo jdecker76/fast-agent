@@ -11,7 +11,6 @@ from mcp import Tool
 from mcp.types import TextContent
 
 from fast_agent.agents.llm_agent import LlmAgent
-from mcp_agent.agents.agent import Agent
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.core.request_params import RequestParams
@@ -34,7 +33,7 @@ class ChainAgent(LlmAgent):
     def __init__(
         self,
         config: AgentConfig,
-        agents: List[Agent],
+        agents: List[LlmAgent],
         cumulative: bool = False,
         context: Optional[Any] = None,
         **kwargs,

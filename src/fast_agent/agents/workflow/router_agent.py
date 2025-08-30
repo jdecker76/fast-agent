@@ -12,7 +12,6 @@ from opentelemetry import trace
 from pydantic import BaseModel
 
 from fast_agent.agents.llm_agent import LlmAgent
-from mcp_agent.agents.agent import Agent
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.exceptions import AgentConfigError
 from mcp_agent.core.prompt import Prompt
@@ -75,7 +74,7 @@ class RouterAgent(LlmAgent):
     def __init__(
         self,
         config: AgentConfig,
-        agents: List[Agent],
+        agents: List[LlmAgent],
         routing_instruction: str | None = None,
         context: "Context | None" = None,
         default_request_params: RequestParams | None = None,
@@ -148,7 +147,7 @@ class RouterAgent(LlmAgent):
 
     @staticmethod
     async def _generate_routing_instruction(
-        agents: List[Agent], routing_instruction: Optional[str] = None
+        agents: List[LlmAgent], routing_instruction: Optional[str] = None
     ) -> str:
         """
         Generate the complete routing instruction with agent cards.
@@ -215,7 +214,7 @@ class RouterAgent(LlmAgent):
                 return Prompt.assistant(warn or "No routing result or warning received")
 
             # Get the selected agent
-            agent: Agent = self.agent_map[route.agent]
+            agent: LlmAgent = self.agent_map[route.agent]
 
             # Dispatch the request to the selected agent
             return await agent.generate_impl(messages, request_params)
@@ -248,7 +247,7 @@ class RouterAgent(LlmAgent):
                 )
 
             # Get the selected agent
-            agent: Agent = self.agent_map[route.agent]
+            agent: LlmAgent = self.agent_map[route.agent]
 
             # Dispatch the request to the selected agent
             return await agent.structured_impl(messages, model, request_params)

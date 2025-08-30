@@ -6,8 +6,8 @@ import pytest
 import pytest_asyncio
 from mcp.types import TextContent
 
-from mcp_agent.agents.workflow.orchestrator_agent import OrchestratorAgent
-from mcp_agent.agents.workflow.orchestrator_models import (
+from fast_agent.agents import OrchestratorAgent
+from fast_agent.agents.workflow.orchestrator_models import (
     AgentTask,
     Plan,
     PlanningStep,

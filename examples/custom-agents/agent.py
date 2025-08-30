@@ -1,6 +1,6 @@
 import asyncio
 
-from mcp_agent.agents.base_agent import McpAgent
+from fast_agent.agents.mcp_agent import McpAgent
 from mcp_agent.core.fastagent import FastAgent
 
 # Create the application

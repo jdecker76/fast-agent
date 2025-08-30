@@ -14,8 +14,7 @@ from mcp import Tool
 from pydantic import BaseModel, Field
 
 from fast_agent.agents.llm_agent import LlmAgent
-from mcp_agent.agents.agent import Agent
-from mcp_agent.core.agent_types import AgentType
+from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.exceptions import AgentConfigError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.core.request_params import RequestParams
@@ -71,9 +70,9 @@ class EvaluatorOptimizerAgent(LlmAgent):
 
     def __init__(
         self,
-        config: Agent,
-        generator_agent: Agent,
-        evaluator_agent: Agent,
+        config: AgentConfig,
+        generator_agent: LlmAgent,
+        evaluator_agent: LlmAgent,
         min_rating: QualityRating = QualityRating.GOOD,
         max_refinements: int = 3,
         context: Optional[Any] = None,
@@ -84,8 +83,8 @@ class EvaluatorOptimizerAgent(LlmAgent):
 
         Args:
             config: Agent configuration or name
-            generator_agent: Agent that generates the initial and refined responses
-            evaluator_agent: Agent that evaluates responses and provides feedback
+            generator_agent: LlmAgent that generates the initial and refined responses
+            evaluator_agent: LlmAgent that evaluates responses and provides feedback
             min_rating: Minimum acceptable quality rating to stop refinement
             max_refinements: Maximum number of refinement cycles to attempt
             context: Optional context object

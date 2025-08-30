@@ -7,9 +7,8 @@ from typing import Any, Dict, List, Optional, Tuple, Type
 
 from mcp.types import TextContent
 
-from mcp_agent.agents.agent import Agent
-from mcp_agent.agents.base_agent import McpAgent
-from mcp_agent.agents.workflow.orchestrator_models import (
+from fast_agent.agents.mcp_agent import McpAgent
+from fast_agent.agents.workflow.orchestrator_models import (
     Plan,
     PlanningStep,
     PlanResult,
@@ -167,7 +166,7 @@ class IterativePlanner(McpAgent):
     def __init__(
         self,
         config: AgentConfig,
-        agents: List[Agent],
+        agents: List[McpAgent],
         plan_iterations: int = -1,
         context: Optional[Any] = None,
         **kwargs,
@@ -186,7 +185,7 @@ class IterativePlanner(McpAgent):
             raise AgentConfigError("At least one worker agent must be provided")
 
         # Store agents by name for easier lookup
-        self.agents: Dict[str, Agent] = {}
+        self.agents: Dict[str, McpAgent] = {}
         for agent in agents:
             agent_name = agent._name
             self.agents[agent_name] = agent
@@ -369,7 +368,7 @@ class IterativePlanner(McpAgent):
         Returns:
             Result of executing the step
         """
-        from mcp_agent.agents.workflow.orchestrator_models import StepResult
+        from fast_agent.agents.workflow.orchestrator_models import StepResult
 
         # Initialize step result
         step_result = StepResult(step=step, task_results=[])

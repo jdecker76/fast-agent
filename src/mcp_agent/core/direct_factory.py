@@ -5,17 +5,17 @@ Implements type-safe factories with improved error handling.
 
 from typing import Any, Dict, Optional, Protocol, TypeVar
 
-from fast_agent.core import Core
-from fast_agent.event_progress import ProgressAction
-from mcp_agent.agents.agent import Agent, AgentConfig
-from mcp_agent.agents.workflow.evaluator_optimizer import (
+from fast_agent.agents.workflow.evaluator_optimizer import (
     EvaluatorOptimizerAgent,
     QualityRating,
 )
-from mcp_agent.agents.workflow.iterative_planner import IterativePlanner
-from mcp_agent.agents.workflow.orchestrator_agent import OrchestratorAgent
-from mcp_agent.agents.workflow.parallel_agent import ParallelAgent
-from mcp_agent.agents.workflow.router_agent import RouterAgent
+from fast_agent.agents.workflow.iterative_planner import IterativePlanner
+from fast_agent.agents.workflow.orchestrator_agent import OrchestratorAgent
+from fast_agent.agents.workflow.parallel_agent import ParallelAgent
+from fast_agent.agents.workflow.router_agent import RouterAgent
+from fast_agent.core import Core
+from fast_agent.event_progress import ProgressAction
+from mcp_agent.agents.agent import Agent, AgentConfig
 from mcp_agent.core.agent_types import AgentType
 from mcp_agent.core.exceptions import AgentConfigError
 from mcp_agent.core.validation import get_dependencies_groups
@@ -300,7 +300,7 @@ async def create_agents_by_type(
                         raise AgentConfigError(f"Chain agent {agent_name} not found")
                     chain_agents.append(active_agents[agent_name])
 
-                from mcp_agent.agents.workflow.chain_agent import ChainAgent
+                from fast_agent.agents.workflow.chain_agent import ChainAgent
 
                 # Get the cumulative parameter
                 cumulative = agent_data.get("cumulative", False)

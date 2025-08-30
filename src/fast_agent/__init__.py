@@ -1,19 +1,5 @@
 """fast-agent - An MCP native agent application framework"""
 
-# Import important MCP types for re-export (safe - external)
-from mcp.types import (
-    CallToolResult,
-    EmbeddedResource,
-    GetPromptResult,
-    ImageContent,
-    Prompt,
-    PromptMessage,
-    ReadResourceResult,
-    Role,
-    TextContent,
-    Tool,
-)
-
 # Configuration and settings (safe - pure Pydantic models)
 from fast_agent.config import (
     AnthropicSettings,
@@ -73,6 +59,22 @@ def __getattr__(name: str):
         from fast_agent.agents.tool_agent import ToolAgent
 
         return ToolAgent
+    elif name == "LlmAgent":
+        from fast_agent.agents.llm_agent import LlmAgent
+
+        return LlmAgent
+    elif name == "LlmDecorator":
+        from fast_agent.agents.llm_decorator import LlmDecorator
+
+        return LlmDecorator
+    elif name == "ToolAgent":
+        from fast_agent.agents.tool_agent import ToolAgent
+
+        return ToolAgent
+    elif name == "McpAgent":
+        from fast_agent.agents.mcp_agent import McpAgent
+
+        return McpAgent
     else:
         raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
@@ -112,15 +114,8 @@ __all__ = [
     "LlmStopReason",
     # Agents (lazy loaded)
     "ToolAgentSynchronous",
-    # MCP types (re-exported for convenience, eagerly loaded)
-    "Prompt",
-    "Tool",
-    "CallToolResult",
-    "TextContent",
-    "ImageContent",
-    "PromptMessage",
-    "GetPromptResult",
-    "ReadResourceResult",
-    "EmbeddedResource",
-    "Role",
+    "LlmAgent",
+    "LlmDecorator",
+    "ToolAgent",
+    "McpAgent",
 ]

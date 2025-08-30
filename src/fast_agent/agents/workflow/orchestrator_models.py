@@ -2,7 +2,7 @@ from typing import List
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from mcp_agent.agents.workflow.orchestrator_prompts import (
+from fast_agent.agents.workflow.orchestrator_prompts import (
     PLAN_RESULT_TEMPLATE,
     STEP_RESULT_TEMPLATE,
     TASK_RESULT_TEMPLATE,

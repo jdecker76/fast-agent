@@ -11,8 +11,7 @@ from mcp import Tool
 from mcp.types import TextContent
 
 from fast_agent.agents.llm_agent import LlmAgent
-from mcp_agent.agents.agent import Agent
-from mcp_agent.agents.workflow.orchestrator_models import (
+from fast_agent.agents.workflow.orchestrator_models import (
     Plan,
     PlanningStep,
     PlanResult,
@@ -21,7 +20,7 @@ from mcp_agent.agents.workflow.orchestrator_models import (
     format_plan_result,
     format_step_result_text,
 )
-from mcp_agent.agents.workflow.orchestrator_prompts import (
+from fast_agent.agents.workflow.orchestrator_prompts import (
     FULL_PLAN_PROMPT_TEMPLATE,
     ITERATIVE_PLAN_PROMPT_TEMPLATE,
     SYNTHESIZE_INCOMPLETE_PLAN_TEMPLATE,
@@ -56,7 +55,7 @@ class OrchestratorAgent(LlmAgent):
     def __init__(
         self,
         config: AgentConfig,
-        agents: List[Agent],
+        agents: List[LlmAgent],
         plan_type: Literal["full", "iterative"] = "full",
         plan_iterations: int = 5,
         context: Optional[Any] = None,
@@ -80,7 +79,7 @@ class OrchestratorAgent(LlmAgent):
         self.plan_type = plan_type
 
         # Store agents by name for easier lookup
-        self.agents: Dict[str, Agent] = {}
+        self.agents: Dict[str, LlmAgent] = {}
         for agent in agents:
             agent_name = agent._name
             self.logger.info(f"Adding agent '{agent_name}' to orchestrator")
@@ -293,7 +292,7 @@ class OrchestratorAgent(LlmAgent):
         Returns:
             Result of executing the step
         """
-        from mcp_agent.agents.workflow.orchestrator_models import StepResult
+        from fast_agent.agents.workflow.orchestrator_models import StepResult
 
         # Initialize step result
         step_result = StepResult(step=step, task_results=[])
