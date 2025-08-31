@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Tuple
 
 # Import necessary types from google.genai
 from google.genai import types
+from mcp import Tool
 from mcp.types import (
     BlobResourceContents,
     CallToolRequest,
@@ -39,7 +40,7 @@ class GoogleConverter:
         """
         # First, resolve any $ref references in the schema
         schema = self._resolve_refs(schema, schema)
-        
+
         cleaned_schema = {}
         unsupported_keys = {
             "additionalProperties",
@@ -71,28 +72,28 @@ class GoogleConverter:
             else:
                 cleaned_schema[key] = value
         return cleaned_schema
-    
+
     def _resolve_refs(self, schema: Dict[str, Any], root_schema: Dict[str, Any]) -> Dict[str, Any]:
         """
         Resolve $ref references in a JSON schema by inlining the referenced definitions.
-        
+
         Args:
             schema: The current schema fragment being processed
             root_schema: The root schema containing $defs
-        
+
         Returns:
             Schema with $ref references resolved
         """
         if not isinstance(schema, dict):
             return schema
-            
+
         # If this is a $ref, resolve it
         if "$ref" in schema:
             ref_path = schema["$ref"]
             if ref_path.startswith("#/"):
                 # Parse the reference path (e.g., "#/$defs/HumanInputRequest")
                 path_parts = ref_path[2:].split("/")  # Remove "#/" and split
-                
+
                 # Navigate to the referenced definition
                 ref_target = root_schema
                 for part in path_parts:
@@ -101,10 +102,10 @@ class GoogleConverter:
                     else:
                         # If reference not found, return the original schema
                         return schema
-                
+
                 # Return the resolved definition (recursively resolve any nested refs)
                 return self._resolve_refs(ref_target, root_schema)
-        
+
         # Otherwise, recursively process all values in the schema
         resolved = {}
         for key, value in schema.items():
@@ -117,7 +118,7 @@ class GoogleConverter:
                 ]
             else:
                 resolved[key] = value
-        
+
         return resolved
 
     def convert_to_google_content(
@@ -195,7 +196,7 @@ class GoogleConverter:
                 google_contents.append(types.Content(role=google_role, parts=parts))
         return google_contents
 
-    def convert_to_google_tools(self, tools: List[ToolDefinition]) -> List[types.Tool]:
+    def convert_to_google_tools(self, tools: List[Tool]) -> List[types.Tool]:
         """
         Converts a list of fast-agent ToolDefinition to google.genai types.Tool.
         """

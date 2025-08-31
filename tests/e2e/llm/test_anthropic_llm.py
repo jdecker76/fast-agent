@@ -2,6 +2,7 @@ import os
 from typing import Annotated
 
 import pytest
+import pytest_asyncio
 from mcp.types import CallToolRequest, CallToolResult, TextContent, Tool
 from pydantic import BaseModel, Field
 
@@ -32,14 +33,14 @@ def get_test_models():
         return [os.environ.get("TEST_MODEL")]
     # Default models
     else:
-        return ["gpt-4.1-mini", "haiku", "kimi", "o4-mini.low", "gpt-5-mini.low"]
+        return ["gpt-4.1-mini", "haiku", "kimi", "o4-mini.low", "gpt-5-mini.low", "gemini25"]
 
 
 # Create the list of models to test
 TEST_MODELS = get_test_models()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def llm_agent_setup(model_name):
     """Set up test environment with Core and agent."""
     test_config = AgentConfig("test")
@@ -73,7 +74,7 @@ _tool = Tool(
 @pytest.mark.parametrize("model_name", TEST_MODELS)
 async def test_basic_generation(llm_agent_setup, model_name):
     """Test basic generation returns END_TURN stop reason."""
-    agent = await llm_agent_setup
+    agent = llm_agent_setup
     result: PromptMessageMultipart = await agent.generate("hello, world")
     assert result.stop_reason is LlmStopReason.END_TURN
     assert result.last_text() is not None
@@ -83,7 +84,7 @@ async def test_basic_generation(llm_agent_setup, model_name):
 @pytest.mark.parametrize("model_name", TEST_MODELS)
 async def test_max_tokens_limit(llm_agent_setup, model_name):
     """Test generation with max tokens limit returns MAX_TOKENS stop reason."""
-    agent = await llm_agent_setup
+    agent = llm_agent_setup
     result: PromptMessageMultipart = await agent.generate(
         "write a 300 word story", RequestParams(maxTokens=15)
     )
@@ -94,23 +95,23 @@ async def test_max_tokens_limit(llm_agent_setup, model_name):
 @pytest.mark.parametrize("model_name", TEST_MODELS)
 async def test_stop_sequence(llm_agent_setup, model_name):
     """Test generation with stop sequence returns STOP_SEQUENCE stop reason."""
-    agent = await llm_agent_setup
+    agent = llm_agent_setup
     result: PromptMessageMultipart = await agent.generate(
         "repeat after me, `one, two, three`.", RequestParams(stopSequences=[" two,"])
     )
     # oai reasoning models don't support this
-    # we will also need to remove this for multimodal messages
-    if agent.llm.provider in [Provider.OPENAI, Provider.GROQ]:
-        assert result.stop_reason is LlmStopReason.END_TURN
-    else:
+    # we will also need to remove this for multimodal messages with oai
+    if agent.llm.provider in [Provider.ANTHROPIC]:
         assert result.stop_reason is LlmStopReason.STOP_SEQUENCE
+    else:
+        assert result.stop_reason is LlmStopReason.END_TURN
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("model_name", TEST_MODELS)
 async def test_structured_output(llm_agent_setup, model_name):
     """Test structured output generation with FormattedResponse model."""
-    agent = await llm_agent_setup
+    agent = llm_agent_setup
     structured_output, result = await agent.structured(
         "lets discuss the weather", FormattedResponse
     )
@@ -131,7 +132,7 @@ async def test_structured_output(llm_agent_setup, model_name):
 @pytest.mark.parametrize("model_name", TEST_MODELS)
 async def test_tool_use_stop(llm_agent_setup, model_name):
     """Test tool use stop reason."""
-    agent = await llm_agent_setup
+    agent = llm_agent_setup
     result = await agent.generate("check the weather in london", tools=[_tool])
     assert LlmStopReason.TOOL_USE is result.stop_reason
     assert result.tool_calls
@@ -145,7 +146,7 @@ async def test_tool_use_stop(llm_agent_setup, model_name):
 @pytest.mark.parametrize("model_name", TEST_MODELS)
 async def test_tool_user_continuation(llm_agent_setup, model_name):
     """Generates a tool call, and returns a response. Ensures correlation works (converter handles results)"""
-    agent = await llm_agent_setup
+    agent = llm_agent_setup
     result = await agent.generate(
         "check the weather in new york",
         tools=[_tool],
@@ -168,7 +169,7 @@ async def test_tool_user_continuation(llm_agent_setup, model_name):
 @pytest.mark.parametrize("model_name", TEST_MODELS)
 async def test_tool_calling_agent(llm_agent_setup, model_name):
     """Generates a tool call, and returns a response. Ensures correlation works (converter handles results)"""
-    agent = await llm_agent_setup
+    agent = llm_agent_setup
     result = await agent.generate(
         "check the weather in new york",
         tools=[_tool],
