@@ -112,7 +112,7 @@ class ToolAgent(LlmAgent):
             self.display.show_tool_call(
                 name=self.name,
                 tool_args=tool_args,
-                available_tools=list(self._execution_tools.keys()),
+                bottom_items=list(self._execution_tools.keys()),
                 tool_name=tool_name,
             )
 

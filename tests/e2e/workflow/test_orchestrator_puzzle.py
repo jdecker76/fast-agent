@@ -86,6 +86,9 @@ async def main():
         async with fast.run() as agent:
             await agent.interactive()
             response = await agent.orchestrator.send("find the secret code")
+
+            print()
+            print()
             if "4712" in response:
                 print("✓ Secret code found successfully!")
             else:
