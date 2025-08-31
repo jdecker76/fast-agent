@@ -450,7 +450,7 @@ class FastAgent:
                     pass
 
                 # Print usage report before cleanup (show for user exits too)
-                if active_agents and not had_error:
+                if active_agents and not had_error and not quiet_mode:
                     self._print_usage_report(active_agents)
 
                 # Clean up any active agents (always cleanup, even on errors)
