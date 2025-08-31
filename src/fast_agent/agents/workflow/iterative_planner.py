@@ -9,7 +9,6 @@ from mcp import Tool
 from mcp.types import TextContent
 
 from fast_agent.agents.llm_agent import LlmAgent
-from fast_agent.agents.mcp_agent import McpAgent
 from fast_agent.agents.workflow.orchestrator_models import (
     Plan,
     PlanningStep,
@@ -284,7 +283,7 @@ class IterativePlanner(LlmAgent):
 
         # Try to parse the response into the specified model
         try:
-            result_text = response.last_text()
+            result_text = response.last_text() or "<no text>"
             prompt_message = PromptMessageMultipart(
                 role="user", content=[TextContent(type="text", text=result_text)]
             )
@@ -497,9 +496,11 @@ class IterativePlanner(LlmAgent):
                 role="user", content=[TextContent(type="text", text=prompt)]
             )
             assert self._llm
+            self.show_user_message(plan_msg)
             next_step, raw_response = await self._llm.structured(
                 [plan_msg], PlanningStep, request_params
             )
+            await self.show_assistant_message(raw_response)
             return next_step
         except Exception as e:
             self.logger.error(f"Failed to parse next step: {str(e)}")
