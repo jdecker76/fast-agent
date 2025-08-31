@@ -1,7 +1,7 @@
 import os
-import unittest
 from typing import Annotated
 
+import pytest
 from mcp.types import CallToolRequest, CallToolResult, TextContent, Tool
 from pydantic import BaseModel, Field
 
@@ -11,6 +11,7 @@ from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.llm.model_factory import ModelFactory
+from mcp_agent.llm.provider_types import Provider
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 
@@ -21,144 +22,166 @@ class FormattedResponse(BaseModel):
     message: str
 
 
-class TestAnthropicLLM(unittest.IsolatedAsyncioTestCase):
-    """Test cases for Anthropic LLM functionality.
+def get_test_models():
+    """Get models to test from environment variables."""
+    # Check for TEST_MODELS (multiple models)
+    if os.environ.get("TEST_MODELS"):
+        return os.environ.get("TEST_MODELS").split(",")
+    # Check for TEST_MODEL (single model)
+    elif os.environ.get("TEST_MODEL"):
+        return [os.environ.get("TEST_MODEL")]
+    # Default models
+    else:
+        return ["gpt-4.1-mini", "haiku", "kimi", "o4-mini.low", "gpt-5-mini.low"]
 
-    To run tests with a specific model, set the TEST_MODEL environment variable:
-        TEST_MODEL=claude-3-5-sonnet-20241022 python -m pytest test_anthropic_llm.py
 
-    To run tests with multiple models, set TEST_MODELS (comma-separated):
-        TEST_MODELS=gpt-4.1-mini,claude-3-5-haiku-20241022 python -m pytest test_anthropic_llm.py
+# Create the list of models to test
+TEST_MODELS = get_test_models()
 
-    Default model is gpt-4.1-mini if not specified.
-    """
 
-    _input_schema = {
-        "type": "object",
-        "properties": {
-            "city": {"type": "string", "description": "The city to check the weather for"}
-        },
-    }
-    _tool = Tool(
-        name="weather",
-        description="call this to check the weather in a city",
-        inputSchema=_input_schema,
+@pytest.fixture
+async def llm_agent_setup(model_name):
+    """Set up test environment with Core and agent."""
+    test_config = AgentConfig("test")
+
+    # Pass the config file path from the test directory
+    config_path = os.path.join(os.path.dirname(__file__), "fastagent.config.yaml")
+
+    # Initialize Core and agent
+    core = Core(settings=config_path)
+    await core.initialize()
+
+    agent = LlmAgent(test_config, core.context)
+    await agent.attach_llm(ModelFactory.create_factory(model_name))
+
+    return agent
+
+
+# Tool definition used by multiple tests
+_input_schema = {
+    "type": "object",
+    "properties": {"city": {"type": "string", "description": "The city to check the weather for"}},
+}
+_tool = Tool(
+    name="weather",
+    description="call this to check the weather in a city",
+    inputSchema=_input_schema,
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model_name", TEST_MODELS)
+async def test_basic_generation(llm_agent_setup, model_name):
+    """Test basic generation returns END_TURN stop reason."""
+    agent = await llm_agent_setup
+    result: PromptMessageMultipart = await agent.generate("hello, world")
+    assert result.stop_reason is LlmStopReason.END_TURN
+    assert result.last_text() is not None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model_name", TEST_MODELS)
+async def test_max_tokens_limit(llm_agent_setup, model_name):
+    """Test generation with max tokens limit returns MAX_TOKENS stop reason."""
+    agent = await llm_agent_setup
+    result: PromptMessageMultipart = await agent.generate(
+        "write a 300 word story", RequestParams(maxTokens=15)
     )
+    assert result.stop_reason is LlmStopReason.MAX_TOKENS
 
-    @classmethod
-    def get_test_models(cls):
-        """Get models to test from environment variables."""
-        # Check for TEST_MODELS (multiple models)
-        if os.environ.get("TEST_MODELS"):
-            return os.environ.get("TEST_MODELS").split(",")
-        # Check for TEST_MODEL (single model)
-        elif os.environ.get("TEST_MODEL"):
-            return [os.environ.get("TEST_MODEL")]
-        # Default model
-        else:
-            return ["gpt-4.1-mini"]
 
-    async def asyncSetUp(self):
-        """Set up test environment with Core and agent."""
-        self.test_config = AgentConfig("test")
-
-        # Pass the config file path from the test directory
-        config_path = os.path.join(os.path.dirname(__file__), "fastagent.config.yaml")
-
-        # Initialize Core and agent
-        self.core = Core(settings=config_path)
-        await self.core.initialize()
-
-        # Get the model to use from environment or default
-        models = self.get_test_models()
-        self.model = models[0]  # For now, use the first model in unittest style
-
-        self.agent: LlmAgent = LlmAgent(self.test_config, self.core.context)
-        await self.agent.attach_llm(ModelFactory.create_factory(self.model))
-
-        # Store model name for debugging
-        self._testMethodDoc = f"{self._testMethodDoc or ''} [Model: {self.model}]"
-
-    async def test_basic_generation(self):
-        """Test basic generation returns END_TURN stop reason."""
-        result: PromptMessageMultipart = await self.agent.generate("hello, world")
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model_name", TEST_MODELS)
+async def test_stop_sequence(llm_agent_setup, model_name):
+    """Test generation with stop sequence returns STOP_SEQUENCE stop reason."""
+    agent = await llm_agent_setup
+    result: PromptMessageMultipart = await agent.generate(
+        "repeat after me, `one, two, three`.", RequestParams(stopSequences=[" two,"])
+    )
+    # oai reasoning models don't support this
+    # we will also need to remove this for multimodal messages
+    if agent.llm.provider in [Provider.OPENAI, Provider.GROQ]:
         assert result.stop_reason is LlmStopReason.END_TURN
-        assert result.last_text() is not None
-
-    async def test_max_tokens_limit(self):
-        """Test generation with max tokens limit returns MAX_TOKENS stop reason."""
-        result: PromptMessageMultipart = await self.agent.generate(
-            "write a 300 word story", RequestParams(maxTokens=15)
-        )
-        assert result.stop_reason is LlmStopReason.MAX_TOKENS
-
-    async def test_stop_sequence(self):
-        """Test generation with stop sequence returns STOP_SEQUENCE stop reason."""
-        result: PromptMessageMultipart = await self.agent.generate(
-            "repeat after me, `one, two, three`.", RequestParams(stopSequences=[" two,"])
-        )
+    else:
         assert result.stop_reason is LlmStopReason.STOP_SEQUENCE
 
-    async def test_structured_output(self):
-        """Test structured output generation with FormattedResponse model."""
-        structured_output, result = await self.agent.structured(
-            "lets discuss the weather", FormattedResponse
-        )
-        assert structured_output
-        assert LlmStopReason.END_TURN == result.stop_reason
-        # consider whether we should retain the tool result in the message.
-        # if Provider.ANTHROPIC == self.agent.llm.provider:
-        #     assert result.tool_calls
-        #     assert 1 == len(result.tool_calls)
 
-        ## make sure the next turn works (anthropic needs to insert empty block)
-        result = await self.agent.generate("what about tomorrow's weather?")
-        assert result.stop_reason is LlmStopReason.END_TURN
-        assert result.last_text() is not None
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model_name", TEST_MODELS)
+async def test_structured_output(llm_agent_setup, model_name):
+    """Test structured output generation with FormattedResponse model."""
+    agent = await llm_agent_setup
+    structured_output, result = await agent.structured(
+        "lets discuss the weather", FormattedResponse
+    )
+    assert structured_output
+    assert LlmStopReason.END_TURN == result.stop_reason
+    # consider whether we should retain the tool result in the message.
+    # if Provider.ANTHROPIC == agent.llm.provider:
+    #     assert result.tool_calls
+    #     assert 1 == len(result.tool_calls)
 
-    async def test_tool_use_stop(self) -> None:
-        result = await self.agent.generate("check the weather in london", tools=[self._tool])
-        assert LlmStopReason.TOOL_USE is result.stop_reason
-        assert result.tool_calls
-        assert 1 == len(result.tool_calls)
-        tool_id = next(iter(result.tool_calls.keys()))
-        tool_call: CallToolRequest = result.tool_calls[tool_id]
-        assert "weather" == tool_call.params.name
+    ## make sure the next turn works (anthropic needs to insert empty block)
+    result = await agent.generate("what about tomorrow's weather?")
+    assert result.stop_reason is LlmStopReason.END_TURN
+    assert result.last_text() is not None
 
-    async def test_tool_user_continuation(self) -> None:
-        """Generates a tool call, and returns a response. Ensures correlation works (converter handles results)"""
-        result = await self.agent.generate(
-            "check the weather in new york",
-            tools=[self._tool],
-            request_params=RequestParams(maxTokens=100),
-        )
-        assert LlmStopReason.TOOL_USE is result.stop_reason
-        assert result.tool_calls
-        assert 1 == len(result.tool_calls)
-        tool_id = next(iter(result.tool_calls.keys()))
 
-        result = CallToolResult(content=[TextContent(type="text", text="it's sunny in new york")])
-        tool_results = {tool_id: result}
-        result_message = PromptMessageMultipart(role="user", tool_results=tool_results)
-        result = await self.agent.generate(result_message)
-        assert LlmStopReason.END_TURN is result.stop_reason
-        assert "sunny" in result.last_text().lower()
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model_name", TEST_MODELS)
+async def test_tool_use_stop(llm_agent_setup, model_name):
+    """Test tool use stop reason."""
+    agent = await llm_agent_setup
+    result = await agent.generate("check the weather in london", tools=[_tool])
+    assert LlmStopReason.TOOL_USE is result.stop_reason
+    assert result.tool_calls
+    assert 1 == len(result.tool_calls)
+    tool_id = next(iter(result.tool_calls.keys()))
+    tool_call: CallToolRequest = result.tool_calls[tool_id]
+    assert "weather" == tool_call.params.name
 
-    async def test_tool_calling_agent(self) -> None:
-        """Generates a tool call, and returns a response. Ensures correlation works (converter handles results)"""
-        result = await self.agent.generate(
-            "check the weather in new york",
-            tools=[self._tool],
-            request_params=RequestParams(maxTokens=100),
-        )
-        assert LlmStopReason.TOOL_USE is result.stop_reason
-        assert result.tool_calls
-        assert 1 == len(result.tool_calls)
-        tool_id = next(iter(result.tool_calls.keys()))
 
-        result = CallToolResult(content=[TextContent(type="text", text="it's sunny in new york")])
-        tool_results = {tool_id: result}
-        result_message = PromptMessageMultipart(role="user", tool_results=tool_results)
-        result = await self.agent.generate(result_message)
-        assert LlmStopReason.END_TURN is result.stop_reason
-        assert "sunny" in result.last_text().lower()
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model_name", TEST_MODELS)
+async def test_tool_user_continuation(llm_agent_setup, model_name):
+    """Generates a tool call, and returns a response. Ensures correlation works (converter handles results)"""
+    agent = await llm_agent_setup
+    result = await agent.generate(
+        "check the weather in new york",
+        tools=[_tool],
+        request_params=RequestParams(maxTokens=100),
+    )
+    assert LlmStopReason.TOOL_USE is result.stop_reason
+    assert result.tool_calls
+    assert 1 == len(result.tool_calls)
+    tool_id = next(iter(result.tool_calls.keys()))
+
+    result = CallToolResult(content=[TextContent(type="text", text="it's sunny in new york")])
+    tool_results = {tool_id: result}
+    result_message = PromptMessageMultipart(role="user", tool_results=tool_results)
+    result = await agent.generate(result_message)
+    assert LlmStopReason.END_TURN is result.stop_reason
+    assert "sunny" in result.last_text().lower()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model_name", TEST_MODELS)
+async def test_tool_calling_agent(llm_agent_setup, model_name):
+    """Generates a tool call, and returns a response. Ensures correlation works (converter handles results)"""
+    agent = await llm_agent_setup
+    result = await agent.generate(
+        "check the weather in new york",
+        tools=[_tool],
+        request_params=RequestParams(maxTokens=100),
+    )
+    assert LlmStopReason.TOOL_USE is result.stop_reason
+    assert result.tool_calls
+    assert 1 == len(result.tool_calls)
+    tool_id = next(iter(result.tool_calls.keys()))
+
+    result = CallToolResult(content=[TextContent(type="text", text="it's sunny in new york")])
+    tool_results = {tool_id: result}
+    result_message = PromptMessageMultipart(role="user", tool_results=tool_results)
+    result = await agent.generate(result_message)
+    assert LlmStopReason.END_TURN is result.stop_reason
+    assert "sunny" in result.last_text().lower()

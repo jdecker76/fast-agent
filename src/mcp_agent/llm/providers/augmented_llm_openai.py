@@ -54,6 +54,7 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
         AugmentedLLM.PARAM_MAX_ITERATIONS,
         AugmentedLLM.PARAM_TEMPLATE_VARS,
         AugmentedLLM.PARAM_MCP_METADATA,
+        AugmentedLLM.PARAM_STOP_SEQUENCES,
     }
 
     def __init__(self, provider: Provider = Provider.OPENAI, *args, **kwargs) -> None:
@@ -343,6 +344,9 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
         arguments: dict[str, Any] = self._prepare_api_request(
             messages, available_tools, request_params
         )
+        if not self._reasoning and request_params.stopSequences:
+            arguments["stop"] = request_params.stopSequences
+
         self.logger.debug(f"OpenAI completion requested for: {arguments}")
 
         self._log_chat_progress(self.chat_turn(), model=self.default_request_params.model)
