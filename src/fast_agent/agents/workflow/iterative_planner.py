@@ -5,8 +5,10 @@ Iterative Planner Agent - works towards an objective using sub-agents
 import asyncio
 from typing import Any, Dict, List, Optional, Tuple, Type
 
+from mcp import Tool
 from mcp.types import TextContent
 
+from fast_agent.agents.llm_agent import LlmAgent
 from fast_agent.agents.mcp_agent import McpAgent
 from fast_agent.agents.workflow.orchestrator_models import (
     Plan,
@@ -22,7 +24,7 @@ from mcp_agent.core.exceptions import AgentConfigError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.interfaces import ModelT
+from mcp_agent.mcp.interfaces import LlmAgentProtocol, ModelT
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 logger = get_logger(__name__)
@@ -149,7 +151,7 @@ Complete the plan by providing an appropriate answer for the original objective.
 """
 
 
-class IterativePlanner(McpAgent):
+class IterativePlanner(LlmAgent):
     """
     An agent that implements the orchestrator workflow pattern.
 
@@ -166,7 +168,7 @@ class IterativePlanner(McpAgent):
     def __init__(
         self,
         config: AgentConfig,
-        agents: List[McpAgent],
+        agents: List[LlmAgentProtocol],
         plan_iterations: int = -1,
         context: Optional[Any] = None,
         **kwargs,
@@ -185,11 +187,13 @@ class IterativePlanner(McpAgent):
             raise AgentConfigError("At least one worker agent must be provided")
 
         # Store agents by name for easier lookup
-        self.agents: Dict[str, McpAgent] = {}
+        self.agents: Dict[str, LlmAgentProtocol] = {}
         for agent in agents:
-            agent_name = agent._name
+            agent_name = agent.name
             self.agents[agent_name] = agent
 
+        # Extract plan_type from kwargs before passing to parent
+        kwargs.pop("plan_type", "full")
         super().__init__(config, context=context, **kwargs)
 
         self.plan_iterations = plan_iterations
@@ -217,7 +221,6 @@ class IterativePlanner(McpAgent):
 
         # Update the config instruction with the formatted system prompt
         self.instruction = system_prompt
-
         # Initialize the base agent with the updated system prompt
         await super().initialize()
 
@@ -234,10 +237,11 @@ class IterativePlanner(McpAgent):
             except Exception as e:
                 self.logger.warning(f"Error shutting down agent {agent_name}: {str(e)}")
 
-    async def _generate_impl(
+    async def generate_impl(
         self,
-        normalized_messages: List[PromptMessageMultipart],
-        request_params: Optional[RequestParams] = None,
+        messages: List[PromptMessageMultipart],
+        request_params: RequestParams | None = None,
+        tools: List[Tool] | None = None,
     ) -> PromptMessageMultipart:
         """
         Execute an orchestrated plan to process the input.
@@ -250,9 +254,8 @@ class IterativePlanner(McpAgent):
             The final synthesized response from the orchestration
         """
         # Extract user request
-        objective = normalized_messages[-1].all_text() if normalized_messages else ""
+        objective = messages[-1].all_text() if messages else ""
         plan_result = await self._execute_plan(objective, request_params)
-
         # Return the result
         return PromptMessageMultipart(
             role="assistant",
@@ -354,6 +357,7 @@ class IterativePlanner(McpAgent):
 
         # Generate final synthesis
         plan_result.result = await self._planner_generate_str(result_prompt, request_params)
+        print(plan_result.result)
         return plan_result
 
     async def _execute_step(self, step: Step, previous_result: PlanResult) -> Any:
@@ -483,13 +487,19 @@ class IterativePlanner(McpAgent):
             iterations_info=iterations_info,
         )
 
+        request_params = self._merge_request_params(
+            request_params, RequestParams(systemPrompt=self.instruction)
+        )
+
         # Get structured response from LLM
         try:
             plan_msg = PromptMessageMultipart(
                 role="user", content=[TextContent(type="text", text=prompt)]
             )
             assert self._llm
-            next_step, _ = await self._llm.structured([plan_msg], PlanningStep, request_params)
+            next_step, raw_response = await self._llm.structured(
+                [plan_msg], PlanningStep, request_params
+            )
             return next_step
         except Exception as e:
             self.logger.error(f"Failed to parse next step: {str(e)}")
@@ -568,4 +578,4 @@ class IterativePlanner(McpAgent):
         )
         assert self._llm, "LLM must be initialized before generating text"
         response = await self._llm.generate([prompt], request_params)
-        return response.last_text()
+        return response.last_text() or ""

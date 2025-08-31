@@ -13,7 +13,7 @@ from mcp_agent.core.fastagent import FastAgent
 @pytest.mark.parametrize(
     "model_name",
     [
-        "gpt-4.1-mini",
+        "gpt-4.1",
     ],
 )
 async def test_iterative_orchestration(fast_agent, model_name):
@@ -79,7 +79,7 @@ async def main():
     @fast.iterative_planner(
         "orchestrator",
         agents=["first_two", "last_two", "validator"],
-        model="gpt-4.1",
+        model="gpt-5-mini.low",
     )
     async def agent_function():
         async with fast.run() as agent:
