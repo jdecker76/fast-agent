@@ -14,8 +14,11 @@ from fast_agent.agents.llm_agent import LlmAgent
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.core.request_params import RequestParams
+from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.interfaces import ModelT
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+
+logger = get_logger(__name__)
 
 
 class ChainAgent(LlmAgent):
@@ -142,7 +145,7 @@ class ChainAgent(LlmAgent):
         try:
             return await last_agent.structured([response], model, request_params)
         except Exception as e:
-            self.logger.warning(f"Failed to parse response from chain: {str(e)}")
+            logger.warning(f"Failed to parse response from chain: {str(e)}")
             return None, Prompt.assistant("Failed to parse response from chain: {str(e)}")
 
     async def initialize(self) -> None:
@@ -167,4 +170,4 @@ class ChainAgent(LlmAgent):
             try:
                 await agent.shutdown()
             except Exception as e:
-                self.logger.warning(f"Error shutting down agent in chain: {str(e)}")
+                logger.warning(f"Error shutting down agent in chain: {str(e)}")

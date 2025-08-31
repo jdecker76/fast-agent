@@ -79,7 +79,7 @@ async def main():
     @fast.iterative_planner(
         "orchestrator",
         agents=["first_two", "last_two", "validator"],
-        model="gpt-5.low",
+        model="gpt-5-mini.low",
         # model="sonnet",
     )
     async def agent_function():

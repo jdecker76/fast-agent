@@ -82,7 +82,7 @@ class OrchestratorAgent(LlmAgent):
         self.agents: Dict[str, LlmAgent] = {}
         for agent in agents:
             agent_name = agent._name
-            self.logger.info(f"Adding agent '{agent_name}' to orchestrator")
+            logger.info(f"Adding agent '{agent_name}' to orchestrator")
             self.agents[agent_name] = agent
         self.plan_iterations = plan_iterations
         # For tracking state during execution
@@ -149,7 +149,7 @@ class OrchestratorAgent(LlmAgent):
             assert self._llm
             return await self._llm.structured([prompt_message], model, request_params)
         except Exception as e:
-            self.logger.warning(f"Failed to parse orchestration result: {str(e)}")
+            logger.warning(f"Failed to parse orchestration result: {str(e)}")
             return None, Prompt.assistant(f"Failed to parse orchestration result: {str(e)}")
 
     async def initialize(self) -> None:
@@ -159,7 +159,7 @@ class OrchestratorAgent(LlmAgent):
         # Initialize all worker agents if not already initialized
         for agent_name, agent in self.agents.items():
             if not getattr(agent, "initialized", False):
-                self.logger.debug(f"Initializing agent: {agent_name}")
+                logger.debug(f"Initializing agent: {agent_name}")
                 await agent.initialize()
 
     async def shutdown(self) -> None:
@@ -171,7 +171,7 @@ class OrchestratorAgent(LlmAgent):
             try:
                 await agent.shutdown()
             except Exception as e:
-                self.logger.warning(f"Error shutting down agent {agent_name}: {str(e)}")
+                logger.warning(f"Error shutting down agent {agent_name}: {str(e)}")
 
     async def _execute_plan(self, objective: str, request_params: RequestParams) -> PlanResult:
         """
@@ -198,7 +198,7 @@ class OrchestratorAgent(LlmAgent):
             if self.plan_type == "iterative":
                 next_step = await self._get_next_step(objective, plan_result, request_params)
                 if next_step is None:
-                    self.logger.error("Failed to generate next step, ending iteration early")
+                    logger.error("Failed to generate next step, ending iteration early")
                     plan_result.max_iterations_reached = True
                     break
 
@@ -207,7 +207,7 @@ class OrchestratorAgent(LlmAgent):
             elif self.plan_type == "full":
                 plan = await self._get_full_plan(objective, plan_result, request_params)
                 if plan is None:
-                    self.logger.error("Failed to generate full plan, ending iteration early")
+                    logger.error("Failed to generate full plan, ending iteration early")
                     plan_result.max_iterations_reached = True
                     break
 
@@ -225,7 +225,7 @@ class OrchestratorAgent(LlmAgent):
             for step in plan.steps:
                 # Check if we've hit the step limit
                 if total_steps_executed >= max_steps:
-                    self.logger.warning(
+                    logger.warning(
                         f"Reached maximum step limit ({max_steps}) without completing objective"
                     )
                     plan_result.max_iterations_reached = True
@@ -251,7 +251,7 @@ class OrchestratorAgent(LlmAgent):
 
         # Generate final result based on execution status
         if iterations >= max_iterations and not plan_result.is_complete:
-            self.logger.warning(f"Failed to complete in {max_iterations} iterations")
+            logger.warning(f"Failed to complete in {max_iterations} iterations")
             plan_result.max_iterations_reached = True
 
             # Use incomplete plan template
@@ -305,7 +305,7 @@ class OrchestratorAgent(LlmAgent):
             # Check agent exists
             agent = self.agents.get(task.agent)
             if not agent:
-                self.logger.error(
+                logger.error(
                     f"No agent found matching '{task.agent}'. Available agents: {list(self.agents.keys())}"
                 )
                 error_tasks.append(
@@ -353,7 +353,7 @@ class OrchestratorAgent(LlmAgent):
                 )
                 task_results.append(task_result)
             except Exception as e:
-                self.logger.error(f"Error executing task: {str(e)}")
+                logger.error(f"Error executing task: {str(e)}")
                 # Add error result
                 task_model = task.model_dump()
                 task_results.append(
@@ -437,7 +437,7 @@ class OrchestratorAgent(LlmAgent):
             plan, _ = await self._llm.structured([plan_msg], Plan, request_params)
             return plan
         except Exception as e:
-            self.logger.error(f"Failed to parse plan: {str(e)}")
+            logger.error(f"Failed to parse plan: {str(e)}")
             return None
 
     async def _get_next_step(
@@ -492,7 +492,7 @@ class OrchestratorAgent(LlmAgent):
             next_step, _ = await self._llm.structured([plan_msg], PlanningStep, request_params)
             return next_step
         except Exception as e:
-            self.logger.error(f"Failed to parse next step: {str(e)}")
+            logger.error(f"Failed to parse next step: {str(e)}")
             return None
 
     def _validate_agent_names(self, plan: Plan) -> None:
@@ -503,7 +503,7 @@ class OrchestratorAgent(LlmAgent):
             plan: The plan to validate
         """
         if plan is None:
-            self.logger.error("Cannot validate agent names: plan is None")
+            logger.error("Cannot validate agent names: plan is None")
             return
 
         invalid_agents = []
@@ -516,7 +516,7 @@ class OrchestratorAgent(LlmAgent):
         if invalid_agents:
             available_agents = ", ".join(self.agents.keys())
             invalid_list = ", ".join(invalid_agents)
-            self.logger.error(
+            logger.error(
                 f"Plan contains invalid agent names: {invalid_list}. Available agents: {available_agents}"
             )
 
@@ -532,7 +532,7 @@ class OrchestratorAgent(LlmAgent):
         """
         agent = self.agents.get(agent_name)
         if not agent:
-            self.logger.error(f"Agent '{agent_name}' not found in orchestrator agents")
+            logger.error(f"Agent '{agent_name}' not found in orchestrator agents")
             return ""
 
         # Get agent instruction or default description

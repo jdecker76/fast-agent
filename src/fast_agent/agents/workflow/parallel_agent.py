@@ -8,8 +8,11 @@ from opentelemetry import trace
 from fast_agent.agents.llm_agent import LlmAgent
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.request_params import RequestParams
+from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.interfaces import ModelT
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+
+logger = get_logger(__name__)
 
 
 class ParallelAgent(LlmAgent):
@@ -185,10 +188,10 @@ class ParallelAgent(LlmAgent):
         try:
             await self.fan_in_agent.shutdown()
         except Exception as e:
-            self.logger.warning(f"Error shutting down fan-in agent: {str(e)}")
+            logger.warning(f"Error shutting down fan-in agent: {str(e)}")
 
         for agent in self.fan_out_agents:
             try:
                 await agent.shutdown()
             except Exception as e:
-                self.logger.warning(f"Error shutting down fan-out agent {agent._name}: {str(e)}")
+                logger.warning(f"Error shutting down fan-out agent {agent._name}: {str(e)}")

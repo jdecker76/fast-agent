@@ -146,7 +146,7 @@ make sure to state clearly what was accomplished and what remains to be done.
 
 
 Complete the plan by providing an appropriate answer for the original objective. Provide a Mermaid diagram
-(in code fences) showing the plan steps and their relationships, if applicable.
+(in code fences) showing the plan steps and their relationships, if applicable. Do not use parentheses in labels.
 """
 
 
@@ -202,7 +202,7 @@ class IterativePlanner(LlmAgent):
         # Initialize all worker agents first if not already initialized
         for agent_name, agent in self.agents.items():
             if not getattr(agent, "initialized", False):
-                self.logger.debug(f"Initializing agent: {agent_name}")
+                logger.debug(f"Initializing agent: {agent_name}")
                 await agent.initialize()
 
         # Format agent information using agent cards with XML formatting
@@ -234,7 +234,7 @@ class IterativePlanner(LlmAgent):
             try:
                 await agent.shutdown()
             except Exception as e:
-                self.logger.warning(f"Error shutting down agent {agent_name}: {str(e)}")
+                logger.warning(f"Error shutting down agent {agent_name}: {str(e)}")
 
     async def generate_impl(
         self,
@@ -290,7 +290,7 @@ class IterativePlanner(LlmAgent):
             assert self._llm
             return await self._llm.structured([prompt_message], model, request_params)
         except Exception as e:
-            self.logger.warning(f"Failed to parse orchestration result: {str(e)}")
+            logger.warning(f"Failed to parse orchestration result: {str(e)}")
             return None, Prompt.assistant(f"Failed to parse orchestration result: {str(e)}")
 
     async def _execute_plan(
@@ -318,7 +318,7 @@ class IterativePlanner(LlmAgent):
 
             if None is next_step:
                 terminate_plan = "Failed to generate plan, terminating early"
-                self.logger.error("Failed to generate next step, terminating plan early")
+                logger.error("Failed to generate next step, terminating plan early")
                 break
 
             assert next_step  # lets keep the indenting manageable!
@@ -331,7 +331,7 @@ class IterativePlanner(LlmAgent):
             plan = Plan(steps=[next_step], is_complete=next_step.is_complete)
             invalid_agents = self._validate_agent_names(plan)
             if invalid_agents:
-                self.logger.error(f"Plan contains invalid agent names: {', '.join(invalid_agents)}")
+                logger.error(f"Plan contains invalid agent names: {', '.join(invalid_agents)}")
                 terminate_plan = (
                     f"Invalid agent names found ({', '.join(invalid_agents)}), terminating plan"
                 )
@@ -416,7 +416,7 @@ class IterativePlanner(LlmAgent):
                         )
                     )
                 except Exception as e:
-                    self.logger.error(f"Error executing task: {str(e)}")
+                    logger.error(f"Error executing task: {str(e)}")
                     task_model = task.model_dump()
                     results.append(
                         TaskWithResult(
@@ -504,7 +504,7 @@ class IterativePlanner(LlmAgent):
             await self.show_assistant_message(raw_response)
             return next_step
         except Exception as e:
-            self.logger.error(f"Failed to parse next step: {str(e)}")
+            logger.error(f"Failed to parse next step: {str(e)}")
             return None
 
     def _validate_agent_names(self, plan: Plan) -> List[str]:

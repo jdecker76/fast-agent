@@ -30,6 +30,7 @@ from mcp_agent.mcp.helpers.content_helpers import normalize_to_multipart_list
 from mcp_agent.mcp.interfaces import AugmentedLLMProtocol, LlmAgentProtocol, LLMFactoryProtocol
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
+logger = get_logger(__name__)
 # Define a TypeVar for models
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -57,7 +58,6 @@ class LlmDecorator(LlmAgentProtocol):
         self._name = self.config.name
         self._tracer = trace.get_tracer(__name__)
         self.instruction = self.config.instruction
-        self.logger = get_logger(f"{__name__}.{self._name}")
 
         # Store the default request params from config
         self._default_request_params = self.config.default_request_params
