@@ -560,7 +560,7 @@ class ConsoleDisplay:
             name=name,
             right_info=right_info,
             bottom_metadata=bottom_items,
-            highlight_items=highlight_items,
+            highlight_items=tool_name,
             max_item_length=max_item_length,
             truncate_content=True,
         )

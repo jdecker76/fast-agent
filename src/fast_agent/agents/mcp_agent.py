@@ -191,7 +191,7 @@ class McpAgent(ABC, ToolAgent):
     def initialized(self) -> bool:
         """Check if both the agent and aggregator are initialized."""
         return self._initialized and self._aggregator.initialized
-    
+
     @initialized.setter
     def initialized(self, value: bool) -> None:
         """Set the initialized state of both agent and aggregator."""
@@ -699,6 +699,8 @@ class McpAgent(ABC, ToolAgent):
                 tool_args=tool_args,
                 bottom_items=available_tools,
                 tool_name=display_tool_name,
+                highlight_items=tool_name,
+                max_item_length=12,
             )
 
             try:

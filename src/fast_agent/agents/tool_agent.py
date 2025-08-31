@@ -114,6 +114,7 @@ class ToolAgent(LlmAgent):
                 tool_args=tool_args,
                 bottom_items=list(self._execution_tools.keys()),
                 tool_name=tool_name,
+                max_item_length=12,
             )
 
             fast_tool = self._execution_tools.get(tool_name)
