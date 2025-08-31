@@ -146,6 +146,7 @@ class ConsoleDisplay:
         max_item_length: int | None = None,
         is_error: bool = False,
         truncate_content: bool = True,
+        additional_message: Text | None = None,
     ) -> None:
         """
         Unified method to display formatted messages to the console.
@@ -184,6 +185,8 @@ class ConsoleDisplay:
         self._display_content(
             content, truncate_content, is_error, message_type, check_markdown_markers=False
         )
+        if additional_message:
+            console.console.print(additional_message, markup=self._markup)
 
         # Handle bottom separator with optional metadata
         console.console.print()
@@ -678,6 +681,7 @@ class ConsoleDisplay:
             highlight_items=highlight_items,
             max_item_length=max_item_length,
             truncate_content=False,  # Assistant messages shouldn't be truncated
+            additional_message=additional_message,
         )
 
         # Handle mermaid diagrams separately (after the main message)
@@ -690,10 +694,6 @@ class ConsoleDisplay:
             diagrams = extract_mermaid_diagrams(plain_text)
             if diagrams:
                 self._display_mermaid_diagrams(diagrams)
-
-        # Display additional message if provided
-        if additional_message:
-            console.console.print(additional_message, markup=self._markup)
 
     def _display_mermaid_diagrams(self, diagrams: List[MermaidDiagram]) -> None:
         """Display mermaid diagram links."""
