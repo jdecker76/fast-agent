@@ -355,8 +355,9 @@ class IterativePlanner(LlmAgent):
         )
 
         # Generate final synthesis
-        plan_result.result = await self._planner_generate_str(result_prompt, request_params)
-        print(plan_result.result)
+        final_message = await self._planner_generate_str(result_prompt, request_params)
+        plan_result.result = final_message.last_text() or "No final message generated"
+        await self.show_assistant_message(final_message)
         return plan_result
 
     async def _execute_step(self, step: Step, previous_result: PlanResult) -> Any:
@@ -562,7 +563,7 @@ class IterativePlanner(LlmAgent):
 
     async def _planner_generate_str(
         self, message: str, request_params: RequestParams | None
-    ) -> str:
+    ) -> PromptMessageMultipart:
         """
         Generate string response from the orchestrator's own LLM.
 
@@ -578,5 +579,4 @@ class IterativePlanner(LlmAgent):
             role="user", content=[TextContent(type="text", text=message)]
         )
         assert self._llm, "LLM must be initialized before generating text"
-        response = await self._llm.generate([prompt], request_params)
-        return response.last_text() or ""
+        return await self._llm.generate([prompt], request_params)

@@ -70,7 +70,7 @@ class LlmDecorator(LlmAgentProtocol):
     def initialized(self) -> bool:
         """Check if the agent is initialized."""
         return self._initialized
-    
+
     @initialized.setter
     def initialized(self, value: bool) -> None:
         """Set the initialized state."""
@@ -152,7 +152,7 @@ class LlmDecorator(LlmAgentProtocol):
         Convenience method to generate and return a string directly
         """
         response = await self.generate(message)
-        return response.last_text()
+        return response.last_text() or ""
 
     async def generate(
         self,

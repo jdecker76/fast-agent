@@ -65,51 +65,51 @@ class LlmAgent(LlmDecorator):
         """
 
         # Determine display content based on stop reason
-        additional_message: Text = Text()
+        additional_message: Text | None = None
 
         match message.stop_reason:
             case LlmStopReason.END_TURN:
-                display_content = message.last_text() or "No content to display"
+                # No additional message needed for normal end turn
+                pass
 
             case LlmStopReason.MAX_TOKENS:
-                additional_message.append(
+                additional_message = Text(
                     "\n\nMaximum output tokens reached - generation stopped.",
                     style="dim red italic",
                 )
 
             case LlmStopReason.SAFETY:
-                additional_message.append(
+                additional_message = Text(
                     "\n\nContent filter activated - generation stopped.", style="dim red italic"
                 )
 
             case LlmStopReason.PAUSE:
-                additional_message.append(
+                additional_message = Text(
                     "\n\nLLM has requested a pause.", style="dim green italic"
                 )
 
             case LlmStopReason.STOP_SEQUENCE:
-                # Create a rich Text object with the actual content plus warning
-                additional_message.append(
+                additional_message = Text(
                     "\n\nStop Sequence activated - generation stopped.", style="dim red italic"
                 )
 
             case LlmStopReason.TOOL_USE:
                 if None is message.last_text():
-                    additional_message.append(
-                        "The assistant requested tool calls", "dim green italic"
+                    additional_message = Text(
+                        "The assistant requested tool calls", style="dim green italic"
                     )
 
             case _:
-                additional_message.append(
-                    f"\n\nGeneration stopped for an unhandled reason ({message.stop_reason or 'unknown'})",
-                    style="dim red italic",
-                )
+                if message.stop_reason:
+                    additional_message = Text(
+                        f"\n\nGeneration stopped for an unhandled reason ({message.stop_reason})",
+                        style="dim red italic",
+                    )
 
         message_text = message.last_text() or ""
-        display_content = Text(message_text).append(additional_message)
 
         await self.display.show_assistant_message(
-            display_content,
+            message_text,
             bottom_items=bottom_items,
             highlight_items=highlight_items,
             max_item_length=max_item_length,
@@ -117,6 +117,7 @@ class LlmAgent(LlmDecorator):
             model=self._llm.default_request_params.model
             if self._llm and hasattr(self._llm, "default_request_params")
             else None,
+            additional_message=additional_message,
         )
 
     def show_user_message(self, message: PromptMessageMultipart) -> None:

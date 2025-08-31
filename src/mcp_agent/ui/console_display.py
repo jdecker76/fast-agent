@@ -648,6 +648,7 @@ class ConsoleDisplay:
         max_item_length: int | None = None,
         name: str | None = None,
         model: str | None = None,
+        additional_message: Optional[Text] = None,
     ) -> None:
         """Display an assistant message in a formatted panel.
 
@@ -659,6 +660,7 @@ class ConsoleDisplay:
             title: Title for the message (default "ASSISTANT")
             name: Optional agent name
             model: Optional model name for right info
+            additional_message: Optional additional styled message to append
         """
         if not self.config or not self.config.logger.show_chat:
             return
@@ -679,10 +681,19 @@ class ConsoleDisplay:
         )
 
         # Handle mermaid diagrams separately (after the main message)
-        if isinstance(message_text, str):
-            diagrams = extract_mermaid_diagrams(message_text)
+        # Extract plain text if message_text is a Text object
+        plain_text = message_text
+        if isinstance(message_text, Text):
+            plain_text = message_text.plain
+
+        if isinstance(plain_text, str):
+            diagrams = extract_mermaid_diagrams(plain_text)
             if diagrams:
                 self._display_mermaid_diagrams(diagrams)
+
+        # Display additional message if provided
+        if additional_message:
+            console.console.print(additional_message, markup=self._markup)
 
     def _display_mermaid_diagrams(self, diagrams: List[MermaidDiagram]) -> None:
         """Display mermaid diagram links."""
