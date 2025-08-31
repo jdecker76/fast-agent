@@ -296,7 +296,7 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
 
     async def _openai_completion(
         self,
-        message: OpenAIMessage | None,
+        message: List[OpenAIMessage] | None,
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
     ) -> PromptMessageMultipart:
@@ -319,7 +319,7 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
 
         messages.extend(self.history.get(include_completion_history=request_params.use_history))
         if message is not None:
-            messages.append(message)
+            messages.extend(message)
 
         available_tools: List[ChatCompletionToolParam] | None = [
             {
@@ -465,25 +465,18 @@ class OpenAIAugmentedLLM(AugmentedLLM[ChatCompletionMessageParam, ChatCompletion
             # convert_to_openai now returns a list of messages
             converted.extend(OpenAIConverter.convert_to_openai(msg))
 
-        # TODO -- this looks like a defect from previous apply_prompt implementation.
         self.history.extend(converted, is_prompt=is_template)
 
         if "assistant" == last_message.role:
             return last_message
 
-        # For user messages: Convert and send for completion
-        # convert_to_openai returns a list of messages (tool results can generate multiple messages)
         converted_messages = OpenAIConverter.convert_to_openai(last_message)
-
         if not converted_messages:
             # Fallback for empty conversion
             converted_messages = [{"role": "user", "content": ""}]
 
-        # Add all converted messages to history - they will all be sent to OpenAI together
-        self.history.extend(converted_messages, is_prompt=False)
-
         # Call completion without additional messages (all messages are now in history)
-        return await self._openai_completion(None, request_params, tools)
+        return await self._openai_completion(converted_messages, request_params, tools)
 
     def _prepare_api_request(
         self, messages, tools: List[ChatCompletionToolParam] | None, request_params: RequestParams
