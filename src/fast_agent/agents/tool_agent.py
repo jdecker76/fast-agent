@@ -1,7 +1,7 @@
-from typing import Callable, List
+from typing import Any, Callable, Dict, List
 
 from mcp.server.fastmcp.tools.base import Tool as FastMCPTool
-from mcp.types import CallToolResult, Tool
+from mcp.types import CallToolResult, ListToolsResult, Tool
 
 from fast_agent.agents.llm_agent import LlmAgent
 from fast_agent.context import Context
@@ -72,7 +72,7 @@ class ToolAgent(LlmAgent):
         Messages are already normalized to List[PromptMessageMultipart].
         """
         if tools is None:
-            tools = self._tool_schemas
+            tools = (await self.list_tools()).tools
 
         iterations = 0
 
@@ -106,43 +106,48 @@ class ToolAgent(LlmAgent):
 
         tool_results: dict[str, CallToolResult] = {}
         # TODO -- use gather() for parallel results, update display
+        available_tools = [t.name for t in (await self.list_tools()).tools]
         for correlation_id, tool_request in request.tool_calls.items():
             tool_name = tool_request.params.name
             tool_args = tool_request.params.arguments or {}
             self.display.show_tool_call(
                 name=self.name,
                 tool_args=tool_args,
-                bottom_items=list(self._execution_tools.keys()),
+                bottom_items=available_tools,
                 tool_name=tool_name,
                 max_item_length=12,
             )
 
-            fast_tool = self._execution_tools.get(tool_name)
-            if fast_tool:
-                try:
-                    # Use FastMCP's run method without convert_result to get raw output
-                    result = await fast_tool.run(tool_args, convert_result=False)
-
-                    # Always wrap result in CallToolResult
-                    tool_results[correlation_id] = CallToolResult(
-                        content=[text_content(str(result))],
-                        isError=False,
-                    )
-
-                    logger.debug(f"Tool {tool_name} executed successfully")
-                except Exception as e:
-                    logger.error(f"Tool {tool_name} failed: {e}")
-                    tool_results[correlation_id] = CallToolResult(
-                        content=[text_content(f"Error: {str(e)}")],
-                        isError=True,
-                    )
-            else:
-                logger.warning(f"Unknown tool: {tool_name}")
-                tool_results[correlation_id] = CallToolResult(
-                    content=[text_content(f"Unknown tool: {tool_name}")],
-                    isError=True,
-                )
-
-            self.display.show_tool_result(name=self.name, result=tool_results[correlation_id])
+            # Delegate to call_tool for execution (overridable by subclasses)
+            result = await self.call_tool(tool_name, tool_args)
+            tool_results[correlation_id] = result
+            self.display.show_tool_result(name=self.name, result=result)
 
         return PromptMessageMultipart(role="user", tool_results=tool_results)
+
+    async def list_tools(self) -> ListToolsResult:
+        """Return available tools for this agent. Overridable by subclasses."""
+        return ListToolsResult(tools=list(self._tool_schemas))
+
+    async def call_tool(self, name: str, arguments: Dict[str, Any] | None = None) -> CallToolResult:
+        """Execute a tool by name using local FastMCP tools. Overridable by subclasses."""
+        fast_tool = self._execution_tools.get(name)
+        if not fast_tool:
+            logger.warning(f"Unknown tool: {name}")
+            return CallToolResult(
+                content=[text_content(f"Unknown tool: {name}")],
+                isError=True,
+            )
+
+        try:
+            result = await fast_tool.run(arguments or {}, convert_result=False)
+            return CallToolResult(
+                content=[text_content(str(result))],
+                isError=False,
+            )
+        except Exception as e:
+            logger.error(f"Tool {name} failed: {e}")
+            return CallToolResult(
+                content=[text_content(f"Error: {str(e)}")],
+                isError=True,
+            )

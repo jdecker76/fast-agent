@@ -6,8 +6,6 @@ from fast_agent.config import Settings
 from fast_agent.context import Context, cleanup_context, initialize_context
 from fast_agent.event_progress import ProgressAction
 from mcp_agent.executor.workflow_signal import SignalWaitCallback
-from mcp_agent.human_input.handler import console_input_callback
-from mcp_agent.human_input.types import HumanInputCallback
 from mcp_agent.logging.logger import get_logger
 
 R = TypeVar("R")
@@ -22,7 +20,7 @@ class Core:
         self,
         name: str = "fast-agent",
         settings: Optional[Settings] | str = None,
-        human_input_callback: Optional[HumanInputCallback] = console_input_callback,
+        human_input_callback: Optional[object] = None,
         signal_notification: Optional[SignalWaitCallback] = None,
     ) -> None:
         """
@@ -31,7 +29,7 @@ class Core:
             name:
             settings: If unspecified, the settings are loaded from fastagent.config.yaml.
                 If this is a string, it is treated as the path to the config file to load.
-            human_input_callback: Callback for handling human input
+            human_input_callback: Deprecated; no longer used (FormSpec tool handles elicitation)
             signal_notification: Callback for getting notified on workflow signals/events.
         """
         self.name = name
@@ -75,7 +73,8 @@ class Core:
         self._context = await initialize_context(self._config_or_path, store_globally=True)
 
         # Set the properties that were passed in the constructor
-        self._context.human_input_handler = self._human_input_callback
+        # Deprecated: human_input_handler no longer used
+        self._context.human_input_handler = None
         self._context.signal_notification = self._signal_notification
         # Note: upstream_session support removed for now
 

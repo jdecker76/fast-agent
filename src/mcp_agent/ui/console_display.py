@@ -14,8 +14,6 @@ from mcp_agent.core.mermaid_utils import (
     extract_mermaid_diagrams,
 )
 
-# Constants
-HUMAN_INPUT_TOOL_NAME = "__human_input__"
 CODE_STYLE = "native"
 
 
@@ -207,17 +205,28 @@ class ConsoleDisplay:
             if max_item_length:
                 highlight_items = self._shorten_items(highlight_items, max_item_length)
 
-            # Format the metadata with highlighting
+            # Format the metadata with highlighting, clipped to available width
+            # Compute available width for the metadata segment (excluding the fixed prefix/suffix)
+            total_width = console.console.size.width
+            prefix = Text("─| ")
+            prefix.stylize("dim")
+            suffix = Text(" |")
+            suffix.stylize("dim")
+            available = max(0, total_width - prefix.cell_len - suffix.cell_len)
+
             metadata_text = self._format_bottom_metadata(
-                display_items, highlight_items, config["highlight_color"]
+                display_items,
+                highlight_items,
+                config["highlight_color"],
+                max_width=available,
             )
 
             # Create the separator line with metadata
             line = Text()
-            line.append("─| ", style="dim")
+            line.append_text(prefix)
             line.append_text(metadata_text)
-            line.append(" |", style="dim")
-            remaining = console.console.size.width - line.cell_len
+            line.append_text(suffix)
+            remaining = total_width - line.cell_len
             if remaining > 0:
                 line.append("─" * remaining, style="dim")
             console.console.print(line, markup=self._markup)
@@ -449,7 +458,11 @@ class ConsoleDisplay:
         return [item[: max_length - 1] + "…" if len(item) > max_length else item for item in items]
 
     def _format_bottom_metadata(
-        self, items: List[str], highlight_items: List[str], highlight_color: str
+        self,
+        items: List[str],
+        highlight_items: List[str],
+        highlight_color: str,
+        max_width: int | None = None,
     ) -> Text:
         """
         Format a list of items with pipe separators and highlighting.
@@ -464,25 +477,44 @@ class ConsoleDisplay:
         """
         formatted = Text()
 
-        for i, item in enumerate(items):
-            if i > 0:
-                formatted.append(" | ", style="dim")
+        def will_fit(next_segment: Text) -> bool:
+            if max_width is None:
+                return True
+            # projected length if we append next_segment
+            return formatted.cell_len + next_segment.cell_len <= max_width
 
-            # Check if this item should be highlighted
-            # For tools, we might need to check both the full name and the shortened version
+        for i, item in enumerate(items):
+            sep = Text(" | ", style="dim") if i > 0 else Text("")
+
+            # Prepare item text with potential highlighting
             should_highlight = False
             if item in highlight_items:
                 should_highlight = True
             else:
-                # Check if any highlight item matches the beginning of this item
-                # (useful for namespaced tools)
                 for highlight in highlight_items:
                     if item.startswith(highlight) or highlight.endswith(item):
                         should_highlight = True
                         break
 
-            style = highlight_color if should_highlight else "dim"
-            formatted.append(item, style)
+            item_text = Text(item, style=(highlight_color if should_highlight else "dim"))
+
+            # Check if separator + item fits in available width
+            if not will_fit(sep + item_text):
+                # If nothing has been added yet and the item itself is too long,
+                # leave space for an ellipsis and stop.
+                if formatted.cell_len == 0 and max_width is not None and max_width > 1:
+                    # show truncated indicator only
+                    formatted.append("…", style="dim")
+                else:
+                    # Indicate there are more items but avoid wrapping
+                    if max_width is None or formatted.cell_len < max_width:
+                        formatted.append(" …", style="dim")
+                break
+
+            # Append separator and item
+            if sep.plain:
+                formatted.append_text(sep)
+            formatted.append_text(item_text)
 
         return formatted
 

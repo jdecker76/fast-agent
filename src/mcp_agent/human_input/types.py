@@ -1,4 +1,4 @@
-from typing import Any, AsyncIterator, Protocol
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -38,20 +38,3 @@ class HumanInputResponse(BaseModel):
 
     metadata: dict[str, Any] | None = None
     """Additional response payload"""
-
-
-class HumanInputCallback(Protocol):
-    """Protocol for callbacks that handle human input requests."""
-
-    async def __call__(self, request: HumanInputRequest) -> AsyncIterator[HumanInputResponse]:
-        """
-        Handle a human input request.
-
-        Args:
-            request: The input request to handle
-
-        Returns:
-            AsyncIterator yielding responses as they come in
-            TODO: saqadri - Keep it simple and just return HumanInputResponse?
-        """
-        ...

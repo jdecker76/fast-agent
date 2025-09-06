@@ -24,7 +24,6 @@ from mcp_agent.mcp.helpers.content_helpers import (
     is_text_content,
 )
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
-from mcp_agent.tools.tool_definition import ToolDefinition
 
 
 class GoogleConverter:

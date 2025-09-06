@@ -280,10 +280,15 @@ class ElicitationForm:
             ]
         )
 
-        # Create dialog frame with title
+        # Choose dialog title: prefer schema.title if provided
+        dialog_title = self.schema.get("title") if isinstance(self.schema, dict) else None
+        if not dialog_title or not isinstance(dialog_title, str):
+            dialog_title = "Elicitation Request"
+
+        # Create dialog frame with dynamic title
         dialog = Frame(
             body=full_content,
-            title="Elicitation Request",
+            title=dialog_title,
             style="class:dialog",
         )
 

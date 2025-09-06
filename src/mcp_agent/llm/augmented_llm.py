@@ -51,9 +51,6 @@ if TYPE_CHECKING:
     from fast_agent.context import Context
 
 
-# TODO -- move this to a constant
-HUMAN_INPUT_TOOL_NAME = "__human_input__"
-
 # Context variable for storing MCP metadata
 _mcp_metadata_var: ContextVar[Dict[str, Any] | None] = ContextVar("mcp_metadata", default=None)
 

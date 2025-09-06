@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, TypeVar
 
 from fast_agent.agents.mcp_agent import McpAgent
 from mcp_agent.core.agent_types import AgentConfig
-from mcp_agent.human_input.types import HumanInputCallback
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.interfaces import AugmentedLLMProtocol
 
@@ -35,7 +34,6 @@ class Agent(McpAgent):
         self,
         config: AgentConfig,  # Can be AgentConfig or backward compatible str name
         connection_persistence: bool = True,
-        human_input_callback: Optional[HumanInputCallback] = None,
         context: Optional["Context"] = None,
         **kwargs: Dict[str, Any],
     ) -> None:
@@ -43,7 +41,6 @@ class Agent(McpAgent):
         super().__init__(
             config=config,
             connection_persistence=connection_persistence,
-            human_input_callback=human_input_callback,
             context=context,
             **kwargs,
         )

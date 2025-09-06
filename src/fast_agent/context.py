@@ -32,10 +32,8 @@ from mcp_agent.logging.transport import create_transport
 
 if TYPE_CHECKING:
     from mcp_agent.executor.workflow_signal import SignalWaitCallback
-    from mcp_agent.human_input.types import HumanInputCallback
 else:
     # Runtime placeholders for the types
-    HumanInputCallback = Any
     SignalWaitCallback = Any
 
 logger = get_logger(__name__)
@@ -49,7 +47,7 @@ class Context(BaseModel):
 
     config: Optional[Settings] = None
     executor: Optional[Executor] = None
-    human_input_handler: Optional[HumanInputCallback] = None
+    human_input_handler: Optional[Any] = None
     signal_notification: Optional[SignalWaitCallback] = None
 
     # Registries

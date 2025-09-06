@@ -7,7 +7,6 @@ and delegates operations to an attached AugmentedLLMProtocol instance.
 
 import asyncio
 import fnmatch
-import uuid
 from abc import ABC
 from typing import (
     TYPE_CHECKING,
@@ -38,18 +37,17 @@ from pydantic import BaseModel
 from fast_agent.agents.llm_agent import DEFAULT_CAPABILITIES
 from fast_agent.agents.tool_agent import ToolAgent
 from mcp_agent.core.agent_types import AgentConfig, AgentType
+from mcp_agent.core.constants import HUMAN_INPUT_TOOL_NAME
 from mcp_agent.core.exceptions import PromptExitError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.core.request_params import RequestParams
-from mcp_agent.human_input.types import (
-    HUMAN_INPUT_SIGNAL_NAME,
-    HumanInputCallback,
-    HumanInputRequest,
-    HumanInputResponse,
+from mcp_agent.human_input.elicitation_tool import (
+    get_elicitation_tool,
+    run_elicitation_form,
 )
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.content_helpers import normalize_to_multipart_list
-from mcp_agent.mcp.interfaces import AugmentedLLMProtocol, LLMFactoryProtocol
+from mcp_agent.mcp.interfaces import AugmentedLLMProtocol
 from mcp_agent.mcp.mcp_aggregator import MCPAggregator
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
@@ -59,7 +57,6 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 # Define a TypeVar for AugmentedLLM and its subclasses
 LLM = TypeVar("LLM", bound=AugmentedLLMProtocol)
 
-HUMAN_INPUT_TOOL_NAME = "__human_input__"
 if TYPE_CHECKING:
     from fast_agent.context import Context
     from mcp_agent.llm.usage_tracking import UsageAccumulator
@@ -77,7 +74,7 @@ class McpAgent(ABC, ToolAgent):
         self,
         config: AgentConfig,
         connection_persistence: bool = True,
-        human_input_callback: HumanInputCallback | None = None,
+        # legacy human_input_callback removed
         context: "Context | None" = None,
         **kwargs,
     ) -> None:
@@ -107,12 +104,11 @@ class McpAgent(ABC, ToolAgent):
         # set with the "attach" method
         self._llm: AugmentedLLMProtocol | None = None
 
-        if not self.config.human_input:
-            self.human_input_callback = None
-        else:
-            self.human_input_callback: Optional[HumanInputCallback] = human_input_callback
-            if not human_input_callback and context and hasattr(context, "human_input_handler"):
-                self.human_input_callback = context.human_input_handler
+        # Instantiate human input tool once, so availability is construction-based
+        try:
+            self._human_input_tool: Tool | None = get_elicitation_tool()
+        except Exception:
+            self._human_input_tool = None
 
     async def __aenter__(self):
         """Initialize the agent and its MCP aggregator."""
@@ -130,55 +126,7 @@ class McpAgent(ABC, ToolAgent):
         """
         await self.__aenter__()
 
-    async def attach_llm(
-        self,
-        llm_factory: LLMFactoryProtocol,
-        model: Optional[str] = None,
-        request_params: Optional[RequestParams] = None,
-        **additional_kwargs,
-    ) -> AugmentedLLMProtocol:
-        """
-        Create and attach an LLM instance to this agent.
-
-        Parameters have the following precedence (highest to lowest):
-        1. Explicitly passed parameters to this method
-        2. Agent's default_request_params
-        3. LLM's default values
-
-        Args:
-            llm_factory: A factory function that constructs an AugmentedLLM
-            model: Optional model name override
-            request_params: Optional request parameters override
-            **additional_kwargs: Additional parameters passed to the LLM constructor
-
-        Returns:
-            The created LLM instance
-        """
-        # Start with agent's default params
-        effective_params = (
-            self._default_request_params.model_copy() if self._default_request_params else None
-        )
-
-        # Override with explicitly passed request_params
-        if request_params:
-            if effective_params:
-                # Update non-None values
-                for k, v in request_params.model_dump(exclude_unset=True).items():
-                    if v is not None:
-                        setattr(effective_params, k, v)
-            else:
-                effective_params = request_params
-
-        # Override model if explicitly specified
-        if model and effective_params:
-            effective_params.model = model
-
-        # Create the LLM instance
-        self._llm = llm_factory(
-            agent=self, request_params=effective_params, context=self._context, **additional_kwargs
-        )
-
-        return self._llm
+    # Inherit attach_llm from LlmDecorator (merges params and constructs the LLM)
 
     async def shutdown(self) -> None:
         """
@@ -233,71 +181,7 @@ class McpAgent(ABC, ToolAgent):
             The agent's response as a string
         """
         response = await self.generate(message, request_params)
-        return response.last_text()
-
-    async def request_human_input(self, request: HumanInputRequest) -> str:
-        """
-        Request input from a human user. Pauses the workflow until input is received.
-
-        Args:
-            request: The human input request
-
-        Returns:
-            The input provided by the human
-
-        Raises:
-            TimeoutError: If the timeout is exceeded
-        """
-        if not self.human_input_callback:
-            raise ValueError("Human input callback not set")
-
-        # Generate a unique ID for this request to avoid signal collisions
-        request_id = f"{HUMAN_INPUT_SIGNAL_NAME}_{self._name}_{uuid.uuid4()}"
-        request.request_id = request_id
-        # Use metadata as a dictionary to pass agent name
-        request.metadata = {"agent_name": self._name}
-        self.logger.debug("Requesting human input:", data=request)
-
-        if not self.executor:
-            raise ValueError("No executor available")
-
-        async def call_callback_and_signal() -> None:
-            try:
-                assert self.human_input_callback is not None
-                user_input = await self.human_input_callback(request)
-
-                self.logger.debug("Received human input:", data=user_input)
-                await self.executor.signal(signal_name=request_id, payload=user_input)
-            except PromptExitError as e:
-                # Propagate the exit error through the signal system
-                self.logger.info("User requested to exit session")
-                await self.executor.signal(
-                    signal_name=request_id,
-                    payload={"exit_requested": True, "error": str(e)},
-                )
-            except Exception as e:
-                await self.executor.signal(
-                    request_id, payload=f"Error getting human input: {str(e)}"
-                )
-
-        asyncio.create_task(call_callback_and_signal())
-
-        self.logger.debug("Waiting for human input signal")
-
-        # Wait for signal (workflow is paused here)
-        result = await self.executor.wait_for_signal(
-            signal_name=request_id,
-            request_id=request_id,
-            workflow_id=request.workflow_id,
-            signal_description=request.description or request.prompt,
-            timeout_seconds=request.timeout_seconds,
-            signal_type=HumanInputResponse,
-        )
-
-        if isinstance(result, dict) and result.get("exit_requested", False):
-            raise PromptExitError(result.get("error", "User requested to exit FastAgent session"))
-        self.logger.debug("Received human input signal", data=result)
-        return result
+        return response.last_text() or ""
 
     def _matches_pattern(self, name: str, pattern: str, server_name: str) -> bool:
         """
@@ -349,20 +233,9 @@ class McpAgent(ABC, ToolAgent):
                             break
             result.tools = filtered_tools
 
-        if not self.human_input_callback:
-            return result
-
-        # Add a human_input_callback as a tool
-        from mcp.server.fastmcp.tools import Tool as FastTool
-
-        human_input_tool: FastTool = FastTool.from_function(self.request_human_input)
-        result.tools.append(
-            Tool(
-                name=HUMAN_INPUT_TOOL_NAME,
-                description=human_input_tool.description,
-                inputSchema=human_input_tool.parameters,
-            )
-        )
+        # Append human input tool if available
+        if getattr(self, "_human_input_tool", None):
+            result.tools.append(self._human_input_tool)
 
         return result
 
@@ -378,7 +251,7 @@ class McpAgent(ABC, ToolAgent):
             Result of the tool call
         """
         if name == HUMAN_INPUT_TOOL_NAME:
-            # Call the human input tool
+            # Call the elicitation-backed human input tool
             return await self._call_human_input_tool(arguments)
         else:
             return await self._aggregator.call_tool(name, arguments)
@@ -387,41 +260,34 @@ class McpAgent(ABC, ToolAgent):
         self, arguments: Dict[str, Any] | None = None
     ) -> CallToolResult:
         """
-        Handle human input request via tool calling.
+        Handle human input via an elicitation form.
 
-        Args:
-            arguments: Tool arguments
+        Expected inputs:
+        - Either an object with optional 'message' and a 'schema' JSON Schema (object), or
+        - The JSON Schema (object) itself as the arguments.
 
-        Returns:
-            Result of the human input request
+        Constraints:
+        - No more than 7 top-level properties are allowed in the schema.
         """
-        # Handle human input request
         try:
-            # Make sure arguments is not None
-            if arguments is None:
-                arguments = {}
-
-            # Extract request data
-            request_data = arguments.get("request")
-
-            # Handle both string and dict request formats
-            if isinstance(request_data, str):
-                request = HumanInputRequest(prompt=request_data)
-            elif isinstance(request_data, dict):
-                request = HumanInputRequest(**request_data)
-            else:
-                # Fallback for invalid or missing request data
-                request = HumanInputRequest(prompt="Please provide input:")
-
-            result = await self.request_human_input(request=request)
-
-            # Use response attribute if available, otherwise use the result directly
-            response_text = (
-                result.response if isinstance(result, HumanInputResponse) else str(result)
-            )
-
+            # Run via shared tool runner
+            resp_text = await run_elicitation_form(arguments, agent_name=self._name)
+            if resp_text == "__DECLINED__":
+                return CallToolResult(
+                    isError=False,
+                    content=[TextContent(type="text", text="The Human declined the input request")],
+                )
+            if resp_text in ("__CANCELLED__", "__DISABLE_SERVER__"):
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type="text", text="The Human cancelled the input request")
+                    ],
+                )
+            # Success path: return the (JSON) response as-is
             return CallToolResult(
-                content=[TextContent(type="text", text=f"Human response: {response_text}")]
+                isError=False,
+                content=[TextContent(type="text", text=resp_text)],
             )
 
         except PromptExitError:
@@ -440,7 +306,6 @@ class McpAgent(ABC, ToolAgent):
             import traceback
 
             print(f"Error in _call_human_input_tool: {traceback.format_exc()}")
-
             return CallToolResult(
                 isError=True,
                 content=[TextContent(type="text", text=f"Error requesting human input: {str(e)}")],
@@ -629,47 +494,6 @@ class McpAgent(ABC, ToolAgent):
 
         response: PromptMessageMultipart = await self.generate([prompt], None)
         return response.first_text()
-
-    async def generate_impl(
-        self,
-        messages: List[PromptMessageMultipart],
-        request_params: RequestParams | None = None,
-        tools: List[Tool] | None = None,
-    ) -> PromptMessageMultipart:
-        """
-        Override ToolAgent's generate_impl to provide MCP tools dynamically.
-        """
-        if tools is None:
-            # Get tools from our aggregator instead of ToolAgent's _tool_schemas
-            tools_result = await self.list_tools()
-            tools = tools_result.tools
-
-        return await super().generate_impl(messages, request_params, tools=tools)
-
-    async def _generate_impl(
-        self,
-        normalized_messages: List[PromptMessageMultipart],
-        request_params: RequestParams | None = None,
-        tools: List[Tool] | None = None,
-    ) -> PromptMessageMultipart:
-        """
-        Default implementation for regular agents - delegates to attached LLM.
-
-        Workflow agents should override this method to implement custom logic.
-
-        Args:
-            normalized_messages: Already normalized list of PromptMessageMultipart
-            request_params: Optional parameters to configure the request
-            tools: Optional tools to pass to the LLM
-
-        Returns:
-            The LLM's response as a PromptMessageMultipart
-        """
-        assert self._llm, (
-            "No LLM attached to agent. Workflow agents should override _generate_impl()."
-        )
-        with self._tracer.start_as_current_span(f"Agent: '{self._name}' generate"):
-            return await self._llm.generate(normalized_messages, request_params, tools=tools)
 
     async def run_tools(self, request: PromptMessageMultipart) -> PromptMessageMultipart:
         """Override ToolAgent's run_tools to use MCP tools via aggregator."""
@@ -886,24 +710,15 @@ class McpAgent(ABC, ToolAgent):
                         filtered_result[server] = filtered_tools
             result = filtered_result
 
-        # Add human input tool to a special server if human input is configured
-        if self.human_input_callback:
-            from mcp.server.fastmcp.tools import Tool as FastTool
-
-            human_input_tool: FastTool = FastTool.from_function(self.request_human_input)
+        # Add elicitation-backed human input tool to a special server if available
+        if getattr(self, "_human_input_tool", None):
             special_server_name = "__human_input__"
 
             # If the special server doesn't exist in result, create it
             if special_server_name not in result:
                 result[special_server_name] = []
 
-            result[special_server_name].append(
-                Tool(
-                    name=HUMAN_INPUT_TOOL_NAME,
-                    description=human_input_tool.description,
-                    inputSchema=human_input_tool.parameters,
-                )
-            )
+            result[special_server_name].append(self._human_input_tool)
 
         return result
 
