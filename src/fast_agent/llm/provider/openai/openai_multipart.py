@@ -18,7 +18,7 @@ from openai.types.chat import (
     ChatCompletionMessageParam,
 )
 
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from fast_agent.types import PromptMessageExtended
 
 
 def openai_to_extended(

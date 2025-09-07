@@ -8,7 +8,7 @@ from typing import Dict, List, Literal, Union
 from mcp import CallToolRequest
 from mcp.types import ContentBlock, PromptMessage
 
-from fast_agent.mcp.prompt_message_extended import LlmStopReason, PromptMessageExtended
+from fast_agent.types import LlmStopReason, PromptMessageExtended
 
 # Import our content helper functions
 from .mcp_content import Assistant, MCPPrompt, User

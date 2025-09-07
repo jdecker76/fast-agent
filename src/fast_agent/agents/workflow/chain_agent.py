@@ -13,8 +13,7 @@ from mcp.types import TextContent
 from fast_agent.agents.agent_types import AgentConfig, AgentType
 from fast_agent.agents.llm_agent import LlmAgent
 from fast_agent.interfaces import ModelT
-from fast_agent.llm.request_params import RequestParams
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from fast_agent.types import PromptMessageExtended, RequestParams
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.logging.logger import get_logger
 

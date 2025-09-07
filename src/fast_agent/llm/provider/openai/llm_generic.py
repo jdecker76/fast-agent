@@ -2,7 +2,7 @@ import os
 
 from fast_agent.llm.provider.openai.llm_openai import OpenAILLM
 from fast_agent.llm.provider_types import Provider
-from fast_agent.llm.request_params import RequestParams
+from fast_agent.types import RequestParams
 
 DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434/v1"
 DEFAULT_OLLAMA_MODEL = "llama3.2:latest"

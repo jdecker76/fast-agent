@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 from mcp.client.session import ElicitationFnT
 
 # Forward imports to avoid circular dependencies
-from fast_agent.llm.request_params import RequestParams
+from fast_agent.types import RequestParams
 
 
 class AgentType(Enum):

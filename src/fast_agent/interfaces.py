@@ -24,9 +24,8 @@ from pydantic import BaseModel
 
 from fast_agent.agents.agent_types import AgentType
 from fast_agent.llm.provider_types import Provider
-from fast_agent.llm.request_params import RequestParams
 from fast_agent.llm.usage_tracking import UsageAccumulator
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from fast_agent.types import PromptMessageExtended, RequestParams
 
 __all__ = [
     "FastAgentLLMProtocol",

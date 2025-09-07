@@ -22,7 +22,7 @@ from fast_agent.interfaces import (
     ModelFactoryFunctionProtocol,
 )
 from fast_agent.llm.model_factory import ModelFactory
-from fast_agent.llm.request_params import RequestParams
+from fast_agent.types import RequestParams
 from mcp_agent.agents.agent import Agent, AgentConfig
 from mcp_agent.core.exceptions import AgentConfigError
 from mcp_agent.core.validation import get_dependencies_groups

@@ -32,7 +32,7 @@ from fast_agent.mcp.helpers.content_helpers import (
     is_resource_content,
     is_text_content,
 )
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from fast_agent.types import PromptMessageExtended
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.mime_utils import (
     guess_mime_type,

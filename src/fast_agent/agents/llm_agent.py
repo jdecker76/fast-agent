@@ -17,8 +17,7 @@ from rich.text import Text
 from fast_agent.agents.agent_types import AgentConfig
 from fast_agent.agents.llm_decorator import LlmDecorator
 from fast_agent.context import Context
-from fast_agent.llm.request_params import RequestParams
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from fast_agent.types import PromptMessageExtended, RequestParams
 from fast_agent.types.llm_stop_reason import LlmStopReason
 from fast_agent.ui.console_display import ConsoleDisplay
 

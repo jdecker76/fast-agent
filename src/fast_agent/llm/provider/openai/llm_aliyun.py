@@ -1,7 +1,7 @@
 from fast_agent.llm.provider.openai.llm_groq import GroqLLM
 from fast_agent.llm.provider.openai.llm_openai import OpenAILLM
 from fast_agent.llm.provider_types import Provider
-from fast_agent.llm.request_params import RequestParams
+from fast_agent.types import RequestParams
 
 ALIYUN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 DEFAULT_QWEN_MODEL = "qwen-turbo"

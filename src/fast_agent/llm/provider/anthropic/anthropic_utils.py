@@ -15,7 +15,7 @@ from mcp.types import (
     TextResourceContents,
 )
 
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from fast_agent.types import PromptMessageExtended
 
 
 # TODO -- only used for saving, but this will be driven directly from PromptMessages

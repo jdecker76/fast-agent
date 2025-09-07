@@ -4,7 +4,7 @@ from openai.types.chat import ChatCompletionMessageParam, ChatCompletionSystemMe
 
 from fast_agent.llm.provider.openai.llm_openai import OpenAILLM
 from fast_agent.llm.provider_types import Provider
-from fast_agent.llm.request_params import RequestParams
+from fast_agent.types import RequestParams
 
 
 class TensorZeroOpenAILLM(OpenAILLM):

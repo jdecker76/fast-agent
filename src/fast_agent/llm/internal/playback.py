@@ -6,10 +6,9 @@ from mcp.types import PromptMessage
 from fast_agent.interfaces import ModelT
 from fast_agent.llm.internal.passthrough import PassthroughLLM
 from fast_agent.llm.provider_types import Provider
-from fast_agent.llm.request_params import RequestParams
 from fast_agent.llm.usage_tracking import create_turn_usage_from_messages
 from fast_agent.mcp.helpers.content_helpers import normalize_to_extended_list
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from fast_agent.types import PromptMessageExtended, RequestParams
 from mcp_agent.core.exceptions import ModelConfigError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.mcp.prompts.prompt_helpers import MessageContent

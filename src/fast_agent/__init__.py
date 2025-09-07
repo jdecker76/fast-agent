@@ -24,10 +24,9 @@ from fast_agent.config import (
     TensorZeroSettings,
     XAISettings,
 )
-from fast_agent.llm.request_params import RequestParams
 
 # Type definitions and enums (safe - no dependencies)
-from fast_agent.types import LlmStopReason
+from fast_agent.types import LlmStopReason, RequestParams
 
 
 def __getattr__(name: str):

@@ -29,7 +29,7 @@ from fast_agent.agents.workflow.iterative_planner import ITERATIVE_PLAN_SYSTEM_P
 from fast_agent.agents.workflow.router_agent import (
     ROUTING_SYSTEM_INSTRUCTION,
 )
-from fast_agent.llm.request_params import RequestParams
+from fast_agent.types import RequestParams
 from mcp_agent.agents.agent import AgentConfig
 
 # Type variables for the decorated function

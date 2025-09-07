@@ -67,7 +67,7 @@ from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.prompts.prompt_load import load_prompt_multipart
 
 if TYPE_CHECKING:
-    from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+    from fast_agent.types import PromptMessageExtended
     from mcp_agent.agents.agent import Agent
 
 F = TypeVar("F", bound=Callable[..., Any])  # For decorated functions

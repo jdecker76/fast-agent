@@ -7,10 +7,9 @@ from fast_agent.agents.agent_types import AgentConfig
 from fast_agent.agents.llm_agent import LlmAgent
 from fast_agent.constants import HUMAN_INPUT_TOOL_NAME
 from fast_agent.context import Context
-from fast_agent.llm.request_params import RequestParams
 from fast_agent.mcp.helpers.content_helpers import text_content
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.tools.elicitation import get_elicitation_fastmcp_tool
+from fast_agent.types import PromptMessageExtended, RequestParams
 from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.logging.logger import get_logger
 

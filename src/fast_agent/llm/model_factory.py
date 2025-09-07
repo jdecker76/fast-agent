@@ -22,7 +22,7 @@ from fast_agent.llm.provider.openai.llm_openrouter import OpenRouterLLM
 from fast_agent.llm.provider.openai.llm_tensorzero_openai import TensorZeroOpenAILLM
 from fast_agent.llm.provider.openai.llm_xai import XAILLM
 from fast_agent.llm.provider_types import Provider
-from fast_agent.llm.request_params import RequestParams
+from fast_agent.types import RequestParams
 from mcp_agent.agents.agent import Agent
 from mcp_agent.core.exceptions import ModelConfigError
 

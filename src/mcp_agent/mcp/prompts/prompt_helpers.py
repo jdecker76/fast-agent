@@ -17,7 +17,7 @@ from mcp.types import (
 # Forward reference for PromptMessageExtended, actual import happens at runtime
 PromptMessageExtendedType = Union[object]  # Will be replaced with actual type
 try:
-    from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+    from fast_agent.types import PromptMessageExtended
 
     PromptMessageExtendedType = PromptMessageExtended
 except ImportError:

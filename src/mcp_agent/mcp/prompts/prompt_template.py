@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Literal, Optional, Set
 
 from pydantic import BaseModel, field_validator
 
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from fast_agent.types import PromptMessageExtended
 from mcp.types import (
     EmbeddedResource,
     TextContent,

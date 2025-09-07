@@ -22,8 +22,8 @@ from rich.console import Console
 from rich.table import Table
 
 from fast_agent.agents.agent_types import AgentType
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.progress_display import progress_display
+from fast_agent.types import PromptMessageExtended
 from fast_agent.ui.enhanced_prompt import (
     _display_agent_info_helper,
     get_argument_input,
@@ -620,7 +620,7 @@ class InteractivePrompt:
                     return
 
                 # Convert to multipart format
-                from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+                from fast_agent.types import PromptMessageExtended
 
                 multipart_messages = PromptMessageExtended.from_get_prompt_result(prompt_result)
 

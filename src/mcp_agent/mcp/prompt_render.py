@@ -11,7 +11,7 @@ from fast_agent.mcp.helpers.content_helpers import (
     is_resource_content,
     is_text_content,
 )
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from fast_agent.types import PromptMessageExtended
 from mcp.types import BlobResourceContents, TextResourceContents
 
 

@@ -20,8 +20,7 @@ from fast_agent.agents.workflow.orchestrator_models import (
     format_step_result_text,
 )
 from fast_agent.interfaces import LlmAgentProtocol, ModelT
-from fast_agent.llm.request_params import RequestParams
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from fast_agent.types import PromptMessageExtended, RequestParams
 from mcp_agent.core.exceptions import AgentConfigError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.logging.logger import get_logger

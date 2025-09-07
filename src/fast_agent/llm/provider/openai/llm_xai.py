@@ -2,7 +2,7 @@ import os
 
 from fast_agent.llm.provider.openai.llm_openai import OpenAILLM
 from fast_agent.llm.provider_types import Provider
-from fast_agent.llm.request_params import RequestParams
+from fast_agent.types import RequestParams
 
 XAI_BASE_URL = "https://api.x.ai/v1"
 DEFAULT_XAI_MODEL = "grok-3"

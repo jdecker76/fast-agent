@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List, Literal
 
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from fast_agent.types import PromptMessageExtended
 from mcp.server.fastmcp.prompts.base import (
     AssistantMessage,
     Message,

@@ -16,7 +16,7 @@ from fast_agent.llm.provider.openai.multipart_converter_openai import OpenAIConv
 from fast_agent.llm.provider.openai.openai_multipart import (
     openai_to_extended,
 )
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from fast_agent.types import PromptMessageExtended
 
 
 def openai_message_to_prompt_message_multipart(

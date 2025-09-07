@@ -1,6 +1,6 @@
 import warnings
 
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from fast_agent.types import PromptMessageExtended
 
 
 class PromptMessageMultipart(PromptMessageExtended):

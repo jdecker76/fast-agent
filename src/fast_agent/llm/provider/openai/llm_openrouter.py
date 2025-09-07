@@ -2,7 +2,7 @@ import os
 
 from fast_agent.llm.provider.openai.llm_openai import OpenAILLM
 from fast_agent.llm.provider_types import Provider
-from fast_agent.llm.request_params import RequestParams
+from fast_agent.types import RequestParams
 
 DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 # No single default model for OpenRouter, users must specify full path

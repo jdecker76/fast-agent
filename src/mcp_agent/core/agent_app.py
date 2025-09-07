@@ -9,9 +9,8 @@ from mcp.types import GetPromptResult, PromptMessage
 from rich import print as rich_print
 
 from fast_agent.agents.agent_types import AgentType
-from fast_agent.llm.request_params import RequestParams
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.progress_display import progress_display
+from fast_agent.types import PromptMessageExtended, RequestParams
 from fast_agent.ui.interactive_prompt import InteractivePrompt
 from mcp_agent.agents.agent import Agent
 

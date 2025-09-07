@@ -14,7 +14,7 @@ from mcp.types import CreateMessageRequestParams, CreateMessageResult, TextConte
 from mcp_agent.logging.logger import get_logger
 
 if TYPE_CHECKING:
-    from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+    from fast_agent.types import PromptMessageExtended
 
 logger = get_logger(__name__)
 

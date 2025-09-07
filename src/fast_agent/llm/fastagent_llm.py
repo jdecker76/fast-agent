@@ -31,10 +31,9 @@ from fast_agent.interfaces import (
 from fast_agent.llm.memory import Memory, SimpleMemory
 from fast_agent.llm.model_database import ModelDatabase
 from fast_agent.llm.provider_types import Provider
-from fast_agent.llm.request_params import RequestParams
 from fast_agent.llm.usage_tracking import TurnUsage, UsageAccumulator
 from fast_agent.mcp.helpers.content_helpers import get_text
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from fast_agent.types import PromptMessageExtended, RequestParams
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.logging.logger import get_logger
 
@@ -554,7 +553,7 @@ class FastAgentLLM(ContextDependent, FastAgentLLMProtocol, Generic[MessageParamT
             String representation of the assistant's response if generated,
             or the last assistant message in the prompt
         """
-        from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+        from fast_agent.types import PromptMessageExtended
 
         # Check if we have any messages
         if not prompt_result.messages:

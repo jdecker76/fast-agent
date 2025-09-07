@@ -6,9 +6,8 @@ from fast_agent.interfaces import ModelT
 from fast_agent.llm.model_database import ModelDatabase
 from fast_agent.llm.provider.openai.llm_openai import OpenAILLM
 from fast_agent.llm.provider_types import Provider
-from fast_agent.llm.request_params import RequestParams
 from fast_agent.mcp.helpers.content_helpers import get_text, split_thinking_content
-from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from fast_agent.types import PromptMessageExtended, RequestParams
 from mcp_agent.logging.logger import get_logger
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
