@@ -7,7 +7,7 @@ from mcp_agent.core.exceptions import ModelConfigError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.llm.augmented_llm_playback import PlaybackLLM
 from mcp_agent.llm.model_factory import ModelFactory
-from mcp_agent.mcp.interfaces import AugmentedLLMProtocol
+from mcp_agent.mcp.interfaces import FastAgentLLMProtocol
 
 
 class FormattedResponse(BaseModel):
@@ -19,7 +19,7 @@ sample_json = '{"thinking":"The user wants to have a conversation about guitars,
 
 
 @pytest.fixture
-def llm() -> AugmentedLLMProtocol:
+def llm() -> FastAgentLLMProtocol:
     return PlaybackLLM()
 
 

@@ -6,7 +6,7 @@ from openai.types.chat import ChatCompletionMessageParam, ChatCompletionSystemMe
 
 from mcp_agent.agents.agent import Agent
 from mcp_agent.core.request_params import RequestParams
-from mcp_agent.llm.providers.augmented_llm_tensorzero_openai import TensorZeroOpenAIAugmentedLLM
+from mcp_agent.llm.providers.augmented_llm_tensorzero_openai import TensorZeroOpenAILLM
 
 # --- Fixtures ---
 
@@ -26,7 +26,7 @@ def mock_agent():
 @pytest.fixture
 def t0_llm(mock_agent):
     """Provides a standard instance of the class under test."""
-    return TensorZeroOpenAIAugmentedLLM(agent=mock_agent, model="test_chat", episode_id="ep-12345")
+    return TensorZeroOpenAILLM(agent=mock_agent, model="test_chat", episode_id="ep-12345")
 
 
 # --- Tests for _initialize_default_params ---
@@ -60,14 +60,14 @@ def test_base_url_uses_default_when_config_missing(mock_agent):
     # To test this, ensure the `tensorzero` attribute doesn't exist on the config mock
     del mock_agent.context.config.tensorzero
 
-    llm = TensorZeroOpenAIAugmentedLLM(agent=mock_agent, model="test")
+    llm = TensorZeroOpenAILLM(agent=mock_agent, model="test")
     assert llm._base_url() == "http://localhost:3000/openai/v1"
 
 
 # --- Tests for _prepare_api_request ---
 
 
-@patch("mcp_agent.llm.providers.augmented_llm_openai.OpenAIAugmentedLLM._prepare_api_request")
+@patch("mcp_agent.llm.providers.augmented_llm_openai.OpenAILLM._prepare_api_request")
 def test_prepare_api_request_with_template_vars(mock_super_prepare, t0_llm):
     """Tests injection of template_vars into a new system message."""
     messages: List[ChatCompletionMessageParam] = []
@@ -85,7 +85,7 @@ def test_prepare_api_request_with_template_vars(mock_super_prepare, t0_llm):
     assert system_message["content"] == [{"var1": "value1"}]
 
 
-@patch("mcp_agent.llm.providers.augmented_llm_openai.OpenAIAugmentedLLM._prepare_api_request")
+@patch("mcp_agent.llm.providers.augmented_llm_openai.OpenAILLM._prepare_api_request")
 def test_prepare_api_request_merges_metadata(mock_super_prepare, t0_llm):
     """Tests merging of tensorzero_arguments from metadata."""
     initial_system_message = ChatCompletionSystemMessageParam(
@@ -102,7 +102,7 @@ def test_prepare_api_request_merges_metadata(mock_super_prepare, t0_llm):
     assert system_message["content"] == [{"var1": "original", "var2": "metadata_val"}]
 
 
-@patch("mcp_agent.llm.providers.augmented_llm_openai.OpenAIAugmentedLLM._prepare_api_request")
+@patch("mcp_agent.llm.providers.augmented_llm_openai.OpenAILLM._prepare_api_request")
 def test_prepare_api_request_adds_episode_id(mock_super_prepare, t0_llm):
     """Tests that episode_id is added to extra_body."""
     mock_super_prepare.return_value = {"model": "test_chat", "messages": []}
@@ -114,7 +114,7 @@ def test_prepare_api_request_adds_episode_id(mock_super_prepare, t0_llm):
     assert arguments["extra_body"]["tensorzero::episode_id"] == "ep-12345"
 
 
-@patch("mcp_agent.llm.providers.augmented_llm_openai.OpenAIAugmentedLLM._prepare_api_request")
+@patch("mcp_agent.llm.providers.augmented_llm_openai.OpenAILLM._prepare_api_request")
 def test_prepare_api_request_all_features(mock_super_prepare, t0_llm):
     """Tests all features working together."""
     initial_system_message = ChatCompletionSystemMessageParam(

@@ -11,7 +11,7 @@ from mcp_agent.llm.augmented_llm_passthrough import (
 )
 
 if TYPE_CHECKING:
-    from mcp_agent.mcp.interfaces import AugmentedLLMProtocol
+    from mcp_agent.mcp.interfaces import FastAgentLLMProtocol
     from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 
@@ -25,7 +25,7 @@ sample_json = '{"thinking":"The user wants to have a conversation about guitars,
 
 @pytest.mark.asyncio
 async def test_simple_return():
-    llm: AugmentedLLMProtocol = PassthroughLLM()
+    llm: FastAgentLLMProtocol = PassthroughLLM()
     response = await llm.generate(messages=[Prompt.user("playback message")])
     assert "assistant" == response.role
     assert "playback message" == response.first_text()
@@ -34,7 +34,7 @@ async def test_simple_return():
 @pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_set_fixed_return():
-    llm: AugmentedLLMProtocol = PassthroughLLM()
+    llm: FastAgentLLMProtocol = PassthroughLLM()
     response: PromptMessageMultipart = await llm.generate(
         messages=[Prompt.user(f"{FIXED_RESPONSE_INDICATOR} foo")]
     )
@@ -48,7 +48,7 @@ async def test_set_fixed_return():
 
 @pytest.mark.asyncio
 async def test_set_fixed_return_ignores_not_set():
-    llm: AugmentedLLMProtocol = PassthroughLLM()
+    llm: FastAgentLLMProtocol = PassthroughLLM()
     response: PromptMessageMultipart = await llm.generate(
         messages=[Prompt.user(f"{FIXED_RESPONSE_INDICATOR}")]
     )
@@ -60,7 +60,7 @@ async def test_set_fixed_return_ignores_not_set():
 
 @pytest.mark.asyncio
 async def test_parse_tool_call_no_args():
-    llm: AugmentedLLMProtocol = PassthroughLLM()
+    llm: FastAgentLLMProtocol = PassthroughLLM()
     name, args = llm._parse_tool_command(f"{CALL_TOOL_INDICATOR} mcp_tool_name")
     assert "mcp_tool_name" == name
     assert None is args
@@ -68,7 +68,7 @@ async def test_parse_tool_call_no_args():
 
 @pytest.mark.asyncio
 async def test_parse_tool_call_with_args():
-    llm: AugmentedLLMProtocol = PassthroughLLM()
+    llm: FastAgentLLMProtocol = PassthroughLLM()
     name, args = llm._parse_tool_command(
         f'{CALL_TOOL_INDICATOR} mcp_tool_name_args {{"arg": "value"}}'
     )
@@ -79,7 +79,7 @@ async def test_parse_tool_call_with_args():
 
 @pytest.mark.asyncio
 async def test_generates_structured():
-    llm: AugmentedLLMProtocol = PassthroughLLM()
+    llm: FastAgentLLMProtocol = PassthroughLLM()
 
     model, response = await llm.structured([Prompt.user(sample_json)], FormattedResponse)
     assert model is not None
@@ -92,7 +92,7 @@ async def test_generates_structured():
 @pytest.mark.asyncio
 async def test_usage_tracking():
     """Test that PassthroughLLM correctly tracks usage"""
-    llm: AugmentedLLMProtocol = PassthroughLLM()
+    llm: FastAgentLLMProtocol = PassthroughLLM()
 
     # Initially no usage
     assert llm.usage_accumulator.turn_count == 0
@@ -117,7 +117,7 @@ async def test_usage_tracking():
 @pytest.mark.asyncio
 async def test_tool_call_usage_tracking():
     """Test that PassthroughLLM correctly tracks tool call usage"""
-    llm: AugmentedLLMProtocol = PassthroughLLM()
+    llm: FastAgentLLMProtocol = PassthroughLLM()
 
     # Initially no usage
     assert llm.usage_accumulator.turn_count == 0

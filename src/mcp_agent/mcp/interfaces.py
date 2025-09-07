@@ -36,7 +36,7 @@ __all__ = [
     "MCPConnectionManagerProtocol",
     "ServerRegistryProtocol",
     "ServerConnection",
-    "AugmentedLLMProtocol",
+    "FastAgentLLMProtocol",
     "AgentProtocol",
     "LLMFactoryProtocol",
     "ModelFactoryFunctionProtocol",
@@ -112,7 +112,7 @@ class LLMFactoryProtocol(Protocol):
     AugmentedLLMProtocol instance.
     """
 
-    def __call__(self, agent: "LlmAgentProtocol", **kwargs: Any) -> "AugmentedLLMProtocol":
+    def __call__(self, agent: "LlmAgentProtocol", **kwargs: Any) -> "FastAgentLLMProtocol":
         """Create and return an AugmentedLLM instance.
 
         Args:
@@ -144,7 +144,7 @@ class ModelFactoryFunctionProtocol(Protocol):
         ...
 
 
-class AugmentedLLMProtocol(Protocol):
+class FastAgentLLMProtocol(Protocol):
     """Protocol defining the interface for augmented LLMs"""
 
     async def structured(
@@ -247,7 +247,7 @@ class LlmAgentProtocol(Protocol):
     """
 
     @property
-    def llm(self) -> AugmentedLLMProtocol:
+    def llm(self) -> FastAgentLLMProtocol:
         """Return the LLM instance used by this agent, or a runtime error if not attached"""
         ...
 
@@ -289,7 +289,7 @@ class AgentProtocol(Protocol):
     """
 
     @property
-    def llm(self) -> AugmentedLLMProtocol:
+    def llm(self) -> FastAgentLLMProtocol:
         """Return the LLM instance used by this agent"""
         ...
 

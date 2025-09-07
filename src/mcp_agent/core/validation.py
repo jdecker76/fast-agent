@@ -10,7 +10,7 @@ from mcp_agent.core.exceptions import (
     CircularDependencyError,
     ServerConfigError,
 )
-from mcp_agent.llm.augmented_llm import AugmentedLLM
+from mcp_agent.llm.augmented_llm import FastAgentLLM
 
 
 def validate_server_references(context, agents: Dict[str, Dict[str, Any]]) -> None:
@@ -96,7 +96,7 @@ def validate_workflow_references(agents: Dict[str, Dict[str, Any]]) -> None:
                 ]
 
                 if not (
-                    isinstance(func, AugmentedLLM)
+                    isinstance(func, FastAgentLLM)
                     or child_data["type"] in workflow_types
                     or (hasattr(func, "_llm") and func._llm is not None)
                 ):

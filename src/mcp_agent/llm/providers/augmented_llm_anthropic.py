@@ -27,7 +27,7 @@ from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.exceptions import ProviderKeyError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.llm.augmented_llm import (
-    AugmentedLLM,
+    FastAgentLLM,
     RequestParams,
 )
 from mcp_agent.llm.provider_types import Provider
@@ -51,20 +51,20 @@ SystemParam = Union[str, List[TextBlockParam]]
 logger = get_logger(__name__)
 
 
-class AnthropicAugmentedLLM(AugmentedLLM[MessageParam, Message]):
+class AnthropicLLM(FastAgentLLM[MessageParam, Message]):
     # Anthropic-specific parameter exclusions
     ANTHROPIC_EXCLUDE_FIELDS = {
-        AugmentedLLM.PARAM_MESSAGES,
-        AugmentedLLM.PARAM_MODEL,
-        AugmentedLLM.PARAM_SYSTEM_PROMPT,
-        AugmentedLLM.PARAM_STOP_SEQUENCES,
-        AugmentedLLM.PARAM_MAX_TOKENS,
-        AugmentedLLM.PARAM_METADATA,
-        AugmentedLLM.PARAM_USE_HISTORY,
-        AugmentedLLM.PARAM_MAX_ITERATIONS,
-        AugmentedLLM.PARAM_PARALLEL_TOOL_CALLS,
-        AugmentedLLM.PARAM_TEMPLATE_VARS,
-        AugmentedLLM.PARAM_MCP_METADATA,
+        FastAgentLLM.PARAM_MESSAGES,
+        FastAgentLLM.PARAM_MODEL,
+        FastAgentLLM.PARAM_SYSTEM_PROMPT,
+        FastAgentLLM.PARAM_STOP_SEQUENCES,
+        FastAgentLLM.PARAM_MAX_TOKENS,
+        FastAgentLLM.PARAM_METADATA,
+        FastAgentLLM.PARAM_USE_HISTORY,
+        FastAgentLLM.PARAM_MAX_ITERATIONS,
+        FastAgentLLM.PARAM_PARALLEL_TOOL_CALLS,
+        FastAgentLLM.PARAM_TEMPLATE_VARS,
+        FastAgentLLM.PARAM_MCP_METADATA,
     }
 
     def __init__(self, *args, **kwargs) -> None:

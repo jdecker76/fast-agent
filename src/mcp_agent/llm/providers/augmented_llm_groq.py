@@ -5,7 +5,7 @@ from pydantic_core import from_json
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.llm.model_database import ModelDatabase
 from mcp_agent.llm.provider_types import Provider
-from mcp_agent.llm.providers.augmented_llm_openai import OpenAIAugmentedLLM
+from mcp_agent.llm.providers.augmented_llm_openai import OpenAILLM
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.content_helpers import get_text, split_thinking_content
 from mcp_agent.mcp.interfaces import ModelT
@@ -19,7 +19,7 @@ DEFAULT_GROQ_MODEL = "moonshotai/kimi-k2-instruct"
 ### - deduplicating between this and the deepseek llm
 
 
-class GroqAugmentedLLM(OpenAIAugmentedLLM):
+class GroqLLM(OpenAILLM):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, provider=Provider.GROQ, **kwargs)
 
@@ -51,9 +51,7 @@ class GroqAugmentedLLM(OpenAIAugmentedLLM):
 
             # Create a cleaner format description from full schema
             full_schema = model.model_json_schema()
-            format_description = self._schema_to_json_object(
-                full_schema, full_schema.get("$defs")
-            )
+            format_description = self._schema_to_json_object(full_schema, full_schema.get("$defs"))
 
             multipart_messages[-1].add_text(
                 f"""YOU MUST RESPOND WITH A JSON OBJECT IN EXACTLY THIS FORMAT:
@@ -64,7 +62,8 @@ IMPORTANT RULES:
 - Do NOT include "properties" or "schema" wrappers
 - Do NOT use code fences or markdown
 - The response must be valid JSON that matches the format above
-- All required fields must be included""")
+- All required fields must be included"""
+            )
 
         result: PromptMessageMultipart = await self._apply_prompt_provider_specific(
             multipart_messages, request_params

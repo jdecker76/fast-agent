@@ -4,10 +4,10 @@ from openai.types.chat import ChatCompletionMessageParam, ChatCompletionSystemMe
 
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.llm.provider_types import Provider
-from mcp_agent.llm.providers.augmented_llm_openai import OpenAIAugmentedLLM
+from mcp_agent.llm.providers.augmented_llm_openai import OpenAILLM
 
 
-class TensorZeroOpenAIAugmentedLLM(OpenAIAugmentedLLM):
+class TensorZeroOpenAILLM(OpenAILLM):
     """
     An LLM augmentation that interacts with TensorZero's OpenAI-compatible inference endpoint.
     This class extends the base OpenAIAugmentedLLM to handle TensorZero-specific
@@ -55,7 +55,7 @@ class TensorZeroOpenAIAugmentedLLM(OpenAIAugmentedLLM):
         if self.context and self.context.config and hasattr(self.context.config, "tensorzero"):
             base_url = getattr(self.context.config.tensorzero, "base_url", default_url)
             # Ensure the path is correctly appended
-            if not base_url.endswith('/openai/v1'):
+            if not base_url.endswith("/openai/v1"):
                 base_url = f"{base_url.rstrip('/')}/openai/v1"
             self.logger.debug(f"Using TensorZero base URL from config: {base_url}")
             return base_url
@@ -63,10 +63,10 @@ class TensorZeroOpenAIAugmentedLLM(OpenAIAugmentedLLM):
         return default_url
 
     def _prepare_api_request(
-            self,
-            messages: List[ChatCompletionMessageParam],
-            tools: Optional[List[Any]],
-            request_params: RequestParams
+        self,
+        messages: List[ChatCompletionMessageParam],
+        tools: Optional[List[Any]],
+        request_params: RequestParams,
     ) -> Dict[str, Any]:
         """
         Prepares the API request for the TensorZero OpenAI-compatible endpoint.
@@ -87,8 +87,7 @@ class TensorZeroOpenAIAugmentedLLM(OpenAIAugmentedLLM):
                     # If content is a string, convert it to the TensorZero format
                     if isinstance(msg.get("content"), str):
                         messages[i] = ChatCompletionSystemMessageParam(
-                            role="system",
-                            content=[request_params.template_vars]
+                            role="system", content=[request_params.template_vars]
                         )
                     elif isinstance(msg.get("content"), list):
                         # If content is already a list, merge the template vars
@@ -98,10 +97,12 @@ class TensorZeroOpenAIAugmentedLLM(OpenAIAugmentedLLM):
 
             if not system_message_found:
                 # If no system message exists, create one
-                messages.insert(0, ChatCompletionSystemMessageParam(
-                    role="system",
-                    content=[request_params.template_vars]
-                ))
+                messages.insert(
+                    0,
+                    ChatCompletionSystemMessageParam(
+                        role="system", content=[request_params.template_vars]
+                    ),
+                )
 
         # Add TensorZero-specific extra body parameters
         extra_body = arguments.get("extra_body", {})

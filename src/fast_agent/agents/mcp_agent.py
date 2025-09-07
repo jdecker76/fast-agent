@@ -48,7 +48,7 @@ from mcp_agent.core.prompt import Prompt
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.content_helpers import normalize_to_multipart_list
-from mcp_agent.mcp.interfaces import AugmentedLLMProtocol
+from mcp_agent.mcp.interfaces import FastAgentLLMProtocol
 from mcp_agent.mcp.mcp_aggregator import MCPAggregator
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
@@ -56,7 +56,7 @@ from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
 # Define a TypeVar for AugmentedLLM and its subclasses
-LLM = TypeVar("LLM", bound=AugmentedLLMProtocol)
+LLM = TypeVar("LLM", bound=FastAgentLLMProtocol)
 
 if TYPE_CHECKING:
     from fast_agent.context import Context
@@ -103,7 +103,7 @@ class McpAgent(ABC, ToolAgent):
         self._default_request_params = self.config.default_request_params
 
         # set with the "attach" method
-        self._llm: AugmentedLLMProtocol | None = None
+        self._llm: FastAgentLLMProtocol | None = None
 
         # Instantiate human input tool once if enabled in config
         self._human_input_tool: Tool | None = None

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from mcp.types import TextContent
 
 from fast_agent.config import AnthropicSettings, Settings
-from mcp_agent.llm.providers.augmented_llm_anthropic import AnthropicAugmentedLLM
+from mcp_agent.llm.providers.augmented_llm_anthropic import AnthropicLLM
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 
@@ -28,13 +28,13 @@ class TestAnthropicCaching(unittest.IsolatedAsyncioTestCase):
             )
         )
 
-    def _create_llm(self, cache_mode: str = "off") -> AnthropicAugmentedLLM:
+    def _create_llm(self, cache_mode: str = "off") -> AnthropicLLM:
         """Create an AnthropicAugmentedLLM instance with specified cache mode."""
         self.mock_context.config.anthropic = AnthropicSettings(
             api_key="test_key", cache_mode=cache_mode
         )
 
-        llm = AnthropicAugmentedLLM(context=self.mock_context, aggregator=self.mock_aggregator)
+        llm = AnthropicLLM(context=self.mock_context, aggregator=self.mock_aggregator)
         return llm
 
     @patch("mcp_agent.llm.providers.augmented_llm_anthropic.AsyncAnthropic")

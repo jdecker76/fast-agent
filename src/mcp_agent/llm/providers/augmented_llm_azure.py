@@ -2,7 +2,7 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI, AuthenticationError
 
 from mcp_agent.core.exceptions import ProviderKeyError
 from mcp_agent.llm.provider_types import Provider
-from mcp_agent.llm.providers.augmented_llm_openai import OpenAIAugmentedLLM
+from mcp_agent.llm.providers.augmented_llm_openai import OpenAILLM
 
 try:
     from azure.identity import DefaultAzureCredential
@@ -21,7 +21,7 @@ def _extract_resource_name(url: str) -> str | None:
 DEFAULT_AZURE_API_VERSION = "2024-10-21"
 
 
-class AzureOpenAIAugmentedLLM(OpenAIAugmentedLLM):
+class AzureOpenAILLM(OpenAILLM):
     """
     Azure OpenAI implementation extending OpenAIAugmentedLLM.
     Handles both API Key and DefaultAzureCredential authentication.

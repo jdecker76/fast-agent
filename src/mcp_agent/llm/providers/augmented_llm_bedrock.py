@@ -18,7 +18,7 @@ from fast_agent.event_progress import ProgressAction
 from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.exceptions import ProviderKeyError
 from mcp_agent.core.request_params import RequestParams
-from mcp_agent.llm.augmented_llm import AugmentedLLM
+from mcp_agent.llm.augmented_llm import FastAgentLLM
 from mcp_agent.llm.provider_types import Provider
 from mcp_agent.llm.usage_tracking import TurnUsage
 from mcp_agent.logging.logger import get_logger
@@ -43,7 +43,6 @@ except ImportError:
     BotoCoreError = Exception
     ClientError = Exception
     NoCredentialsError = Exception
-
 
 
 DEFAULT_BEDROCK_MODEL = "amazon.nova-lite-v1:0"
@@ -126,7 +125,7 @@ class ModelCapabilities:
     supports_tools: bool | None = None  # True=yes, False=no, None=unknown
 
 
-class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
+class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
     """
     AWS Bedrock implementation of AugmentedLLM using the Converse API.
     Supports all Bedrock models including Nova, Claude, Meta, etc.
@@ -1882,7 +1881,7 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
         if strategy == StructuredStrategy.SIMPLIFIED_SCHEMA:
             schema_text = self._generate_simplified_schema(model)
         else:
-            schema_text = AugmentedLLM.model_to_schema_str(model)
+            schema_text = FastAgentLLM.model_to_schema_str(model)
 
         # Build the new simplified prompt
         prompt_parts = [
@@ -1942,7 +1941,7 @@ class BedrockAugmentedLLM(AugmentedLLM[BedrockMessageParam, BedrockMessage]):
                 try:
                     simplified_schema_text = self._generate_simplified_schema(model)
                 except Exception:
-                    simplified_schema_text = AugmentedLLM.model_to_schema_str(model)
+                    simplified_schema_text = FastAgentLLM.model_to_schema_str(model)
                 try:
                     temp_last_retry = multipart_messages[-1].model_copy(deep=True)
                 except Exception:

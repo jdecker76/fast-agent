@@ -4,7 +4,7 @@ from typing import List
 import pytest
 
 from mcp_agent.core.prompt import Prompt
-from mcp_agent.llm.providers.augmented_llm_bedrock import BedrockAugmentedLLM
+from mcp_agent.llm.providers.augmented_llm_bedrock import BedrockLLM
 from mcp_agent.llm.providers.bedrock_utils import all_bedrock_models
 
 
@@ -13,7 +13,7 @@ def debug_cache_at_end():
     """Print cache state after all tests in this module complete."""
     yield
     sys.stdout.write("\n=== FINAL CACHE STATE (test_dynamic_capabilities.py) ===\n")
-    BedrockAugmentedLLM.debug_cache()
+    BedrockLLM.debug_cache()
 
 
 def _bedrock_models_for_capability_tests() -> List[str]:

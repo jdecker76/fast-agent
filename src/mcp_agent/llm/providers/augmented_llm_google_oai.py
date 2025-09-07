@@ -1,12 +1,12 @@
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.llm.provider_types import Provider
-from mcp_agent.llm.providers.augmented_llm_openai import OpenAIAugmentedLLM
+from mcp_agent.llm.providers.augmented_llm_openai import OpenAILLM
 
 GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 DEFAULT_GOOGLE_MODEL = "gemini-2.0-flash"
 
 
-class GoogleOaiAugmentedLLM(OpenAIAugmentedLLM):
+class GoogleOaiLLM(OpenAILLM):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, provider=Provider.GOOGLE_OAI, **kwargs)
 

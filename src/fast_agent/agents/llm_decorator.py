@@ -27,7 +27,7 @@ from mcp_agent.llm.provider_types import Provider
 from mcp_agent.llm.usage_tracking import UsageAccumulator
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.content_helpers import normalize_to_multipart_list
-from mcp_agent.mcp.interfaces import AugmentedLLMProtocol, LlmAgentProtocol, LLMFactoryProtocol
+from mcp_agent.mcp.interfaces import FastAgentLLMProtocol, LlmAgentProtocol, LLMFactoryProtocol
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 logger = get_logger(__name__)
@@ -35,7 +35,7 @@ logger = get_logger(__name__)
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
 # Define a TypeVar for AugmentedLLM and its subclasses
-LLM = TypeVar("LLM", bound=AugmentedLLMProtocol)
+LLM = TypeVar("LLM", bound=FastAgentLLMProtocol)
 
 
 class LlmDecorator(LlmAgentProtocol):
@@ -63,7 +63,7 @@ class LlmDecorator(LlmAgentProtocol):
         self._default_request_params = self.config.default_request_params
 
         # Initialize the LLM to None (will be set by attach_llm)
-        self._llm: Optional[AugmentedLLMProtocol] = None
+        self._llm: Optional[FastAgentLLMProtocol] = None
         self._initialized = False
 
     @property
@@ -102,7 +102,7 @@ class LlmDecorator(LlmAgentProtocol):
         model: str | None = None,
         request_params: RequestParams | None = None,
         **additional_kwargs,
-    ) -> AugmentedLLMProtocol:
+    ) -> FastAgentLLMProtocol:
         """
         Create and attach an LLM instance to this agent.
 
@@ -315,7 +315,7 @@ class LlmDecorator(LlmAgentProtocol):
         return None
 
     @property
-    def llm(self) -> AugmentedLLMProtocol:
+    def llm(self) -> FastAgentLLMProtocol:
         assert self._llm, "LLM is not attached"
         return self._llm
 

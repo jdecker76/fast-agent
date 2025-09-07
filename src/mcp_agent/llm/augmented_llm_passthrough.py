@@ -7,7 +7,7 @@ from mcp.types import CallToolRequestParams, PromptMessage
 from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.llm.augmented_llm import (
-    AugmentedLLM,
+    FastAgentLLM,
     RequestParams,
 )
 from mcp_agent.llm.provider_types import Provider
@@ -20,7 +20,7 @@ CALL_TOOL_INDICATOR = "***CALL_TOOL"
 FIXED_RESPONSE_INDICATOR = "***FIXED_RESPONSE"
 
 
-class PassthroughLLM(AugmentedLLM):
+class PassthroughLLM(FastAgentLLM):
     """
     A specialized LLM implementation that simply passes through input messages without modification.
 

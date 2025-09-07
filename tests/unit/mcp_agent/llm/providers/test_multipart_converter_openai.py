@@ -486,7 +486,7 @@ class TestOpenAIToolConverter(unittest.TestCase):
         inputSchema = {
             "type": "object",
         }
-        an_llm = augmented_llm_openai.OpenAIAugmentedLLM(Provider.OPENAI)
+        an_llm = augmented_llm_openai.OpenAILLM(Provider.OPENAI)
         adjusted = an_llm.adjust_schema(inputSchema)
         assert adjusted["properties"] == {}
 

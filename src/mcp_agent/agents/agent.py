@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, TypeVar
 from fast_agent.agents.mcp_agent import McpAgent
 from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.interfaces import AugmentedLLMProtocol
+from mcp_agent.mcp.interfaces import FastAgentLLMProtocol
 
 if TYPE_CHECKING:
     from fast_agent.context import Context
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # Define a TypeVar for AugmentedLLM and its subclasses
-LLM = TypeVar("LLM", bound=AugmentedLLMProtocol)
+LLM = TypeVar("LLM", bound=FastAgentLLMProtocol)
 
 
 class Agent(McpAgent):

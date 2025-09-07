@@ -8,9 +8,9 @@ from mcp_agent.llm.model_factory import (
     Provider,
     ReasoningEffort,
 )
-from mcp_agent.llm.providers.augmented_llm_anthropic import AnthropicAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_generic import GenericAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_openai import OpenAIAugmentedLLM
+from mcp_agent.llm.providers.augmented_llm_anthropic import AnthropicLLM
+from mcp_agent.llm.providers.augmented_llm_generic import GenericLLM
+from mcp_agent.llm.providers.augmented_llm_openai import OpenAILLM
 
 
 def test_simple_model_names():
@@ -63,9 +63,9 @@ def test_invalid_inputs():
 def test_llm_class_creation():
     """Test creation of LLM classes"""
     cases = [
-        ("gpt-4.1", OpenAIAugmentedLLM),
-        ("claude-3-haiku-20240307", AnthropicAugmentedLLM),
-        ("openai.gpt-4.1", OpenAIAugmentedLLM),
+        ("gpt-4.1", OpenAILLM),
+        ("claude-3-haiku-20240307", AnthropicLLM),
+        ("openai.gpt-4.1", OpenAILLM),
     ]
 
     for model_str, expected_class in cases:
@@ -84,5 +84,5 @@ def test_allows_generic_model():
     generic_model = "generic.llama3.2:latest"
     factory = ModelFactory.create_factory(generic_model)
     instance = factory(LlmAgent(AgentConfig(name="test")))
-    assert isinstance(instance, GenericAugmentedLLM)
+    assert isinstance(instance, GenericLLM)
     assert instance._base_url() == "http://localhost:11434/v1"

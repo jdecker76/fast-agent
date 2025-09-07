@@ -16,7 +16,7 @@ from .helpers import (
 )
 from .interfaces import (
     AgentProtocol,
-    AugmentedLLMProtocol,
+    FastAgentLLMProtocol,
     LlmAgentProtocol,
     MCPConnectionManagerProtocol,
     ModelT,
@@ -32,7 +32,7 @@ __all__ = [
     "PromptMessageMultipart",
     "LlmStopReason",
     # Protocol interfaces
-    "AugmentedLLMProtocol",
+    "FastAgentLLMProtocol",
     "LlmAgentProtocol",
     "AgentProtocol",
     "MCPConnectionManagerProtocol",

@@ -11,7 +11,7 @@ from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.llm.sampling_converter import SamplingConverter
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.server_config_helpers import get_server_config
-from mcp_agent.mcp.interfaces import AugmentedLLMProtocol
+from mcp_agent.mcp.interfaces import FastAgentLLMProtocol
 
 if TYPE_CHECKING:
     from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 def create_sampling_llm(
     params: CreateMessageRequestParams, model_string: str, api_key: str | None
-) -> AugmentedLLMProtocol:
+) -> FastAgentLLMProtocol:
     """
     Create an LLM instance for sampling without tools support.
     This utility function creates a minimal LLM instance based on the model string.

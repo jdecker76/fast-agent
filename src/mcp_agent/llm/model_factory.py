@@ -11,40 +11,40 @@ from mcp_agent.llm.augmented_llm_playback import PlaybackLLM
 from mcp_agent.llm.augmented_llm_silent import SilentLLM
 from mcp_agent.llm.augmented_llm_slow import SlowLLM
 from mcp_agent.llm.provider_types import Provider
-from mcp_agent.llm.providers.augmented_llm_aliyun import AliyunAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_anthropic import AnthropicAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_azure import AzureOpenAIAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_bedrock import BedrockAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_deepseek import DeepSeekAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_generic import GenericAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_google_native import GoogleNativeAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_google_oai import GoogleOaiAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_groq import GroqAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_openai import OpenAIAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_openrouter import OpenRouterAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_tensorzero_openai import TensorZeroOpenAIAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_xai import XAIAugmentedLLM
-from mcp_agent.mcp.interfaces import AugmentedLLMProtocol, LLMFactoryProtocol
+from mcp_agent.llm.providers.augmented_llm_aliyun import AliyunLLM
+from mcp_agent.llm.providers.augmented_llm_anthropic import AnthropicLLM
+from mcp_agent.llm.providers.augmented_llm_azure import AzureOpenAILLM
+from mcp_agent.llm.providers.augmented_llm_bedrock import BedrockLLM
+from mcp_agent.llm.providers.augmented_llm_deepseek import DeepSeekLLM
+from mcp_agent.llm.providers.augmented_llm_generic import GenericLLM
+from mcp_agent.llm.providers.augmented_llm_google_native import GoogleNativeLLM
+from mcp_agent.llm.providers.augmented_llm_google_oai import GoogleOaiLLM
+from mcp_agent.llm.providers.augmented_llm_groq import GroqLLM
+from mcp_agent.llm.providers.augmented_llm_openai import OpenAILLM
+from mcp_agent.llm.providers.augmented_llm_openrouter import OpenRouterLLM
+from mcp_agent.llm.providers.augmented_llm_tensorzero_openai import TensorZeroOpenAILLM
+from mcp_agent.llm.providers.augmented_llm_xai import XAILLM
+from mcp_agent.mcp.interfaces import FastAgentLLMProtocol, LLMFactoryProtocol
 
 # from mcp_agent.workflows.llm.augmented_llm_deepseek import DeekSeekAugmentedLLM
 
 
 # Type alias for LLM classes
 LLMClass = Union[
-    Type[AnthropicAugmentedLLM],
-    Type[OpenAIAugmentedLLM],
+    Type[AnthropicLLM],
+    Type[OpenAILLM],
     Type[PassthroughLLM],
     Type[PlaybackLLM],
     Type[SilentLLM],
     Type[SlowLLM],
-    Type[DeepSeekAugmentedLLM],
-    Type[OpenRouterAugmentedLLM],
-    Type[TensorZeroOpenAIAugmentedLLM],
-    Type[GoogleNativeAugmentedLLM],
-    Type[GenericAugmentedLLM],
-    Type[AzureOpenAIAugmentedLLM],
-    Type[BedrockAugmentedLLM],
-    Type[GroqAugmentedLLM],
+    Type[DeepSeekLLM],
+    Type[OpenRouterLLM],
+    Type[TensorZeroOpenAILLM],
+    Type[GoogleNativeLLM],
+    Type[GenericLLM],
+    Type[AzureOpenAILLM],
+    Type[BedrockLLM],
+    Type[GroqLLM],
 ]
 
 
@@ -156,20 +156,20 @@ class ModelFactory:
 
     # Mapping of providers to their LLM classes
     PROVIDER_CLASSES: Dict[Provider, LLMClass] = {
-        Provider.ANTHROPIC: AnthropicAugmentedLLM,
-        Provider.OPENAI: OpenAIAugmentedLLM,
+        Provider.ANTHROPIC: AnthropicLLM,
+        Provider.OPENAI: OpenAILLM,
         Provider.FAST_AGENT: PassthroughLLM,
-        Provider.DEEPSEEK: DeepSeekAugmentedLLM,
-        Provider.GENERIC: GenericAugmentedLLM,
-        Provider.GOOGLE_OAI: GoogleOaiAugmentedLLM,
-        Provider.GOOGLE: GoogleNativeAugmentedLLM,
-        Provider.XAI: XAIAugmentedLLM,
-        Provider.OPENROUTER: OpenRouterAugmentedLLM,
-        Provider.TENSORZERO: TensorZeroOpenAIAugmentedLLM,
-        Provider.AZURE: AzureOpenAIAugmentedLLM,
-        Provider.ALIYUN: AliyunAugmentedLLM,
-        Provider.BEDROCK: BedrockAugmentedLLM,
-        Provider.GROQ: GroqAugmentedLLM,
+        Provider.DEEPSEEK: DeepSeekLLM,
+        Provider.GENERIC: GenericLLM,
+        Provider.GOOGLE_OAI: GoogleOaiLLM,
+        Provider.GOOGLE: GoogleNativeLLM,
+        Provider.XAI: XAILLM,
+        Provider.OPENROUTER: OpenRouterLLM,
+        Provider.TENSORZERO: TensorZeroOpenAILLM,
+        Provider.AZURE: AzureOpenAILLM,
+        Provider.ALIYUN: AliyunLLM,
+        Provider.BEDROCK: BedrockLLM,
+        Provider.GROQ: GroqLLM,
     }
 
     # Mapping of special model names to their specific LLM classes
@@ -226,7 +226,7 @@ class ModelFactory:
             provider = cls.DEFAULT_PROVIDERS.get(model_name_str)
 
             # If still None, try pattern matching for Bedrock models
-            if provider is None and BedrockAugmentedLLM.matches_model_pattern(model_name_str):
+            if provider is None and BedrockLLM.matches_model_pattern(model_name_str):
                 provider = Provider.BEDROCK
 
             if provider is None:
@@ -275,7 +275,7 @@ class ModelFactory:
 
         def factory(
             agent: Agent, request_params: Optional[RequestParams] = None, **kwargs
-        ) -> AugmentedLLMProtocol:
+        ) -> FastAgentLLMProtocol:
             base_params = RequestParams()
             base_params.model = config.model_name
             if config.reasoning_effort:
@@ -287,7 +287,7 @@ class ModelFactory:
                 "instructions": agent.instruction,
                 **kwargs,
             }
-            llm: AugmentedLLMProtocol = llm_class(**llm_args)
+            llm: FastAgentLLMProtocol = llm_class(**llm_args)
             return llm
 
         return factory

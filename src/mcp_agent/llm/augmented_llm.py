@@ -37,7 +37,7 @@ from mcp_agent.llm.usage_tracking import TurnUsage, UsageAccumulator
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.content_helpers import get_text
 from mcp_agent.mcp.interfaces import (
-    AugmentedLLMProtocol,
+    FastAgentLLMProtocol,
     ModelT,
 )
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
@@ -78,7 +78,7 @@ def deep_merge(dict1: Dict[Any, Any], dict2: Dict[Any, Any]) -> Dict[Any, Any]:
     return dict1
 
 
-class AugmentedLLM(ContextDependent, AugmentedLLMProtocol, Generic[MessageParamT, MessageT]):
+class FastAgentLLM(ContextDependent, FastAgentLLMProtocol, Generic[MessageParamT, MessageT]):
     # Common parameter names used across providers
     PARAM_MESSAGES = "messages"
     PARAM_MODEL = "model"

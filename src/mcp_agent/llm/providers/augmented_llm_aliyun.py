@@ -1,15 +1,15 @@
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.llm.provider_types import Provider
-from mcp_agent.llm.providers.augmented_llm_groq import GroqAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_openai import OpenAIAugmentedLLM
+from mcp_agent.llm.providers.augmented_llm_groq import GroqLLM
+from mcp_agent.llm.providers.augmented_llm_openai import OpenAILLM
 
 ALIYUN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 DEFAULT_QWEN_MODEL = "qwen-turbo"
 
 
-class AliyunAugmentedLLM(GroqAugmentedLLM):
+class AliyunLLM(GroqLLM):
     def __init__(self, *args, **kwargs) -> None:
-        OpenAIAugmentedLLM.__init__(self, *args, provider=Provider.ALIYUN, **kwargs)
+        OpenAILLM.__init__(self, *args, provider=Provider.ALIYUN, **kwargs)
 
     def _initialize_default_params(self, kwargs: dict) -> RequestParams:
         """Initialize Aliyun-specific default parameters"""
@@ -29,4 +29,3 @@ class AliyunAugmentedLLM(GroqAugmentedLLM):
             base_url = self.context.config.aliyun.base_url
 
         return base_url if base_url else ALIYUN_BASE_URL
-

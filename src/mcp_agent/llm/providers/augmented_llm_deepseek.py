@@ -8,7 +8,7 @@ from openai.types.chat import (
 
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.llm.provider_types import Provider
-from mcp_agent.llm.providers.augmented_llm_openai import OpenAIAugmentedLLM
+from mcp_agent.llm.providers.augmented_llm_openai import OpenAILLM
 from mcp_agent.mcp.interfaces import ModelT
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
@@ -16,7 +16,7 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEFAULT_DEEPSEEK_MODEL = "deepseekchat"  # current Deepseek only has two type models
 
 
-class DeepSeekAugmentedLLM(OpenAIAugmentedLLM):
+class DeepSeekLLM(OpenAILLM):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, provider=Provider.DEEPSEEK, **kwargs)
 
@@ -24,11 +24,11 @@ class DeepSeekAugmentedLLM(OpenAIAugmentedLLM):
         """Initialize Deepseek-specific default parameters"""
         # Get base defaults from parent (includes ModelDatabase lookup)
         base_params = super()._initialize_default_params(kwargs)
-        
+
         # Override with Deepseek-specific settings
         chosen_model = kwargs.get("model", DEFAULT_DEEPSEEK_MODEL)
         base_params.model = chosen_model
-        
+
         return base_params
 
     def _base_url(self) -> str:

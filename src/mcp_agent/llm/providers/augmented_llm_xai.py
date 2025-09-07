@@ -2,13 +2,13 @@ import os
 
 from mcp_agent.core.request_params import RequestParams
 from mcp_agent.llm.provider_types import Provider
-from mcp_agent.llm.providers.augmented_llm_openai import OpenAIAugmentedLLM
+from mcp_agent.llm.providers.augmented_llm_openai import OpenAILLM
 
 XAI_BASE_URL = "https://api.x.ai/v1"
 DEFAULT_XAI_MODEL = "grok-3"
 
 
-class XAIAugmentedLLM(OpenAIAugmentedLLM):
+class XAILLM(OpenAILLM):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(
             *args, provider=Provider.XAI, **kwargs
@@ -18,12 +18,12 @@ class XAIAugmentedLLM(OpenAIAugmentedLLM):
         """Initialize xAI parameters"""
         # Get base defaults from parent (includes ModelDatabase lookup)
         base_params = super()._initialize_default_params(kwargs)
-        
+
         # Override with xAI-specific settings
         chosen_model = kwargs.get("model", DEFAULT_XAI_MODEL)
         base_params.model = chosen_model
         base_params.parallel_tool_calls = False
-        
+
         return base_params
 
     def _base_url(self) -> str:

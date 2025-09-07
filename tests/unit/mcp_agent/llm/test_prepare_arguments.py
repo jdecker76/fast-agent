@@ -1,15 +1,15 @@
 from typing import List
 
 from mcp_agent.core.request_params import RequestParams
-from mcp_agent.llm.augmented_llm import AugmentedLLM
+from mcp_agent.llm.augmented_llm import FastAgentLLM
 from mcp_agent.llm.provider_types import Provider
-from mcp_agent.llm.providers.augmented_llm_anthropic import AnthropicAugmentedLLM
-from mcp_agent.llm.providers.augmented_llm_openai import OpenAIAugmentedLLM
+from mcp_agent.llm.providers.augmented_llm_anthropic import AnthropicLLM
+from mcp_agent.llm.providers.augmented_llm_openai import OpenAILLM
 from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 
 # Create a minimal testable subclass of AugmentedLLM
-class StubLLM(AugmentedLLM):
+class StubLLM(FastAgentLLM):
     """Minimal implementation of AugmentedLLM for testing purposes"""
 
     def __init__(self, *args, **kwargs):
@@ -53,7 +53,7 @@ class TestRequestParamsInLLM:
         params = RequestParams(model="different-model", temperature=0.7, maxTokens=1000)
 
         # Exclude model and maxTokens fields
-        exclude_fields = {AugmentedLLM.PARAM_MODEL, AugmentedLLM.PARAM_MAX_TOKENS}
+        exclude_fields = {FastAgentLLM.PARAM_MODEL, FastAgentLLM.PARAM_MAX_TOKENS}
         result = llm.prepare_provider_arguments(base_args, params, exclude_fields)
 
         # Verify results - model should remain from base_args, maxTokens should be excluded,
@@ -99,7 +99,7 @@ class TestRequestParamsInLLM:
     def test_openai_provider_arguments(self):
         """Test prepare_provider_arguments with OpenAI provider"""
         # Create an OpenAI LLM instance without initializing provider connections
-        llm = OpenAIAugmentedLLM()
+        llm = OpenAILLM()
 
         # Basic setup
         base_args = {"model": "gpt-4.1", "messages": [], "max_tokens": 1000}
@@ -135,7 +135,7 @@ class TestRequestParamsInLLM:
     def test_anthropic_provider_arguments(self):
         """Test prepare_provider_arguments with Anthropic provider"""
         # Create an Anthropic LLM instance without initializing provider connections
-        llm = AnthropicAugmentedLLM()
+        llm = AnthropicLLM()
 
         # Basic setup
         base_args = {

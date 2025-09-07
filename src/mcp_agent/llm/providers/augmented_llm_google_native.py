@@ -19,7 +19,7 @@ from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.exceptions import ProviderKeyError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.core.request_params import RequestParams
-from mcp_agent.llm.augmented_llm import AugmentedLLM
+from mcp_agent.llm.augmented_llm import FastAgentLLM
 from mcp_agent.llm.provider_types import Provider
 
 # Import the new converter class
@@ -34,18 +34,18 @@ DEFAULT_GOOGLE_MODEL = "gemini25"
 # Define Google-specific parameter exclusions if necessary
 GOOGLE_EXCLUDE_FIELDS = {
     # Add fields that should not be passed directly from RequestParams to google.genai config
-    AugmentedLLM.PARAM_MESSAGES,  # Handled by contents
-    AugmentedLLM.PARAM_MODEL,  # Handled during client/call setup
-    AugmentedLLM.PARAM_SYSTEM_PROMPT,  # Handled by system_instruction in config
+    FastAgentLLM.PARAM_MESSAGES,  # Handled by contents
+    FastAgentLLM.PARAM_MODEL,  # Handled during client/call setup
+    FastAgentLLM.PARAM_SYSTEM_PROMPT,  # Handled by system_instruction in config
     # AugmentedLLM.PARAM_PARALLEL_TOOL_CALLS, # Handled by tool_config in config
-    AugmentedLLM.PARAM_USE_HISTORY,  # Handled by AugmentedLLM base / this class's logic
-    AugmentedLLM.PARAM_MAX_ITERATIONS,  # Handled by this class's loop
+    FastAgentLLM.PARAM_USE_HISTORY,  # Handled by AugmentedLLM base / this class's logic
+    FastAgentLLM.PARAM_MAX_ITERATIONS,  # Handled by this class's loop
     # Add any other OpenAI-specific params not applicable to google.genai
-    AugmentedLLM.PARAM_MCP_METADATA,
-}.union(AugmentedLLM.BASE_EXCLUDE_FIELDS)
+    FastAgentLLM.PARAM_MCP_METADATA,
+}.union(FastAgentLLM.BASE_EXCLUDE_FIELDS)
 
 
-class GoogleNativeAugmentedLLM(AugmentedLLM[types.Content, types.Content]):
+class GoogleNativeLLM(FastAgentLLM[types.Content, types.Content]):
     """
     Google LLM provider using the native google.genai library.
     """
