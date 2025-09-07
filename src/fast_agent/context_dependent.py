@@ -11,6 +11,10 @@ class ContextDependent:
     Provides both global fallback and instance-specific context support.
     """
 
+    # Ensure the attribute always exists even if a subclass
+    # does not call this mixin's __init__.
+    _context: "Context | None" = None
+
     def __init__(self, context: "Context | None" = None, **kwargs: dict[str, Any]) -> None:
         self._context = context
         super().__init__(**kwargs)

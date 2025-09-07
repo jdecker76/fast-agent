@@ -88,6 +88,8 @@ class MCPAgentClientSession(ClientSession, ContextDependent):
         self.api_key: str | None = kwargs.pop("api_key", None)
         # Extract custom elicitation handler if provided
         custom_elicitation_handler = kwargs.pop("elicitation_handler", None)
+        # Extract optional context for ContextDependent mixin without passing it to ClientSession
+        self._context = kwargs.pop("context", None)
 
         version = version("fast-agent-mcp") or "dev"
         fast_agent: Implementation = Implementation(name="fast-agent-mcp", version=version)
