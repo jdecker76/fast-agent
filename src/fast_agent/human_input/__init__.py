@@ -4,7 +4,7 @@ Keep __init__ lightweight to avoid circular imports during submodule import.
 Exports schema builders directly and defers simple form API imports.
 """
 
-from mcp_agent.human_input.form_fields import (
+from fast_agent.human_input.form_fields import (
     BooleanField,
     EnumField,
     FormSchema,

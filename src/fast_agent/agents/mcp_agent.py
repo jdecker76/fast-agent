@@ -115,8 +115,8 @@ class McpAgent(ABC, ToolAgent):
         # Register the MCP UI handler as the elicitation callback so fast_agent.tools can call it
         # without importing MCP types. This avoids circular imports and ensures the callback is ready.
         try:
-            from mcp_agent.human_input.elicitation_handler import elicitation_input_callback
-            from mcp_agent.human_input.types import HumanInputRequest
+            from fast_agent.human_input.elicitation_handler import elicitation_input_callback
+            from fast_agent.human_input.types import HumanInputRequest
 
             async def _mcp_elicitation_adapter(
                 request_payload: dict,

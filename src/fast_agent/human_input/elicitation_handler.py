@@ -1,5 +1,10 @@
 from typing import Any, Dict, Optional
 
+from fast_agent.human_input.elicitation_state import elicitation_state
+from fast_agent.human_input.types import (
+    HumanInputRequest,
+    HumanInputResponse,
+)
 from fast_agent.progress_display import progress_display
 from fast_agent.tools.elicitation import set_elicitation_input_callback
 from fast_agent.ui.elicitation_form import (
@@ -7,11 +12,6 @@ from fast_agent.ui.elicitation_form import (
 )
 from fast_agent.ui.elicitation_style import (
     ELICITATION_STYLE,
-)
-from mcp_agent.human_input.elicitation_state import elicitation_state
-from mcp_agent.human_input.types import (
-    HumanInputRequest,
-    HumanInputResponse,
 )
 
 

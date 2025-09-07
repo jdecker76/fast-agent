@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, Union
 
 from mcp.types import ElicitRequestedSchema
 
-from mcp_agent.human_input.form_fields import FormSchema
+from fast_agent.human_input.form_fields import FormSchema
 
 
 async def form(

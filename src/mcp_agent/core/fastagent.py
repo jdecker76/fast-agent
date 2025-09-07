@@ -342,7 +342,7 @@ class FastAgent:
                                 print("Press Ctrl+C to stop")
 
                             # Create the MCP server
-                            from mcp_agent.mcp_server import AgentMCPServer
+                            from fast_agent.mcp.server import AgentMCPServer
 
                             mcp_server = AgentMCPServer(
                                 agent_app=wrapper,
