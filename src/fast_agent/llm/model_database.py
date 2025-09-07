@@ -277,6 +277,38 @@ class ModelDatabase:
         return params.tokenizes if params else None
 
     @classmethod
+    def supports_mime(cls, model: str, mime_type: str) -> bool:
+        """
+        Return True if the given model supports the provided MIME type.
+
+        Normalizes common aliases (e.g., image/jpg->image/jpeg, document/pdf->application/pdf)
+        and also accepts bare extensions like "pdf" or "png".
+        """
+        from mcp_agent.mcp.mime_utils import normalize_mime_type
+
+        tokenizes = cls.get_tokenizes(model) or []
+
+        # Normalize the candidate and the database entries to lowercase
+        normalized_supported = [t.lower() for t in tokenizes]
+
+        # Handle wildcard inputs like "image/*" quickly
+        mt = (mime_type or "").strip().lower()
+        if mt.endswith("/*") and "/" in mt:
+            prefix = mt.split("/", 1)[0] + "/"
+            return any(s.startswith(prefix) for s in normalized_supported)
+
+        normalized = normalize_mime_type(mime_type)
+        if not normalized:
+            return False
+
+        return normalized.lower() in normalized_supported
+
+    @classmethod
+    def supports_any_mime(cls, model: str, mime_types: List[str]) -> bool:
+        """Return True if the model supports any of the provided MIME types."""
+        return any(cls.supports_mime(model, m) for m in mime_types)
+
+    @classmethod
     def get_json_mode(cls, model: str) -> str | None:
         """Get supported json mode (structured output) for a model"""
         params = cls.get_model_params(model)

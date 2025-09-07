@@ -9,6 +9,7 @@ from anthropic.types import (
     MessageParam,
     PlainTextSourceParam,
     TextBlockParam,
+    ToolUseBlockParam,
     ToolResultBlockParam,
     URLImageSourceParam,
     URLPDFSourceParam,
@@ -74,6 +75,32 @@ class AnthropicConverter:
         """
         role = multipart_msg.role
         all_content_blocks = []
+
+        # If this is an assistant message that contains tool_calls, convert
+        # those into Anthropic tool_use blocks so the next user message can
+        # legally include corresponding tool_result blocks.
+        if role == "assistant" and multipart_msg.tool_calls:
+            for tool_use_id, req in multipart_msg.tool_calls.items():
+                name = None
+                args = None
+                try:
+                    params = getattr(req, "params", None)
+                    if params is not None:
+                        name = getattr(params, "name", None)
+                        args = getattr(params, "arguments", None)
+                except Exception:
+                    pass
+
+                all_content_blocks.append(
+                    ToolUseBlockParam(
+                        type="tool_use",
+                        id=tool_use_id,
+                        name=name or "unknown_tool",
+                        input=args or {},
+                    )
+                )
+
+            return MessageParam(role=role, content=all_content_blocks)
 
         # Handle tool_results if present (for user messages with tool results)
         # Tool results must come FIRST in the content array per Anthropic API requirements

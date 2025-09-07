@@ -39,6 +39,22 @@ def test_model_database_tokenizes():
     assert ModelDatabase.get_tokenizes("unknown-model") is None
 
 
+def test_model_database_supports_mime_basic():
+    """Test MIME support lookups with normalization and aliases."""
+    # Known multimodal model supports images and pdf
+    assert ModelDatabase.supports_mime("claude-sonnet-4-0", "image/png")
+    assert ModelDatabase.supports_mime("claude-sonnet-4-0", "document/pdf")  # alias -> application/pdf
+
+    # Text-only models should not support images
+    assert not ModelDatabase.supports_mime("deepseek-chat", "image/png")
+    assert not ModelDatabase.supports_mime("deepseek-chat", "pdf")
+
+    # Wildcard checks
+    assert ModelDatabase.supports_mime("gpt-4o", "image/*")
+    # Bare extensions
+    assert ModelDatabase.supports_mime("gpt-4o", "png")
+
+
 def test_llm_uses_model_database_for_max_tokens():
     """Test that LLM instances use ModelDatabase for maxTokens defaults"""
 

@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
+import json
 
 from mcp.types import (
     CallToolResult,
@@ -65,6 +66,35 @@ class OpenAIConverter:
         Returns:
             A list of OpenAI API message objects
         """
+        # If this is an assistant message that contains tool_calls, convert to an
+        # assistant message with tool_calls per OpenAI format to establish the
+        # required call IDs before tool responses appear.
+        if multipart_msg.role == "assistant" and multipart_msg.tool_calls:
+            tool_calls_list: List[Dict[str, Any]] = []
+            for tool_id, req in multipart_msg.tool_calls.items():
+                name = None
+                arguments = {}
+                try:
+                    params = getattr(req, "params", None)
+                    if params is not None:
+                        name = getattr(params, "name", None)
+                        arguments = getattr(params, "arguments", {}) or {}
+                except Exception:
+                    pass
+
+                tool_calls_list.append(
+                    {
+                        "id": tool_id,
+                        "type": "function",
+                        "function": {
+                            "name": name or "unknown_tool",
+                            "arguments": json.dumps(arguments),
+                        },
+                    }
+                )
+
+            return [{"role": "assistant", "tool_calls": tool_calls_list, "content": ""}]
+
         # Handle tool_results first if present
         if multipart_msg.tool_results:
             messages = OpenAIConverter.convert_function_results_to_openai(

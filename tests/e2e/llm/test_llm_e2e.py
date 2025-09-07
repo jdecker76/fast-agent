@@ -1,19 +1,32 @@
 import os
+from pathlib import Path
 from typing import Annotated
 
 import pytest
 import pytest_asyncio
-from mcp.types import CallToolRequest, CallToolResult, TextContent, Tool
+import base64
+from mcp.types import (
+    BlobResourceContents,
+    CallToolRequest,
+    CallToolRequestParams,
+    CallToolResult,
+    EmbeddedResource,
+    ImageContent,
+    TextContent,
+    Tool,
+)
 from pydantic import BaseModel, Field
 
 from fast_agent.agents.agent_types import AgentConfig
 from fast_agent.agents.llm_agent import LlmAgent
 from fast_agent.core import Core
+from fast_agent.llm.model_database import ModelDatabase
 from fast_agent.llm.model_factory import ModelFactory
 from fast_agent.llm.provider_types import Provider
 from fast_agent.llm.request_params import RequestParams
 from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.types.llm_stop_reason import LlmStopReason
+from mcp_agent.core.prompt import Prompt
 
 
 class FormattedResponse(BaseModel):
@@ -194,3 +207,170 @@ async def test_tool_calling_agent(llm_agent_setup, model_name):
     result = await agent.generate(result_message)
     assert LlmStopReason.END_TURN is result.stop_reason
     assert "sunny" in result.last_text().lower()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model_name", TEST_MODELS)
+async def test_vision_model_reads_name(llm_agent_setup, model_name):
+    """Attach an image to the user message and verify the model can read the name in it."""
+    agent = llm_agent_setup
+
+    # Determine resolved model and check image support
+    resolved_model = agent.llm.default_request_params.model
+    if not ModelDatabase.supports_mime(resolved_model, "image/png"):
+        pytest.skip(f"Model '{resolved_model}' does not support image/png")
+
+    # Use the shared sample image from the multimodal tests directory
+    image_path = (Path(__file__).parent.parent / "multimodal" / "image.png").resolve()
+    assert image_path.exists(), f"Test image not found at {image_path}"
+
+    # Build a user message with text + image
+    user_msg = Prompt.user(
+        "what is the user name contained in this image?",
+        image_path,
+    )
+
+    result: PromptMessageExtended = await agent.generate(user_msg)
+    assert result.stop_reason is LlmStopReason.END_TURN
+    all_text = (result.all_text() or "").lower()
+    assert "evalstate" in all_text or (
+        result.last_text() and "evalstate" in result.last_text().lower()
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model_name", TEST_MODELS)
+async def test_pdf_prompt_summarizes_name(llm_agent_setup, model_name):
+    """Attach a PDF and verify the model includes product/company name in summary."""
+    agent = llm_agent_setup
+
+    resolved_model = agent.llm.default_request_params.model
+    if not ModelDatabase.supports_mime(resolved_model, "application/pdf"):
+        pytest.skip(f"Model '{resolved_model}' does not support application/pdf")
+
+    pdf_path = (Path(__file__).parent.parent / "multimodal" / "sample.pdf").resolve()
+    assert pdf_path.exists(), f"Test PDF not found at {pdf_path}"
+
+    user_msg = Prompt.user(
+        "Summarize this document and include the product or company name.",
+        pdf_path,
+    )
+
+    result: PromptMessageExtended = await agent.generate(user_msg)
+    assert result.stop_reason is LlmStopReason.END_TURN
+    text = (result.all_text() or "").lower()
+    assert ("fast-agent" in text) or ("llmindset" in text)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model_name", TEST_MODELS)
+async def test_mcp_tool_result_image_reads_name(llm_agent_setup, model_name):
+    """Simulate an MCP tool result delivering text+image content and verify the model reads the name."""
+    agent = llm_agent_setup
+
+    resolved_model = agent.llm.default_request_params.model
+    if not ModelDatabase.supports_mime(resolved_model, "image/png"):
+        pytest.skip(f"Model '{resolved_model}' does not support image/png")
+
+    # Prepare image content (load shared asset)
+    image_path = (Path(__file__).parent.parent / "multimodal" / "image.png").resolve()
+    assert image_path.exists(), f"Test image not found at {image_path}"
+    image_b64 = base64.b64encode(image_path.read_bytes()).decode("ascii")
+
+    # Build conversation:
+    # 1) User asks to call the tool and analyze result
+    first_user = Prompt.user(
+        "Use the get_image tool, then tell me the user name in the returned image."
+    )
+
+    # 2) Assistant issues the tool call
+    tool_id = "tool_1"
+    assistant_tool_call = PromptMessageExtended(
+        role="assistant",
+        tool_calls={
+            tool_id: CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(name="get_image", arguments={}),
+            ),
+        },
+    )
+
+    tool_result = CallToolResult(
+        content=[
+            TextContent(type="text", text="Here's your image:"),
+            ImageContent(type="image", data=image_b64, mimeType="image/png"),
+        ]
+    )
+
+    # 3) User provides the tool result
+    user_with_results = PromptMessageExtended(
+        role="user",
+        content=[TextContent(type="text", text="Here is the tool result")],
+        tool_results={tool_id: tool_result},
+    )
+
+    result: PromptMessageExtended = await agent.generate(
+        [first_user, assistant_tool_call, user_with_results]
+    )
+    assert result.stop_reason is LlmStopReason.END_TURN
+    assert "evalstate" in (result.all_text() or "").lower()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model_name", TEST_MODELS)
+async def test_mcp_tool_result_pdf_summarizes_name(llm_agent_setup, model_name):
+    """Simulate an MCP tool result delivering a PDF resource and verify the model includes product/company name."""
+    agent = llm_agent_setup
+
+    resolved_model = agent.llm.default_request_params.model
+    if not ModelDatabase.supports_mime(resolved_model, "application/pdf"):
+        pytest.skip(f"Model '{resolved_model}' does not support application/pdf")
+
+    pdf_path = (Path(__file__).parent.parent / "multimodal" / "sample.pdf").resolve()
+    assert pdf_path.exists(), f"Test PDF not found at {pdf_path}"
+    pdf_b64 = base64.b64encode(pdf_path.read_bytes()).decode("ascii")
+
+    # Build conversation:
+    # 1) User asks to call the tool and summarize the PDF
+    first_user = Prompt.user(
+        "Use the get_pdf tool, then summarize the document and include the product/company name."
+    )
+
+    # 2) Assistant issues the tool call
+    tool_id = "tool_pdf_1"
+    assistant_tool_call = PromptMessageExtended(
+        role="assistant",
+        tool_calls={
+            tool_id: CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(name="get_pdf", arguments={}),
+            ),
+        },
+    )
+
+    embedded_pdf = EmbeddedResource(
+        type="resource",
+        resource=BlobResourceContents(
+            uri=f"file://{pdf_path}", blob=pdf_b64, mimeType="application/pdf"
+        ),
+    )
+    tool_result = CallToolResult(
+        content=[
+            TextContent(type="text", text="Here is the PDF"),
+            embedded_pdf,
+        ]
+    )
+
+    # 3) User provides the tool result
+    user_with_results = PromptMessageExtended(
+        role="user",
+        content=[TextContent(type="text", text="Here is the tool result")],
+        tool_results={tool_id: tool_result},
+    )
+
+    result: PromptMessageExtended = await agent.generate(
+        [first_user, assistant_tool_call, user_with_results]
+    )
+    assert result.stop_reason is LlmStopReason.END_TURN
+    text = (result.all_text() or "").lower()
+    assert ("fast-agent" in text) or ("llmindset" in text)
