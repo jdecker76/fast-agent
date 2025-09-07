@@ -116,9 +116,9 @@ dev = [
 ]
 
 [project.scripts]
-fast-agent = "mcp_agent.cli.__main__:main"
-fast-agent-mcp = "mcp_agent.cli.__main__:main"
-fastagent = "mcp_agent.cli.__main__:app"
+fast-agent = "fast_agent.cli.__main__:main"
+fast-agent-mcp = "fast_agent.cli.__main__:main"
+fastagent = "fast_agent.cli.__main__:app"
 prompt-server = "mcp_agent.mcp.prompts.__main__:main"
 
 [tool.setuptools.package-data]

@@ -1,7 +1,7 @@
 import sys
 
-from mcp_agent.cli.constants import GO_SPECIFIC_OPTIONS, KNOWN_SUBCOMMANDS
-from mcp_agent.cli.main import app
+from fast_agent.cli.constants import GO_SPECIFIC_OPTIONS, KNOWN_SUBCOMMANDS
+from fast_agent.cli.main import app
 
 # if the arguments would work with "go" we'll just route to it
 
@@ -20,7 +20,9 @@ def main():
             # Find where to insert 'go' - before the first go-specific option
             insert_pos = 1
             for i, arg in enumerate(sys.argv[1:], 1):
-                if arg in GO_SPECIFIC_OPTIONS or any(arg.startswith(opt + "=") for opt in GO_SPECIFIC_OPTIONS):
+                if arg in GO_SPECIFIC_OPTIONS or any(
+                    arg.startswith(opt + "=") for opt in GO_SPECIFIC_OPTIONS
+                ):
                     insert_pos = i
                     break
             # Auto-route to go command

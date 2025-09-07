@@ -7,7 +7,7 @@ Environment variables are volatile and may be temporarily modified during test e
 import os
 
 from fast_agent.llm.provider_key_manager import API_KEY_HINT_TEXT
-from mcp_agent.cli.commands.check_config import check_api_keys
+from fast_agent.cli.commands.check_config import check_api_keys
 
 
 def _set_hf_token(value: str | None) -> str | None:

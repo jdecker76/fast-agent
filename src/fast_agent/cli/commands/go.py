@@ -8,8 +8,8 @@ from typing import Dict, List, Optional
 import typer
 
 from fast_agent.ui.console_display import ConsoleDisplay
-from mcp_agent.cli.commands.server_helpers import add_servers_to_config, generate_server_name
-from mcp_agent.cli.commands.url_parser import generate_server_configs, parse_server_urls
+from fast_agent.cli.commands.server_helpers import add_servers_to_config, generate_server_name
+from fast_agent.cli.commands.url_parser import generate_server_configs, parse_server_urls
 from mcp_agent.core.fastagent import FastAgent
 
 app = typer.Typer(

@@ -4,8 +4,9 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from mcp_agent.cli.commands import check_config, go, quickstart, setup
-from mcp_agent.cli.terminal import Application
+from fast_agent.cli.commands import check_config, go, quickstart
+from fast_agent.cli.commands import setup
+from fast_agent.cli.terminal import Application
 
 app = typer.Typer(
     help="fast-agent - Build effective agents using Model Context Protocol",
