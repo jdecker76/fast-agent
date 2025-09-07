@@ -132,7 +132,7 @@ class FastAgentLLM(ContextDependent, FastAgentLLMProtocol, Generic[MessageParamT
         self._message_history: List[PromptMessageExtended] = []
 
         # Initialize the display component
-        from mcp_agent.ui.console_display import ConsoleDisplay
+        from fast_agent.ui.console_display import ConsoleDisplay
 
         self.display = ConsoleDisplay(config=self.context.config)
 

@@ -20,7 +20,7 @@ from fast_agent.context import Context
 from fast_agent.llm.request_params import RequestParams
 from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.types.llm_stop_reason import LlmStopReason
-from mcp_agent.ui.console_display import ConsoleDisplay
+from fast_agent.ui.console_display import ConsoleDisplay
 
 # TODO -- decide what to do with type safety for model/chat_turn()
 

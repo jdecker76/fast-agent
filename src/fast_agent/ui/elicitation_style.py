@@ -1,4 +1,4 @@
-"""Shared styling configuration for MCP elicitation forms."""
+"""Shared styling configuration for elicitation UIs (prompt_toolkit)."""
 
 from prompt_toolkit.styles import Style
 

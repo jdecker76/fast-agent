@@ -7,7 +7,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from fast_agent import console
-from mcp_agent.core.mermaid_utils import (
+from fast_agent.ui.mermaid_utils import (
     MermaidDiagram,
     create_mermaid_live_link,
     detect_diagram_type,

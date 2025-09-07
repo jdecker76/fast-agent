@@ -18,6 +18,7 @@ from opentelemetry import trace
 from fast_agent import config
 from fast_agent.context import Context
 from fast_agent.core import Core
+from fast_agent.ui.usage_display import display_usage_report
 from mcp_agent.core.agent_app import AgentApp
 from mcp_agent.core.direct_decorators import (
     agent as agent_decorator,
@@ -57,7 +58,6 @@ from mcp_agent.core.exceptions import (
     ServerConfigError,
     ServerInitializationError,
 )
-from mcp_agent.core.usage_display import display_usage_report
 from mcp_agent.core.validation import (
     validate_provider_keys_post_creation,
     validate_server_references,

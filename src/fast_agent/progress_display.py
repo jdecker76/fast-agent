@@ -4,7 +4,7 @@ Provides a shared progress display instance for consistent progress handling.
 """
 
 from fast_agent.console import console
-from mcp_agent.logging.rich_progress import RichProgressDisplay
+from fast_agent.ui.rich_progress import RichProgressDisplay
 
 # Main progress display instance - shared across the application
 progress_display = RichProgressDisplay(console)

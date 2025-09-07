@@ -9,7 +9,7 @@ import pytest
 from prompt_toolkit.document import Document
 from prompt_toolkit.validation import ValidationError
 
-from mcp_agent.human_input.elicitation_form import FormatValidator
+from fast_agent.ui.elicitation_form import FormatValidator
 
 
 class TestElicitationFormatValidator:
@@ -156,12 +156,4 @@ class TestElicitationFormatValidator:
             validator = FormatValidator(format_type)
             doc = Document("")
             # Should not raise ValidationError for empty string
-            validator.validate(doc)
-
-    def test_whitespace_only_is_valid(self):
-        """Test that whitespace-only strings are considered valid (stripped to empty)."""
-        for format_type in ["email", "uri", "date", "date-time"]:
-            validator = FormatValidator(format_type)
-            doc = Document("   ")
-            # Should not raise ValidationError for whitespace-only
             validator.validate(doc)

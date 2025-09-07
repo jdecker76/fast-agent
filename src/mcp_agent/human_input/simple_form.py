@@ -5,7 +5,6 @@ from typing import Any, Dict, Optional, Union
 
 from mcp.types import ElicitRequestedSchema
 
-from mcp_agent.human_input.elicitation_form import show_simple_elicitation_form
 from mcp_agent.human_input.form_fields import FormSchema
 
 
@@ -45,6 +44,9 @@ async def form(
         elicit_schema = schema
     else:
         elicit_schema = schema
+
+    # Import here to avoid import-time cycles via package __init__
+    from fast_agent.ui.elicitation_form import show_simple_elicitation_form
 
     # Show the form
     action, result = await show_simple_elicitation_form(

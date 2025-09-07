@@ -1,14 +1,15 @@
-"""Human input modules for forms and elicitation."""
+"""Human input modules for forms and elicitation.
 
-# Export the simple form API
-# Export field types and schema builder
+Keep __init__ lightweight to avoid circular imports during submodule import.
+Exports schema builders directly and defers simple form API imports.
+"""
+
 from mcp_agent.human_input.form_fields import (
     BooleanField,
     EnumField,
     FormSchema,
     IntegerField,
     NumberField,
-    # Field classes
     StringField,
     boolean,
     choice,
@@ -17,18 +18,11 @@ from mcp_agent.human_input.form_fields import (
     email,
     integer,
     number,
-    # Convenience functions
     string,
     url,
 )
-from mcp_agent.human_input.simple_form import ask, ask_sync, form, form_sync
 
 __all__ = [
-    # Form functions
-    "form",
-    "form_sync",
-    "ask",
-    "ask_sync",
     # Schema builder
     "FormSchema",
     # Field classes
@@ -48,3 +42,6 @@ __all__ = [
     "boolean",
     "choice",
 ]
+
+# Note: form(), ask() helpers are available via mcp_agent.human_input.simple_form;
+# intentionally not imported here to avoid import-time cycles.

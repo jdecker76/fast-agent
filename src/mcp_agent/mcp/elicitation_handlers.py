@@ -90,9 +90,17 @@ async def forms_elicitation_handler(
         elif response_data == "__CANCELLED__":
             return ElicitResult(action="cancel")
         elif response_data == "__DISABLE_SERVER__":
-            # Log that user wants to disable elicitation for this server
-            logger.warning(f"User requested to disable elicitation for server: {server_name}")
-            # For now, just cancel - in a full implementation, this would update server config
+            # Respect user's request: disable elicitation for this server for this session
+            logger.warning(
+                f"User requested to disable elicitation for server: {server_name} — disabling for session"
+            )
+            try:
+                from mcp_agent.human_input.elicitation_state import elicitation_state
+
+                elicitation_state.disable_server(server_name)
+            except Exception:
+                # Do not fail the flow if state update fails
+                pass
             return ElicitResult(action="cancel")
 
         # Parse response based on schema if provided

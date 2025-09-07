@@ -84,7 +84,7 @@ class MCPAggregator(ContextDependent):
             self._persistent_connection_manager = self.context._connection_manager
 
         # Import the display component here to avoid circular imports
-        from mcp_agent.ui.console_display import ConsoleDisplay
+        from fast_agent.ui.console_display import ConsoleDisplay
 
         # Initialize the display component
         self.display = ConsoleDisplay(config=self.context.config)

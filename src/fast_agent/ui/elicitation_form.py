@@ -22,8 +22,7 @@ from prompt_toolkit.widgets import (
 from pydantic import AnyUrl, EmailStr
 from pydantic import ValidationError as PydanticValidationError
 
-from mcp_agent.human_input.elicitation_forms import ELICITATION_STYLE
-from mcp_agent.human_input.elicitation_state import elicitation_state
+from fast_agent.ui.elicitation_style import ELICITATION_STYLE
 
 
 class SimpleNumberValidator(Validator):
@@ -339,7 +338,7 @@ class ElicitationForm:
         @kb.add("c-j")
         def insert_newline(event):
             # Insert a newline at the cursor position
-            event.current_buffer.insert_text('\n')
+            event.current_buffer.insert_text("\n")
             # Mark this field as multiline when user adds a newline
             for field_name, widget in self.field_widgets.items():
                 if isinstance(widget, Buffer) and widget == event.current_buffer:
@@ -442,7 +441,6 @@ class ElicitationForm:
                     break
 
         return constraints
-
 
     def _create_field(self, field_name: str, field_def: Dict[str, Any]):
         """Create a field widget."""
@@ -563,11 +561,11 @@ class ElicitationForm:
                 max_length = None
 
             # Check if default value contains newlines
-            if field_type == "string" and default_value is not None and '\n' in str(default_value):
+            if field_type == "string" and default_value is not None and "\n" in str(default_value):
                 multiline = True
                 self.multiline_fields.add(field_name)  # Track multiline fields
                 # Set height to actual line count for fields with newlines in default
-                initial_height = str(default_value).count('\n') + 1
+                initial_height = str(default_value).count("\n") + 1
             elif max_length and max_length > 100:
                 # Use multiline for longer fields
                 multiline = True
@@ -610,10 +608,10 @@ class ElicitationForm:
                 if not buffer.text:
                     return initial_height
                 # Calculate height based on number of newlines in buffer
-                line_count = buffer.text.count('\n') + 1
+                line_count = buffer.text.count("\n") + 1
                 # Use initial height as minimum, grow up to 20 lines
                 return min(max(line_count, initial_height), 20)
-            
+
             text_input = Window(
                 BufferControl(buffer=buffer),
                 height=get_dynamic_height,  # Use dynamic height function
@@ -732,8 +730,10 @@ class ElicitationForm:
         self.app.exit()
 
     def _cancel_all(self):
-        """Handle cancel all - cancels and disables future elicitations."""
-        elicitation_state.disable_server(self.server_name)
+        """Handle cancel all: signal disable; no side effects here.
+
+        UI emits an action; handler/orchestration is responsible for updating state.
+        """
         self.action = "disable"
         self._clear_status_bar()
         self.app.exit()

@@ -12,8 +12,8 @@ from fast_agent.agents.agent_types import AgentType
 from fast_agent.llm.request_params import RequestParams
 from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.progress_display import progress_display
+from fast_agent.ui.interactive_prompt import InteractivePrompt
 from mcp_agent.agents.agent import Agent
-from mcp_agent.core.interactive_prompt import InteractivePrompt
 
 
 class AgentApp:
@@ -307,7 +307,7 @@ class AgentApp:
             if pretty_print_parallel:
                 agent = self._agents.get(agent_name)
                 if agent and agent.agent_type == AgentType.PARALLEL:
-                    from mcp_agent.ui.console_display import ConsoleDisplay
+                    from fast_agent.ui.console_display import ConsoleDisplay
 
                     display = ConsoleDisplay(config=None)
                     display.show_parallel_results(agent)
