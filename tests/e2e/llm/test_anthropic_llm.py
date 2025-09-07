@@ -33,7 +33,15 @@ def get_test_models():
         return [os.environ.get("TEST_MODEL")]
     # Default models
     else:
-        return ["gpt-4.1-mini", "haiku", "kimi", "o4-mini.low", "gpt-5-mini.low", "gemini25"]
+        return [
+            "gpt-4.1-mini",
+            "haiku",
+            "kimi",
+            "o4-mini.low",
+            "gpt-5-mini.low",
+            "gemini25",
+            #     "generic.qwen3:8b",
+        ]
 
 
 # Create the list of models to test
@@ -150,7 +158,7 @@ async def test_tool_user_continuation(llm_agent_setup, model_name):
     result = await agent.generate(
         "check the weather in new york",
         tools=[_tool],
-        request_params=RequestParams(maxTokens=100),
+        request_params=RequestParams(maxTokens=200),
     )
     assert LlmStopReason.TOOL_USE is result.stop_reason
     assert result.tool_calls

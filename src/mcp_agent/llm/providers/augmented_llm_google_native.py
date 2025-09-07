@@ -7,7 +7,7 @@ from google.genai import (
     errors,  # For error handling
     types,
 )
-from mcp import Tool
+from mcp import Tool as McpTool
 from mcp.types import (
     CallToolRequest,
     CallToolRequestParams,
@@ -114,8 +114,12 @@ class GoogleNativeAugmentedLLM(AugmentedLLM[types.Content, types.Content]):
 
     async def _google_completion(
         self,
+        message: List[types.Content] | None,
         request_params: RequestParams | None = None,
-        tools: List[Tool] | None = None,
+        tools: List[McpTool] | None = None,
+        *,
+        response_mime_type: str | None = None,
+        response_schema: object | None = None,
     ) -> PromptMessageMultipart:
         """
         Process a query using Google's generate_content API and available tools.
@@ -123,42 +127,40 @@ class GoogleNativeAugmentedLLM(AugmentedLLM[types.Content, types.Content]):
         request_params = self.get_request_params(request_params=request_params)
         responses: List[ContentBlock] = []
 
-        # Load full conversation history if use_history is true
-        if request_params.use_history:
-            # Get history from self.history and convert to google.genai format
-            conversation_history = self._converter.convert_to_google_content(
-                self.history.get(include_completion_history=True)
-            )
-        else:
-            # If not using history, convert the last message to google.genai format
-            conversation_history = self._converter.convert_to_google_content(
-                self.history.get(include_completion_history=True)[-1:]
-            )
+        # Build conversation history from stored provider-specific messages
+        # and the provided message for this turn (no implicit conversion here).
+        # We store provider-native Content objects in history.
+        # Start with prompts + (optionally) accumulated conversation messages
+        base_history: List[types.Content] = self.history.get(
+            include_completion_history=request_params.use_history
+        )
+        # Make a working copy and add the provided turn message(s) if present
+        conversation_history: List[types.Content] = list(base_history)
+        if message:
+            conversation_history.extend(message)
 
         self.logger.debug(f"Google completion requested with messages: {conversation_history}")
-        self._log_chat_progress(
-            self.chat_turn(), model=request_params.model
-        )  # Log chat progress at the start of completion
+        self._log_chat_progress(self.chat_turn(), model=request_params.model)
 
-        # Keep track of the number of messages in history before this turn
-        initial_history_length = len(conversation_history)
-
-        #        for i in range(request_params.max_iterations):
-        # 1. Get available tools
-        #            aggregator_response = await self.aggregator.list_tools()
-        available_tools = self._converter.convert_to_google_tools(
-            tools or []
-        )  # Convert fast-agent tools to google.genai tools
+        available_tools: List[types.Tool] = (
+            self._converter.convert_to_google_tools(tools or []) if tools else []
+        )
 
         # 2. Prepare generate_content arguments
         generate_content_config = self._converter.convert_request_params_to_google_config(
             request_params
         )
 
-        # Add tools and tool_config to generate_content_config if tools are available
-        if available_tools:
+        # Apply structured output config OR tool calling (mutually exclusive)
+        if response_schema or response_mime_type:
+            # Structured output mode: disable tool use
+            if response_mime_type:
+                generate_content_config.response_mime_type = response_mime_type
+            if response_schema is not None:
+                generate_content_config.response_schema = response_schema
+        elif available_tools:
+            # Tool calling enabled only when not doing structured output
             generate_content_config.tools = available_tools
-            # Set tool_config mode to AUTO to allow the model to decide when to call tools
             generate_content_config.tool_config = types.ToolConfig(
                 function_calling_config=types.FunctionCallingConfig(mode="AUTO")
             )
@@ -168,7 +170,7 @@ class GoogleNativeAugmentedLLM(AugmentedLLM[types.Content, types.Content]):
             # Use the async client
             api_response = await self._google_client.aio.models.generate_content(
                 model=request_params.model,
-                contents=conversation_history,  # Pass the current turn's conversation history
+                contents=conversation_history,  # Full conversational context for this turn
                 config=generate_content_config,
             )
             self.logger.debug("Google generate_content response:", data=api_response)
@@ -210,9 +212,7 @@ class GoogleNativeAugmentedLLM(AugmentedLLM[types.Content, types.Content]):
         )
         stop_reason = LlmStopReason.END_TURN
         tool_calls: Dict[str, CallToolRequest] | None = None
-        # Add model's response to conversation history for potential next turn
-        # This is for the *internal* conversation history of this completion call
-        # to handle multi-turn tool use within one _google_completion call.
+        # Add model's response to the working conversation history for this turn
         conversation_history.append(candidate.content)
 
         # Extract and process text content and tool calls
@@ -227,26 +227,11 @@ class GoogleNativeAugmentedLLM(AugmentedLLM[types.Content, types.Content]):
                 )  # Collect text for potential assistant message display
             elif isinstance(part, CallToolRequestParams):
                 # This is a function call requested by the model
+                # If in structured mode, ignore tool calls per either-or rule
+                if response_schema or response_mime_type:
+                    continue
                 tool_calls_to_execute.append(part)  # Collect tool calls to execute
 
-        # Display assistant message if there is text content
-        #            if assistant_message_parts:
-        # # Combine text parts for display
-        # assistant_text = "".join(
-        #     [p.text for p in assistant_message_parts if isinstance(p, TextContent)]
-        # )
-        # Display the assistant message. If there are tool calls, indicate that.
-        # if tool_calls_to_execute:
-        #     tool_names = ", ".join([tc.name for tc in tool_calls_to_execute])
-        #     display_text = Text(
-        #         f"{assistant_text}\nAssistant requested tool calls: {tool_names}",
-        #         style="dim green italic",
-        #     )
-        #     await self.show_assistant_message(display_text, tool_names)
-        # else:
-        #     await self.show_assistant_message(Text(assistant_text))
-
-        # 5. Handle tool calls if any
         if tool_calls_to_execute:
             stop_reason = LlmStopReason.TOOL_USE
             tool_calls = {}
@@ -255,65 +240,18 @@ class GoogleNativeAugmentedLLM(AugmentedLLM[types.Content, types.Content]):
                 tool_call_request = CallToolRequest(method="tools/call", params=tool_call_params)
                 hex_string = secrets.token_hex(3)[:5]
                 tool_calls[hex_string] = tool_call_request
-                # self.show_tool_call(
-                #     aggregator_response.tools,  # Pass fast-agent tool definitions for display
-                #     tool_call_request.params.name,
-                #     str(
-                #         tool_call_request.params.arguments
-                #     ),  # Convert dict to string for display
-                # )
-
-                # Execute the tool call. google.genai does not provide a tool_call_id, pass None.
-            #                    result = await self.call_tool(tool_call_request, None)
-            #                   self.show_tool_result(result)
-
-            #                  tool_results.append((tool_call_params.name, result))  # Store name and result
-
-            # Add tool result content to the overall responses to be returned
-            #                 responses.extend(result.content)
-
-            # Convert tool results back to google.genai format and add to conversation_history for the next turn
-            # TODO -- THIS NEEDS TO GO IN THE _provider METHOD
-            # tool_response_google_contents = self._converter.convert_function_results_to_google(
-            #     tool_results
-            # )
-            # conversation_history.extend(tool_response_google_contents)
 
             self.logger.debug("Tool call results processed.")
         else:
-            # https://ai.google.dev/api/generate-content#FinishReason
-            match candidate.finish_reason:
-                case "STOP":
-                    stop_reason = LlmStopReason.END_TURN
-                case "MAX_TOKENS":
-                    stop_reason = LlmStopReason.MAX_TOKENS
-                case "PROHIBITED_CONTENT" | "SAFETY" | "RECITATION" | "BLOCKLIST" | "SPII":
-                    stop_reason = LlmStopReason.SAFETY
-                case (
-                    "LANGUAGE"
-                    | "OTHER"
-                    | "MALFORMED_FUNCTION_CALL"
-                    | "IMAGE_SAFETY"
-                    | "UNEXPECTED_TOOL_CALL"
-                    | "TOO_MANY_TOOL_CALLS"
-                ):
-                    stop_reason = LlmStopReason.ERROR
+            stop_reason = self._map_finish_reason(getattr(candidate, "finish_reason", None))
 
-            # If no tool calls, check finish reason to stop or continue
-            # google.genai finish reasons: STOP, MAX_TOKENS, SAFETY, RECITATION, OTHER
-            # Break to avoid infinite loops if the model doesn't explicitly stop or call tools.
-            # self.logger.debug(
-            #     f"Iteration {i}: No tool calls and no explicit stop reason, breaking."
-            # )
-
-        # 6. Update history after all iterations are done (or max_iterations reached)
-        # Only add the new messages generated during this completion turn to history
+        # 6. Persist conversation state to provider-native history (exclude prompt messages)
         if request_params.use_history:
-            new_google_messages = conversation_history[initial_history_length:]
-            new_multipart_messages = self._converter.convert_from_google_content_list(
-                new_google_messages
-            )
-            self.history.extend(new_multipart_messages)
+            # History store separates prompt vs conversation messages; keep prompts as-is
+            prompt_messages = self.history.get(include_completion_history=False)
+            # messages after prompts are the true conversation history
+            new_messages = conversation_history[len(prompt_messages) :]
+            self.history.set(new_messages, is_prompt=False)
 
         self._log_chat_finished(model=request_params.model)  # Use model from request_params
         return Prompt.assistant(*responses, stop_reason=stop_reason, tool_calls=tool_calls)
@@ -324,32 +262,108 @@ class GoogleNativeAugmentedLLM(AugmentedLLM[types.Content, types.Content]):
         self,
         multipart_messages: List[PromptMessageMultipart],
         request_params: RequestParams | None = None,
-        tools: List[Tool] | None = None,
+        tools: List[McpTool] | None = None,
         is_template: bool = False,
     ) -> PromptMessageMultipart:
         """
         Applies the prompt messages and potentially calls the LLM for completion.
         """
 
-        request_params = self.get_request_params(
-            request_params=request_params
-        )  # Get request params
+        request_params = self.get_request_params(request_params=request_params)
 
-        # Add incoming messages to history before calling completion
-        # This ensures the current user message is part of the history for the API call
-        self.history.extend(multipart_messages, is_prompt=is_template)
+        # Determine the last message
+        last_message = multipart_messages[-1]
 
-        last_message_role = multipart_messages[-1].role if multipart_messages else None
+        # Add previous messages (excluding the last user message) to provider-native history
+        # If last is assistant, we add all messages and return it directly (no inference).
+        messages_to_add = (
+            multipart_messages[:-1] if last_message.role == "user" else multipart_messages
+        )
 
-        if last_message_role == "user":
-            # If the last message is from the user, call the LLM for a response
-            # _google_completion will now load history internally
-            return await self._google_completion(request_params=request_params, tools=tools)
-            # return Prompt.assistant(*responses)  # Return combined responses as an assistant message
-        else:
-            # If the last message is not from the user (e.g., assistant), no completion is needed for this step
-            # The messages have already been added to history by the calling code/framework
-            return multipart_messages[-1]  # Return the last message as is
+        if messages_to_add:
+            # Convert prior messages to google.genai Content and store in provider history
+            converted_prior = self._converter.convert_to_google_content(messages_to_add)
+            self.history.extend(converted_prior, is_prompt=is_template)
+
+        if last_message.role == "assistant":
+            # No generation required; the provided assistant message is the output
+            return last_message
+
+        # Build the provider-native message list for this turn from the last user message
+        # This must handle tool results as function responses before any additional user content.
+        turn_messages: List[types.Content] = []
+
+        # 1) Convert tool results (if any) to google function responses
+        if last_message.tool_results:
+            # Map correlation IDs back to tool names using the last assistant tool_calls
+            # found in our high-level message history
+            id_to_name: Dict[str, str] = {}
+            for prev in reversed(self._message_history):
+                if prev.role == "assistant" and prev.tool_calls:
+                    for call_id, call in prev.tool_calls.items():
+                        try:
+                            id_to_name[call_id] = call.params.name
+                        except Exception:
+                            pass
+                    break
+
+            tool_results_pairs = []
+            for call_id, result in last_message.tool_results.items():
+                tool_name = id_to_name.get(call_id, "tool")
+                tool_results_pairs.append((tool_name, result))
+
+            if tool_results_pairs:
+                turn_messages.extend(
+                    self._converter.convert_function_results_to_google(tool_results_pairs)
+                )
+
+        # 2) Convert any direct user content in the last message
+        if last_message.content:
+            user_contents = self._converter.convert_to_google_content([last_message])
+            # convert_to_google_content returns a list; preserve order after tool responses
+            turn_messages.extend(user_contents)
+
+        # If we somehow have no provider-native parts, ensure we send an empty user content
+        if not turn_messages:
+            turn_messages.append(types.Content(role="user", parts=[types.Part.from_text("")]))
+
+        # Delegate to the native completion with explicit turn messages
+        return await self._google_completion(
+            turn_messages, request_params=request_params, tools=tools
+        )
+
+    def _map_finish_reason(self, finish_reason: object) -> LlmStopReason:
+        """Map Google finish reasons to LlmStopReason robustly."""
+        # Normalize to string if it's an enum-like object
+        reason = None
+        try:
+            reason = str(finish_reason) if finish_reason is not None else None
+        except Exception:
+            reason = None
+
+        if not reason:
+            return LlmStopReason.END_TURN
+
+        # Extract last token after any dots or enum prefixes
+        key = reason.split(".")[-1].upper()
+
+        if key in {"STOP"}:
+            return LlmStopReason.END_TURN
+        if key in {"MAX_TOKENS", "LENGTH"}:
+            return LlmStopReason.MAX_TOKENS
+        if key in {
+            "PROHIBITED_CONTENT",
+            "SAFETY",
+            "RECITATION",
+            "BLOCKLIST",
+            "SPII",
+            "IMAGE_SAFETY",
+        }:
+            return LlmStopReason.SAFETY
+        if key in {"MALFORMED_FUNCTION_CALL", "UNEXPECTED_TOOL_CALL", "TOO_MANY_TOOL_CALLS"}:
+            return LlmStopReason.ERROR
+        # Some SDKs include OTHER, LANGUAGE, GROUNDING, UNSPECIFIED, etc.
+        return LlmStopReason.ERROR
 
     async def _apply_prompt_provider_specific_structured(
         self,
@@ -358,110 +372,61 @@ class GoogleNativeAugmentedLLM(AugmentedLLM[types.Content, types.Content]):
         request_params=None,
     ):
         """
-        Handles structured output for Gemini models using response_schema and response_mime_type.
+        Handles structured output for Gemini models using response_schema and response_mime_type,
+        keeping provider-native (google.genai) history consistent with non-structured calls.
         """
         import json
 
-        # Check if the last message is from assistant
-        if multipart_messages and multipart_messages[-1].role == "assistant":
-            last_message = multipart_messages[-1]
+        # Determine the last message and add prior messages to provider-native history
+        last_message = multipart_messages[-1] if multipart_messages else None
+        messages_to_add = (
+            multipart_messages
+            if last_message and last_message.role == "assistant"
+            else multipart_messages[:-1]
+        )
+        if messages_to_add:
+            converted_prior = self._converter.convert_to_google_content(messages_to_add)
+            self.history.extend(converted_prior, is_prompt=False)
 
-            # Extract text content from the assistant message
+        # If the last message is an assistant message, attempt to parse its JSON and return
+        if last_message and last_message.role == "assistant":
             assistant_text = last_message.last_text()
-
             if assistant_text:
                 try:
                     json_data = json.loads(assistant_text)
                     validated_model = model.model_validate(json_data)
-
-                    # Update history with all messages including the assistant message
-                    self.history.extend(multipart_messages, is_prompt=False)
-
-                    # Return the validated model and the assistant message
                     return validated_model, last_message
-
                 except (json.JSONDecodeError, Exception) as e:
                     self.logger.warning(
                         f"Failed to parse assistant message as structured response: {e}"
                     )
-                    # Return None and the assistant message on failure
-                    self.history.extend(multipart_messages, is_prompt=False)
                     return None, last_message
 
         # Prepare request params
         request_params = self.get_request_params(request_params)
-        # Convert Pydantic model to schema dict for Gemini
+
+        # Build schema for structured output
         schema = None
         try:
             schema = model.model_json_schema()
         except Exception:
             pass
+        response_schema = model if schema is None else schema
 
-        # Set up Gemini config for structured output
-        def _get_schema_type(model):
-            # Try to get the type annotation for the model (for list[...] etc)
-            # Fallback to dict schema if not available
-            try:
-                return model
-            except Exception:
-                return None
+        # Convert the last user message to provider-native content for the current turn
+        turn_messages: List[types.Content] = []
+        if last_message:
+            turn_messages = self._converter.convert_to_google_content([last_message])
 
-        # Use the schema as a dict or as a type, as Gemini supports both
-        response_schema = _get_schema_type(model)
-        if schema is not None:
-            response_schema = schema
-
-        # Set config for structured output
-        generate_content_config = self._converter.convert_request_params_to_google_config(
-            request_params
+        # Delegate to unified completion with structured options enabled (no tools)
+        assistant_msg = await self._google_completion(
+            turn_messages,
+            request_params=request_params,
+            tools=None,
+            response_mime_type="application/json",
+            response_schema=response_schema,
         )
-        generate_content_config.response_mime_type = "application/json"
-        generate_content_config.response_schema = response_schema
 
-        # Convert messages to google.genai format
-        conversation_history = self._converter.convert_to_google_content(multipart_messages)
-
-        # Call Gemini API
-        try:
-            api_response = await self._google_client.aio.models.generate_content(
-                model=request_params.model,
-                contents=conversation_history,
-                config=generate_content_config,
-            )
-        except Exception as e:
-            self.logger.error(f"Error during Gemini structured call: {e}")
-            # Return None and a dummy assistant message
-            return None, Prompt.assistant(f"Error: {e}")
-
-        # Parse the response as JSON and validate against the model
-        if not api_response.candidates or not api_response.candidates[0].content.parts:
-            return None, Prompt.assistant("No structured response returned.")
-
-        # Try to extract the JSON from the first part
-        text = None
-        for part in api_response.candidates[0].content.parts:
-            if part.text:
-                text = part.text
-                break
-        if text is None:
-            return None, Prompt.assistant("No structured text returned.")
-
-        try:
-            json_data = json.loads(text)
-            validated_model = model.model_validate(json_data)
-            # Update LLM history with user and assistant messages for correct history tracking
-            # Add user message(s)
-            for msg in multipart_messages:
-                self.history.append(msg)
-            # Add assistant message
-            assistant_msg = Prompt.assistant(text)
-            self.history.append(assistant_msg)
-            return validated_model, assistant_msg
-        except Exception as e:
-            self.logger.warning(f"Failed to parse structured response: {e}")
-            # Still update history for consistency
-            for msg in multipart_messages:
-                self.history.append(msg)
-            assistant_msg = Prompt.assistant(text)
-            self.history.append(assistant_msg)
-            return None, assistant_msg
+        # Parse using shared helper for consistency
+        parsed, _ = self._structured_from_multipart(assistant_msg, model)
+        return parsed, assistant_msg

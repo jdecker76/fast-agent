@@ -20,7 +20,6 @@ class Core:
         self,
         name: str = "fast-agent",
         settings: Optional[Settings] | str = None,
-        human_input_callback: Optional[object] = None,
         signal_notification: Optional[SignalWaitCallback] = None,
     ) -> None:
         """
@@ -29,14 +28,12 @@ class Core:
             name:
             settings: If unspecified, the settings are loaded from fastagent.config.yaml.
                 If this is a string, it is treated as the path to the config file to load.
-            human_input_callback: Deprecated; no longer used (FormSpec tool handles elicitation)
             signal_notification: Callback for getting notified on workflow signals/events.
         """
         self.name = name
 
         # We use these to initialize the context in initialize()
         self._config_or_path = settings
-        self._human_input_callback = human_input_callback
         self._signal_notification = signal_notification
 
         self._logger = None
@@ -73,8 +70,6 @@ class Core:
         self._context = await initialize_context(self._config_or_path, store_globally=True)
 
         # Set the properties that were passed in the constructor
-        # Deprecated: human_input_handler no longer used
-        self._context.human_input_handler = None
         self._context.signal_notification = self._signal_notification
         # Note: upstream_session support removed for now
 
