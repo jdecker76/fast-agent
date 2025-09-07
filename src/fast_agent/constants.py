@@ -1,5 +1,5 @@
 """
-Global constants for mcp_agent with minimal dependencies to avoid circular imports.
+Global constants for fast_agent with minimal dependencies to avoid circular imports.
 """
 
 # Canonical tool name for the human input/elicitation tool

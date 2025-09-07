@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional
 
 from fast_agent.progress_display import progress_display
+from fast_agent.tools.elicitation import set_elicitation_input_callback
 from mcp_agent.human_input.elicitation_form import (
     show_simple_elicitation_form,
 )
@@ -86,3 +87,20 @@ async def elicitation_input_callback(
         response=response.strip() if isinstance(response, str) else response,
         metadata={"has_schema": schema is not None},
     )
+
+
+# Register adapter with fast_agent tools so they can invoke this UI handler without importing types
+async def _elicitation_adapter(
+    request_payload: dict,
+    agent_name: str | None = None,
+    server_name: str | None = None,
+    server_info: dict[str, Any] | None = None,
+) -> str:
+    req = HumanInputRequest(**request_payload)
+    resp = await elicitation_input_callback(
+        request=req, agent_name=agent_name, server_name=server_name, server_info=server_info
+    )
+    return resp.response if isinstance(resp.response, str) else str(resp.response)
+
+
+set_elicitation_input_callback(_elicitation_adapter)

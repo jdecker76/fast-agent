@@ -4,7 +4,9 @@ from mcp.server.fastmcp.tools.base import Tool as FastMCPTool
 from mcp.types import CallToolResult, ListToolsResult, Tool
 
 from fast_agent.agents.llm_agent import LlmAgent
+from fast_agent.constants import HUMAN_INPUT_TOOL_NAME
 from fast_agent.context import Context
+from fast_agent.tools.elicitation import get_elicitation_fastmcp_tool
 from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.core.request_params import RequestParams
@@ -42,7 +44,20 @@ class ToolAgent(LlmAgent):
         self._execution_tools: dict[str, FastMCPTool] = {}
         self._tool_schemas: list[Tool] = []
 
-        for tool in tools:
+        # Build a working list of tools and auto-inject human-input tool if missing
+        working_tools: list[FastMCPTool | Callable] = list(tools) if tools else []
+        # Only auto-inject if enabled via AgentConfig
+        if self.config.human_input:
+            existing_names = {
+                t.name if isinstance(t, FastMCPTool) else getattr(t, "__name__", "") for t in working_tools
+            }
+            if HUMAN_INPUT_TOOL_NAME not in existing_names:
+                try:
+                    working_tools.append(get_elicitation_fastmcp_tool())
+                except Exception as e:
+                    logger.warning(f"Failed to initialize human-input tool: {e}")
+
+        for tool in working_tools:
             if isinstance(tool, FastMCPTool):
                 fast_tool = tool
             elif callable(tool):

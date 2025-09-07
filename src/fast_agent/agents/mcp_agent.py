@@ -36,15 +36,16 @@ from pydantic import BaseModel
 
 from fast_agent.agents.llm_agent import DEFAULT_CAPABILITIES
 from fast_agent.agents.tool_agent import ToolAgent
+from fast_agent.constants import HUMAN_INPUT_TOOL_NAME
+from fast_agent.tools.elicitation import (
+    get_elicitation_tool,
+    run_elicitation_form,
+    set_elicitation_input_callback,
+)
 from mcp_agent.core.agent_types import AgentConfig, AgentType
-from mcp_agent.core.constants import HUMAN_INPUT_TOOL_NAME
 from mcp_agent.core.exceptions import PromptExitError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.core.request_params import RequestParams
-from mcp_agent.human_input.elicitation_tool import (
-    get_elicitation_tool,
-    run_elicitation_form,
-)
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.content_helpers import normalize_to_multipart_list
 from mcp_agent.mcp.interfaces import AugmentedLLMProtocol
@@ -104,11 +105,39 @@ class McpAgent(ABC, ToolAgent):
         # set with the "attach" method
         self._llm: AugmentedLLMProtocol | None = None
 
-        # Instantiate human input tool once, so availability is construction-based
+        # Instantiate human input tool once if enabled in config
+        self._human_input_tool: Tool | None = None
+        if self.config.human_input:
+            try:
+                self._human_input_tool = get_elicitation_tool()
+            except Exception:
+                self._human_input_tool = None
+
+        # Register the MCP UI handler as the elicitation callback so fast_agent.tools can call it
+        # without importing MCP types. This avoids circular imports and ensures the callback is ready.
         try:
-            self._human_input_tool: Tool | None = get_elicitation_tool()
+            from mcp_agent.human_input.elicitation_handler import elicitation_input_callback
+            from mcp_agent.human_input.types import HumanInputRequest
+
+            async def _mcp_elicitation_adapter(
+                request_payload: dict,
+                agent_name: str | None = None,
+                server_name: str | None = None,
+                server_info: dict | None = None,
+            ) -> str:
+                req = HumanInputRequest(**request_payload)
+                resp = await elicitation_input_callback(
+                    request=req,
+                    agent_name=agent_name,
+                    server_name=server_name,
+                    server_info=server_info,
+                )
+                return resp.response if isinstance(resp.response, str) else str(resp.response)
+
+            set_elicitation_input_callback(_mcp_elicitation_adapter)
         except Exception:
-            self._human_input_tool = None
+            # If UI handler import fails, leave callback unset; tool will error with a clear message
+            pass
 
     async def __aenter__(self):
         """Initialize the agent and its MCP aggregator."""
@@ -233,8 +262,8 @@ class McpAgent(ABC, ToolAgent):
                             break
             result.tools = filtered_tools
 
-        # Append human input tool if available
-        if getattr(self, "_human_input_tool", None):
+        # Append human input tool if enabled and available
+        if self.config.human_input and getattr(self, "_human_input_tool", None):
             result.tools.append(self._human_input_tool)
 
         return result
@@ -710,8 +739,8 @@ class McpAgent(ABC, ToolAgent):
                         filtered_result[server] = filtered_tools
             result = filtered_result
 
-        # Add elicitation-backed human input tool to a special server if available
-        if getattr(self, "_human_input_tool", None):
+        # Add elicitation-backed human input tool to a special server if enabled and available
+        if self.config.human_input and getattr(self, "_human_input_tool", None):
             special_server_name = "__human_input__"
 
             # If the special server doesn't exist in result, create it
