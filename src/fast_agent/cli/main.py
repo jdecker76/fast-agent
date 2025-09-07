@@ -4,8 +4,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from fast_agent.cli.commands import check_config, go, quickstart
-from fast_agent.cli.commands import setup
+from fast_agent.cli.commands import check_config, go, quickstart, setup
 from fast_agent.cli.terminal import Application
 
 app = typer.Typer(
