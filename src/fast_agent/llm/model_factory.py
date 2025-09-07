@@ -3,6 +3,7 @@ from typing import Dict, Optional, Type, Union
 
 from pydantic import BaseModel
 
+from fast_agent.interfaces import FastAgentLLMProtocol, LLMFactoryProtocol
 from fast_agent.llm.internal.passthrough import PassthroughLLM
 from fast_agent.llm.internal.playback import PlaybackLLM
 from fast_agent.llm.internal.silent import SilentLLM
@@ -21,10 +22,9 @@ from fast_agent.llm.provider.openai.llm_openrouter import OpenRouterLLM
 from fast_agent.llm.provider.openai.llm_tensorzero_openai import TensorZeroOpenAILLM
 from fast_agent.llm.provider.openai.llm_xai import XAILLM
 from fast_agent.llm.provider_types import Provider
+from fast_agent.llm.request_params import RequestParams
 from mcp_agent.agents.agent import Agent
 from mcp_agent.core.exceptions import ModelConfigError
-from mcp_agent.core.request_params import RequestParams
-from mcp_agent.mcp.interfaces import FastAgentLLMProtocol, LLMFactoryProtocol
 
 # from mcp_agent.workflows.llm.augmented_llm_deepseek import DeekSeekAugmentedLLM
 

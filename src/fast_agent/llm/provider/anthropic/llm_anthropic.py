@@ -23,6 +23,7 @@ from mcp.types import (
 )
 
 from fast_agent.event_progress import ProgressAction
+from fast_agent.interfaces import ModelT
 from fast_agent.llm.fastagent_llm import (
     FastAgentLLM,
     RequestParams,
@@ -32,12 +33,11 @@ from fast_agent.llm.provider.anthropic.multipart_converter_anthropic import (
 )
 from fast_agent.llm.provider_types import Provider
 from fast_agent.llm.usage_tracking import TurnUsage
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.exceptions import ProviderKeyError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.interfaces import ModelT
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-0"
 STRUCTURED_OUTPUT_TOOL_NAME = "return_structured_output"
@@ -291,7 +291,7 @@ class AnthropicLLM(FastAgentLLM[MessageParam, Message]):
         request_params: RequestParams | None = None,
         structured_model: Type[ModelT] | None = None,
         tools: List[Tool] | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Process a query using an LLM and available tools.
         Override this method to use a different LLM.
@@ -465,11 +465,11 @@ class AnthropicLLM(FastAgentLLM[MessageParam, Message]):
 
     async def _apply_prompt_provider_specific(
         self,
-        multipart_messages: List["PromptMessageMultipart"],
+        multipart_messages: List["PromptMessageExtended"],
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
         is_template: bool = False,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         # Check the last message role
         last_message = multipart_messages[-1]
 
@@ -512,10 +512,10 @@ class AnthropicLLM(FastAgentLLM[MessageParam, Message]):
 
     async def _apply_prompt_provider_specific_structured(
         self,
-        multipart_messages: List[PromptMessageMultipart],
+        multipart_messages: List[PromptMessageExtended],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:  # noqa: F821
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:  # noqa: F821
         request_params = self.get_request_params(request_params)
 
         # Check the last message role
@@ -538,7 +538,7 @@ class AnthropicLLM(FastAgentLLM[MessageParam, Message]):
             message_param = AnthropicConverter.convert_to_anthropic(last_message)
 
             # Call _anthropic_completion with the structured model
-            result: PromptMessageMultipart = await self._anthropic_completion(
+            result: PromptMessageExtended = await self._anthropic_completion(
                 message_param, request_params, structured_model=model
             )
 

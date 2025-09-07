@@ -3,16 +3,16 @@ from typing import Any, Callable, Dict, List
 from mcp.server.fastmcp.tools.base import Tool as FastMCPTool
 from mcp.types import CallToolResult, ListToolsResult, Tool
 
+from fast_agent.agents.agent_types import AgentConfig
 from fast_agent.agents.llm_agent import LlmAgent
 from fast_agent.constants import HUMAN_INPUT_TOOL_NAME
 from fast_agent.context import Context
+from fast_agent.llm.request_params import RequestParams
+from fast_agent.mcp.helpers.content_helpers import text_content
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.tools.elicitation import get_elicitation_fastmcp_tool
 from fast_agent.types.llm_stop_reason import LlmStopReason
-from mcp_agent.core.agent_types import AgentConfig
-from mcp_agent.core.request_params import RequestParams
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.helpers.content_helpers import text_content
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 logger = get_logger(__name__)
 
@@ -49,7 +49,8 @@ class ToolAgent(LlmAgent):
         # Only auto-inject if enabled via AgentConfig
         if self.config.human_input:
             existing_names = {
-                t.name if isinstance(t, FastMCPTool) else getattr(t, "__name__", "") for t in working_tools
+                t.name if isinstance(t, FastMCPTool) else getattr(t, "__name__", "")
+                for t in working_tools
             }
             if HUMAN_INPUT_TOOL_NAME not in existing_names:
                 try:
@@ -78,13 +79,13 @@ class ToolAgent(LlmAgent):
 
     async def generate_impl(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Generate a response using the LLM, and handle tool calls if necessary.
-        Messages are already normalized to List[PromptMessageMultipart].
+        Messages are already normalized to List[PromptMessageExtended].
         """
         if tools is None:
             tools = (await self.list_tools()).tools
@@ -108,16 +109,16 @@ class ToolAgent(LlmAgent):
         return result
 
     # we take care of tool results, so skip displaying them
-    def show_user_message(self, message: PromptMessageMultipart) -> None:
+    def show_user_message(self, message: PromptMessageExtended) -> None:
         if message.tool_results:
             return
         super().show_user_message(message)
 
-    async def run_tools(self, request: PromptMessageMultipart) -> PromptMessageMultipart:
+    async def run_tools(self, request: PromptMessageExtended) -> PromptMessageExtended:
         """Runs the tools in the request, and returns a new User message with the results"""
         if not request.tool_calls:
             logger.warning("No tool calls found in request", data=request)
-            return PromptMessageMultipart(role="user", tool_results={})
+            return PromptMessageExtended(role="user", tool_results={})
 
         tool_results: dict[str, CallToolResult] = {}
         # TODO -- use gather() for parallel results, update display
@@ -138,7 +139,7 @@ class ToolAgent(LlmAgent):
             tool_results[correlation_id] = result
             self.display.show_tool_result(name=self.name, result=result)
 
-        return PromptMessageMultipart(role="user", tool_results=tool_results)
+        return PromptMessageExtended(role="user", tool_results=tool_results)
 
     async def list_tools(self) -> ListToolsResult:
         """Return available tools for this agent. Overridable by subclasses."""

@@ -15,7 +15,7 @@ from pydantic import AnyUrl
 from fast_agent.llm.provider.anthropic.multipart_converter_anthropic import (
     AnthropicConverter,
 )
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from mcp_agent.mcp.resource_utils import normalize_uri
 
 PDF_BASE64 = base64.b64encode(b"fake_pdf_data").decode("utf-8")
@@ -42,7 +42,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
         """Test conversion of TextContent to Anthropic text block."""
         # Create a text content message
         text_content = TextContent(type="text", text=self.sample_text)
-        multipart = PromptMessageMultipart(role="user", content=[text_content])
+        multipart = PromptMessageExtended(role="user", content=[text_content])
 
         # Convert to Anthropic format
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -59,7 +59,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
         image_content = ImageContent(
             type="image", data=self.sample_image_base64, mimeType="image/jpeg"
         )
-        multipart = PromptMessageMultipart(role="user", content=[image_content])
+        multipart = PromptMessageExtended(role="user", content=[image_content])
 
         # Convert to Anthropic format
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -81,7 +81,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
             text=self.sample_text,
         )
         embedded_resource = EmbeddedResource(type="resource", resource=text_resource)
-        multipart = PromptMessageMultipart(role="user", content=[embedded_resource])
+        multipart = PromptMessageExtended(role="user", content=[embedded_resource])
 
         # Convert to Anthropic format
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -99,7 +99,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
         """Test conversion of PDF EmbeddedResource to Anthropic document block."""
         # Create a PDF resource
         pdf_resource = create_pdf_resource(PDF_BASE64)
-        multipart = PromptMessageMultipart(role="user", content=[pdf_resource])
+        multipart = PromptMessageExtended(role="user", content=[pdf_resource])
 
         # Convert to Anthropic format
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -121,7 +121,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
             blob=self.sample_image_base64,  # This should be ignored for URL
         )
         embedded_resource = EmbeddedResource(type="resource", resource=image_resource)
-        multipart = PromptMessageMultipart(role="user", content=[embedded_resource])
+        multipart = PromptMessageExtended(role="user", content=[embedded_resource])
 
         # Convert to Anthropic format
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -143,7 +143,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
         image_content = ImageContent(
             type="image", data=self.sample_image_base64, mimeType="image/jpeg"
         )
-        multipart = PromptMessageMultipart(role="assistant", content=[text_content, image_content])
+        multipart = PromptMessageExtended(role="assistant", content=[text_content, image_content])
 
         # Convert to Anthropic format
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -163,7 +163,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
         )
         text_content2 = TextContent(type="text", text="Second text")
 
-        multipart = PromptMessageMultipart(
+        multipart = PromptMessageExtended(
             role="user", content=[text_content1, image_content, text_content2]
         )
 
@@ -188,7 +188,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
             mimeType="image/bmp",  # Unsupported in Anthropic API
         )
         text_content = TextContent(type="text", text="This is some text")
-        multipart = PromptMessageMultipart(role="user", content=[text_content, image_content])
+        multipart = PromptMessageExtended(role="user", content=[text_content, image_content])
 
         # Convert to Anthropic format - should convert unsupported image to text fallback
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -213,7 +213,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
             text=svg_content,
         )
         embedded_resource = EmbeddedResource(type="resource", resource=svg_resource)
-        multipart = PromptMessageMultipart(role="user", content=[embedded_resource])
+        multipart = PromptMessageExtended(role="user", content=[embedded_resource])
 
         # Convert to Anthropic format - should extract SVG as text
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -226,7 +226,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
 
     def test_empty_content_list(self):
         """Test conversion with empty content list."""
-        multipart = PromptMessageMultipart(role="user", content=[])
+        multipart = PromptMessageExtended(role="user", content=[])
 
         # Convert to Anthropic format
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -244,7 +244,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
             blob=base64.b64encode(b"fake_pdf_data").decode("utf-8"),
         )
         embedded_resource = EmbeddedResource(type="resource", resource=pdf_resource)
-        multipart = PromptMessageMultipart(role="user", content=[embedded_resource])
+        multipart = PromptMessageExtended(role="user", content=[embedded_resource])
 
         # Convert to Anthropic format
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -272,7 +272,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
             mimeType="image/jpeg",  # Supported
         )
 
-        multipart = PromptMessageMultipart(
+        multipart = PromptMessageExtended(
             role="user", content=[text_content, unsupported_image, supported_image]
         )
 
@@ -290,7 +290,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
         self.assertEqual(anthropic_msg["content"][2]["source"]["media_type"], "image/jpeg")
 
     def test_multipart_with_tool_results_and_content(self):
-        """Test conversion of PromptMessageMultipart with both tool_results and content."""
+        """Test conversion of PromptMessageExtended with both tool_results and content."""
         # Create tool results
         tool_result = CallToolResult(
             content=[TextContent(type="text", text="Tool execution result")], isError=False
@@ -300,7 +300,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
         additional_text = TextContent(type="text", text="What should I do next?")
 
         # Create multipart message with both tool_results and content
-        multipart = PromptMessageMultipart(
+        multipart = PromptMessageExtended(
             role="user", content=[additional_text], tool_results={"tool_id_1": tool_result}
         )
 
@@ -332,7 +332,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
 
         embedded_resource = EmbeddedResource(type="resource", resource=code_resource)
 
-        multipart = PromptMessageMultipart(role="user", content=[embedded_resource])
+        multipart = PromptMessageExtended(role="user", content=[embedded_resource])
 
         # Convert to Anthropic format
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -355,7 +355,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
 
         embedded_resource = EmbeddedResource(type="resource", resource=code_resource)
 
-        multipart = PromptMessageMultipart(role="user", content=[embedded_resource])
+        multipart = PromptMessageExtended(role="user", content=[embedded_resource])
 
         # Convert to Anthropic format
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -374,7 +374,7 @@ class TestAnthropicUserConverter(unittest.TestCase):
             blob=binary_data,
         )
         embedded_resource = EmbeddedResource(type="resource", resource=binary_resource)
-        multipart = PromptMessageMultipart(role="user", content=[embedded_resource])
+        multipart = PromptMessageExtended(role="user", content=[embedded_resource])
 
         # Convert to Anthropic format - should create text fallback
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -632,7 +632,7 @@ class TestAnthropicAssistantConverter(unittest.TestCase):
         """Test conversion of assistant TextContent to Anthropic text block."""
         # Create a text content message from assistant
         text_content = TextContent(type="text", text=self.sample_text)
-        multipart = PromptMessageMultipart(role="assistant", content=[text_content])
+        multipart = PromptMessageExtended(role="assistant", content=[text_content])
 
         # Convert to Anthropic format
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -704,7 +704,7 @@ class TestAnthropicAssistantConverter(unittest.TestCase):
         text_content1 = TextContent(type="text", text="First part of response")
         text_content2 = TextContent(type="text", text="Second part of response")
 
-        multipart = PromptMessageMultipart(role="assistant", content=[text_content1, text_content2])
+        multipart = PromptMessageExtended(role="assistant", content=[text_content1, text_content2])
 
         # Convert to Anthropic format
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -727,7 +727,7 @@ class TestAnthropicAssistantConverter(unittest.TestCase):
             mimeType="image/jpeg",
         )
 
-        multipart = PromptMessageMultipart(role="assistant", content=[text_content, image_content])
+        multipart = PromptMessageExtended(role="assistant", content=[text_content, image_content])
 
         # Convert to Anthropic format
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -750,7 +750,7 @@ class TestAnthropicAssistantConverter(unittest.TestCase):
         )
         embedded_resource = EmbeddedResource(type="resource", resource=resource_content)
 
-        multipart = PromptMessageMultipart(
+        multipart = PromptMessageExtended(
             role="assistant", content=[text_content, embedded_resource]
         )
 
@@ -765,7 +765,7 @@ class TestAnthropicAssistantConverter(unittest.TestCase):
 
     def test_assistant_empty_content(self):
         """Test conversion with empty content from assistant."""
-        multipart = PromptMessageMultipart(role="assistant", content=[])
+        multipart = PromptMessageExtended(role="assistant", content=[])
 
         # Convert to Anthropic format
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)

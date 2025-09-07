@@ -11,8 +11,8 @@ from fast_agent.llm.internal.passthrough import (
 from mcp_agent.core.prompt import Prompt
 
 if TYPE_CHECKING:
-    from mcp_agent.mcp.interfaces import FastAgentLLMProtocol
-    from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+    from fast_agent.mcp.interfaces import FastAgentLLMProtocol
+    from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
 
 class FormattedResponse(BaseModel):
@@ -35,12 +35,12 @@ async def test_simple_return():
 @pytest.mark.asyncio
 async def test_set_fixed_return():
     llm: FastAgentLLMProtocol = PassthroughLLM()
-    response: PromptMessageMultipart = await llm.generate(
+    response: PromptMessageExtended = await llm.generate(
         messages=[Prompt.user(f"{FIXED_RESPONSE_INDICATOR} foo")]
     )
     assert "foo" == response.first_text()
 
-    response: PromptMessageMultipart = await llm.generate(
+    response: PromptMessageExtended = await llm.generate(
         messages=[Prompt.user("other messages respond with foo")]
     )
     assert "foo" == response.first_text()
@@ -49,12 +49,12 @@ async def test_set_fixed_return():
 @pytest.mark.asyncio
 async def test_set_fixed_return_ignores_not_set():
     llm: FastAgentLLMProtocol = PassthroughLLM()
-    response: PromptMessageMultipart = await llm.generate(
+    response: PromptMessageExtended = await llm.generate(
         messages=[Prompt.user(f"{FIXED_RESPONSE_INDICATOR}")]
     )
     assert "***FIXED_RESPONSE" == response.first_text()
 
-    response: PromptMessageMultipart = await llm.generate(messages=[Prompt.user("ignored message")])
+    response: PromptMessageExtended = await llm.generate(messages=[Prompt.user("ignored message")])
     assert "ignored message" == response.first_text()
 
 

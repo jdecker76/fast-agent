@@ -19,7 +19,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 from rich import print as rich_print
 
-from mcp_agent.core.agent_types import AgentType
+from fast_agent.agents.agent_types import AgentType
 from mcp_agent.core.exceptions import PromptExitError
 
 # Get the application version
@@ -591,7 +591,7 @@ async def get_enhanced_input(
             ("Ctrl+Y", "Copy"),
             ("Ctrl+L", "Clear"),
             ("↑/↓", "History"),
-            ("EXIT", "Exit")
+            ("EXIT", "Exit"),
         ]
 
         newline = "Ctrl+J:Submit" if in_multiline_mode else "&lt;Enter&gt;:Submit"
@@ -676,7 +676,7 @@ async def get_enhanced_input(
     def pre_process_input(text):
         # Command processing
         if text and text.startswith("/"):
-            if text == "/": 
+            if text == "/":
                 return ""
             cmd_parts = text[1:].strip().split(maxsplit=1)
             cmd = cmd_parts[0].lower()

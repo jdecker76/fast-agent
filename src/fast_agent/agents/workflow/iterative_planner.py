@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple, Type
 from mcp import Tool
 from mcp.types import TextContent
 
+from fast_agent.agents.agent_types import AgentConfig, AgentType
 from fast_agent.agents.llm_agent import LlmAgent
 from fast_agent.agents.workflow.orchestrator_models import (
     Plan,
@@ -18,13 +19,12 @@ from fast_agent.agents.workflow.orchestrator_models import (
     format_plan_result,
     format_step_result_text,
 )
-from mcp_agent.core.agent_types import AgentConfig, AgentType
+from fast_agent.interfaces import LlmAgentProtocol, ModelT
+from fast_agent.llm.request_params import RequestParams
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from mcp_agent.core.exceptions import AgentConfigError
 from mcp_agent.core.prompt import Prompt
-from mcp_agent.core.request_params import RequestParams
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.interfaces import LlmAgentProtocol, ModelT
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 logger = get_logger(__name__)
 
@@ -238,15 +238,15 @@ class IterativePlanner(LlmAgent):
 
     async def generate_impl(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Execute an orchestrated plan to process the input.
 
         Args:
-            normalized_messages: Already normalized list of PromptMessageMultipart
+            normalized_messages: Already normalized list of PromptMessageExtended
             request_params: Optional request parameters
 
         Returns:
@@ -256,17 +256,17 @@ class IterativePlanner(LlmAgent):
         objective = messages[-1].all_text() if messages else ""
         plan_result = await self._execute_plan(objective, request_params)
         # Return the result
-        return PromptMessageMultipart(
+        return PromptMessageExtended(
             role="assistant",
             content=[TextContent(type="text", text=plan_result.result or "No result available")],
         )
 
     async def structured(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         model: Type[ModelT],
         request_params: Optional[RequestParams] = None,
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:
         """
         Execute an orchestration plan and parse the result into a structured format.
 
@@ -284,7 +284,7 @@ class IterativePlanner(LlmAgent):
         # Try to parse the response into the specified model
         try:
             result_text = response.last_text() or "<no text>"
-            prompt_message = PromptMessageMultipart(
+            prompt_message = PromptMessageExtended(
                 role="user", content=[TextContent(type="text", text=result_text)]
             )
             assert self._llm
@@ -400,7 +400,7 @@ class IterativePlanner(LlmAgent):
                     )
                     result = await agent.generate(
                         [
-                            PromptMessageMultipart(
+                            PromptMessageExtended(
                                 role="user",
                                 content=[TextContent(type="text", text=task_description)],
                             )
@@ -493,7 +493,7 @@ class IterativePlanner(LlmAgent):
 
         # Get structured response from LLM
         try:
-            plan_msg = PromptMessageMultipart(
+            plan_msg = PromptMessageExtended(
                 role="user", content=[TextContent(type="text", text=prompt)]
             )
             assert self._llm
@@ -563,7 +563,7 @@ class IterativePlanner(LlmAgent):
 
     async def _planner_generate_str(
         self, message: str, request_params: RequestParams | None
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Generate string response from the orchestrator's own LLM.
 
@@ -575,7 +575,7 @@ class IterativePlanner(LlmAgent):
             String response from the LLM
         """
         # Create prompt message
-        prompt = PromptMessageMultipart(
+        prompt = PromptMessageExtended(
             role="user", content=[TextContent(type="text", text=message)]
         )
         assert self._llm, "LLM must be initialized before generating text"

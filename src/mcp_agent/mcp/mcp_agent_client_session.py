@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from pydantic import FileUrl
 
 from fast_agent.context_dependent import ContextDependent
+from fast_agent.mcp.helpers.server_config_helpers import get_server_config
 from mcp import ClientSession, ServerNotification
 from mcp.shared.message import MessageMetadata
 from mcp.shared.session import (
@@ -32,7 +33,6 @@ from mcp.types import (
     ToolListChangedNotification,
 )
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.helpers.server_config_helpers import get_server_config
 from mcp_agent.mcp.sampling import sample
 
 if TYPE_CHECKING:
@@ -121,8 +121,8 @@ class MCPAgentClientSession(ClientSession, ContextDependent):
             # Try to resolve using factory
             elicitation_handler = None
             try:
+                from fast_agent.agents.agent_types import AgentConfig
                 from fast_agent.context import get_current_context
-                from mcp_agent.core.agent_types import AgentConfig
                 from mcp_agent.mcp.elicitation_factory import resolve_elicitation_handler
 
                 context = get_current_context()

@@ -1,7 +1,7 @@
+from fast_agent.agents.agent_types import AgentConfig
 from fast_agent.agents.llm_agent import LlmAgent
 from fast_agent.llm.model_database import ModelDatabase
 from fast_agent.llm.model_factory import ModelFactory
-from mcp_agent.core.agent_types import AgentConfig
 
 
 def test_model_database_context_windows():

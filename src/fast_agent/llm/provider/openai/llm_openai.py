@@ -27,11 +27,11 @@ from fast_agent.llm.fastagent_llm import (
 from fast_agent.llm.provider.openai.multipart_converter_openai import OpenAIConverter, OpenAIMessage
 from fast_agent.llm.provider_types import Provider
 from fast_agent.llm.usage_tracking import TurnUsage
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.exceptions import ProviderKeyError
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 _logger = get_logger(__name__)
 
@@ -293,7 +293,7 @@ class OpenAILLM(FastAgentLLM[ChatCompletionMessageParam, ChatCompletionMessage])
         message: List[OpenAIMessage] | None,
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Process a query using an LLM and available tools.
         The default implementation uses OpenAI's ChatCompletion as the LLM.
@@ -443,11 +443,11 @@ class OpenAILLM(FastAgentLLM[ChatCompletionMessageParam, ChatCompletionMessage])
 
     async def _apply_prompt_provider_specific(
         self,
-        multipart_messages: List["PromptMessageMultipart"],
+        multipart_messages: List["PromptMessageExtended"],
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
         is_template: bool = False,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         # Reset tool call counter for new turn
 
         last_message = multipart_messages[-1]

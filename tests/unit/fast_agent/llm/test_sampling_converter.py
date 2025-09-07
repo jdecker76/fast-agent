@@ -13,7 +13,7 @@ class TestSamplingConverter:
     """Tests for SamplingConverter"""
 
     def test_sampling_message_to_prompt_message_text(self):
-        """Test converting a text SamplingMessage to PromptMessageMultipart"""
+        """Test converting a text SamplingMessage to PromptMessageExtended"""
         # Create a SamplingMessage with text content
         text_content = TextContent(type="text", text="Hello, world!")
         sampling_message = SamplingMessage(role="user", content=text_content)
@@ -28,7 +28,7 @@ class TestSamplingConverter:
         assert prompt_message.content[0].text == "Hello, world!"
 
     def test_sampling_message_to_prompt_message_image(self):
-        """Test converting an image SamplingMessage to PromptMessageMultipart"""
+        """Test converting an image SamplingMessage to PromptMessageExtended"""
         # Create a SamplingMessage with image content
         image_content = ImageContent(
             type="image", data="base64_encoded_image_data", mimeType="image/png"
@@ -46,7 +46,7 @@ class TestSamplingConverter:
         assert prompt_message.content[0].mimeType == "image/png"
 
     def test_convert_messages(self):
-        """Test converting multiple SamplingMessages to PromptMessageMultipart objects"""
+        """Test converting multiple SamplingMessages to PromptMessageExtended objects"""
         # Create a list of SamplingMessages with different roles
         messages = [
             SamplingMessage(role="user", content=TextContent(type="text", text="Hello")),

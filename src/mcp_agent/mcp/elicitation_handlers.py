@@ -5,12 +5,12 @@ Predefined elicitation handlers for different use cases.
 import json
 from typing import TYPE_CHECKING, Any
 
+from fast_agent.mcp.helpers.server_config_helpers import get_server_config
 from mcp.shared.context import RequestContext
 from mcp.types import ElicitRequestParams, ElicitResult, ErrorData
 from mcp_agent.human_input.elicitation_handler import elicitation_input_callback
 from mcp_agent.human_input.types import HumanInputRequest
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.helpers.server_config_helpers import get_server_config
 
 if TYPE_CHECKING:
     from mcp import ClientSession
@@ -23,7 +23,7 @@ async def auto_cancel_elicitation_handler(
     params: ElicitRequestParams,
 ) -> ElicitResult | ErrorData:
     """Handler that automatically cancels all elicitation requests.
-    
+
     Useful for production deployments where you want to advertise elicitation
     capability but automatically decline all requests.
     """
@@ -51,6 +51,7 @@ async def forms_elicitation_handler(
 
     # 1. Check if we have an MCPAgentClientSession in the context
     from mcp_agent.mcp.mcp_agent_client_session import MCPAgentClientSession
+
     if hasattr(context, "session") and isinstance(context.session, MCPAgentClientSession):
         agent_name = context.session.agent_name
 

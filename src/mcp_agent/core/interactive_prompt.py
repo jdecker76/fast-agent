@@ -21,8 +21,9 @@ from rich import print as rich_print
 from rich.console import Console
 from rich.table import Table
 
+from fast_agent.agents.agent_types import AgentType
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.progress_display import progress_display
-from mcp_agent.core.agent_types import AgentType
 from mcp_agent.core.enhanced_prompt import (
     _display_agent_info_helper,
     get_argument_input,
@@ -32,10 +33,9 @@ from mcp_agent.core.enhanced_prompt import (
 )
 from mcp_agent.core.usage_display import collect_agents_from_provider, display_usage_report
 from mcp_agent.mcp.mcp_aggregator import SEP
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 # Type alias for the send function
-SendFunc = Callable[[Union[str, PromptMessage, PromptMessageMultipart], str], Awaitable[str]]
+SendFunc = Callable[[Union[str, PromptMessage, PromptMessageExtended], str], Awaitable[str]]
 
 # Type alias for the agent getter function
 AgentGetter = Callable[[str], Optional[object]]
@@ -620,9 +620,9 @@ class InteractivePrompt:
                     return
 
                 # Convert to multipart format
-                from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+                from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
-                multipart_messages = PromptMessageMultipart.from_get_prompt_result(prompt_result)
+                multipart_messages = PromptMessageExtended.from_get_prompt_result(prompt_result)
 
                 # Now start progress display for the actual generation
                 progress_display.resume()

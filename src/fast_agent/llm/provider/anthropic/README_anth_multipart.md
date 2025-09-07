@@ -1,6 +1,6 @@
 # AnthropicConverter
 
-A utility for converting MCP PromptMessageMultipart messages to Anthropic API format.
+A utility for converting MCP PromptMessageExtended messages to Anthropic API format.
 
 ## Notes
 

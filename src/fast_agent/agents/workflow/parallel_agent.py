@@ -5,12 +5,12 @@ from mcp import Tool
 from mcp.types import TextContent
 from opentelemetry import trace
 
+from fast_agent.agents.agent_types import AgentConfig, AgentType
 from fast_agent.agents.llm_agent import LlmAgent
-from mcp_agent.core.agent_types import AgentConfig, AgentType
-from mcp_agent.core.request_params import RequestParams
+from fast_agent.interfaces import ModelT
+from fast_agent.llm.request_params import RequestParams
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.interfaces import ModelT
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 logger = get_logger(__name__)
 
@@ -53,15 +53,15 @@ class ParallelAgent(LlmAgent):
 
     async def generate_impl(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         request_params: Optional[RequestParams] = None,
         tools: List[Tool] | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Execute fan-out agents in parallel and aggregate their results with the fan-in agent.
 
         Args:
-            normalized_messages: Already normalized list of PromptMessageMultipart
+            normalized_messages: Already normalized list of PromptMessageExtended
             request_params: Optional parameters to configure the request
 
         Returns:
@@ -71,7 +71,7 @@ class ParallelAgent(LlmAgent):
         tracer = trace.get_tracer(__name__)
         with tracer.start_as_current_span(f"Parallel: '{self._name}' generate"):
             # Execute all fan-out agents in parallel
-            responses: List[PromptMessageMultipart] = await asyncio.gather(
+            responses: List[PromptMessageExtended] = await asyncio.gather(
                 *[agent.generate(messages, request_params) for agent in self.fan_out_agents]
             )
 
@@ -87,7 +87,7 @@ class ParallelAgent(LlmAgent):
             aggregated_prompt = self._format_responses(string_responses, received_message)
 
             # Create a new multipart message with the formatted responses
-            formatted_prompt = PromptMessageMultipart(
+            formatted_prompt = PromptMessageExtended(
                 role="user", content=[TextContent(type="text", text=aggregated_prompt)]
             )
 
@@ -122,17 +122,17 @@ class ParallelAgent(LlmAgent):
 
     async def structured(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         model: type[ModelT],
         request_params: Optional[RequestParams] = None,
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:
         """
         Apply the prompt and return the result as a Pydantic model.
 
         This implementation delegates to the fan-in agent's structured method.
 
         Args:
-            messages: List of PromptMessageMultipart objects
+            messages: List of PromptMessageExtended objects
             model: The Pydantic model class to parse the result into
             request_params: Optional parameters to configure the LLM request
 
@@ -143,7 +143,7 @@ class ParallelAgent(LlmAgent):
         tracer = trace.get_tracer(__name__)
         with tracer.start_as_current_span(f"Parallel: '{self._name}' generate"):
             # Generate parallel responses first
-            responses: List[PromptMessageMultipart] = await asyncio.gather(
+            responses: List[PromptMessageExtended] = await asyncio.gather(
                 *[agent.generate(messages, request_params) for agent in self.fan_out_agents]
             )
 
@@ -157,7 +157,7 @@ class ParallelAgent(LlmAgent):
             aggregated_prompt = self._format_responses(string_responses, received_message)
 
             # Create a multipart message
-            formatted_prompt = PromptMessageMultipart(
+            formatted_prompt = PromptMessageExtended(
                 role="user", content=[TextContent(type="text", text=aggregated_prompt)]
             )
 

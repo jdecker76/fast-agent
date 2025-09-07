@@ -5,8 +5,8 @@ import pytest
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionSystemMessageParam
 
 from fast_agent.llm.provider.openai.llm_tensorzero_openai import TensorZeroOpenAILLM
+from fast_agent.llm.request_params import RequestParams
 from mcp_agent.agents.agent import Agent
-from mcp_agent.core.request_params import RequestParams
 
 # --- Fixtures ---
 

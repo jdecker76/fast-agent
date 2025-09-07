@@ -13,14 +13,14 @@ from typing import Any, List, Optional, Tuple, Type
 from mcp import Tool
 from pydantic import BaseModel, Field
 
+from fast_agent.agents.agent_types import AgentConfig, AgentType
 from fast_agent.agents.llm_agent import LlmAgent
-from mcp_agent.core.agent_types import AgentConfig, AgentType
+from fast_agent.interfaces import ModelT
+from fast_agent.llm.request_params import RequestParams
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from mcp_agent.core.exceptions import AgentConfigError
 from mcp_agent.core.prompt import Prompt
-from mcp_agent.core.request_params import RequestParams
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.interfaces import ModelT
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 logger = get_logger(__name__)
 
@@ -106,15 +106,15 @@ class EvaluatorOptimizerAgent(LlmAgent):
 
     async def generate_impl(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Generate a response through evaluation-guided refinement.
 
         Args:
-            normalized_messages: Already normalized list of PromptMessageMultipart
+            normalized_messages: Already normalized list of PromptMessageExtended
             request_params: Optional request parameters
 
         Returns:
@@ -207,10 +207,10 @@ class EvaluatorOptimizerAgent(LlmAgent):
 
     async def structured_impl(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:
         """
         Generate an optimized response and parse it into a structured format.
 

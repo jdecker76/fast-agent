@@ -24,8 +24,7 @@ from mcp.types import (
     TextResourceContents,
 )
 
-from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.helpers.content_helpers import (
+from fast_agent.mcp.helpers.content_helpers import (
     get_image_data,
     get_resource_uri,
     get_text,
@@ -33,12 +32,13 @@ from mcp_agent.mcp.helpers.content_helpers import (
     is_resource_content,
     is_text_content,
 )
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.mime_utils import (
     guess_mime_type,
     is_image_mime_type,
     is_text_mime_type,
 )
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 _logger = get_logger("multipart_converter_anthropic")
 
@@ -62,12 +62,12 @@ class AnthropicConverter:
         return mime_type in SUPPORTED_IMAGE_MIME_TYPES
 
     @staticmethod
-    def convert_to_anthropic(multipart_msg: PromptMessageMultipart) -> MessageParam:
+    def convert_to_anthropic(multipart_msg: PromptMessageExtended) -> MessageParam:
         """
-        Convert a PromptMessageMultipart message to Anthropic API format.
+        Convert a PromptMessageExtended message to Anthropic API format.
 
         Args:
-            multipart_msg: The PromptMessageMultipart message to convert
+            multipart_msg: The PromptMessageExtended message to convert
 
         Returns:
             An Anthropic API MessageParam object
@@ -123,8 +123,8 @@ class AnthropicConverter:
         Returns:
             An Anthropic API MessageParam object
         """
-        # Convert the PromptMessage to a PromptMessageMultipart containing a single content item
-        multipart = PromptMessageMultipart(role=message.role, content=[message.content])
+        # Convert the PromptMessage to a PromptMessageExtended containing a single content item
+        multipart = PromptMessageExtended(role=message.role, content=[message.content])
 
         # Use the existing conversion method
         return AnthropicConverter.convert_to_anthropic(multipart)

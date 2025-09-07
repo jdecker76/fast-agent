@@ -3,15 +3,15 @@ from typing import Any, List, Type, Union
 from mcp import Tool
 from mcp.types import PromptMessage
 
-from fast_agent.llm.fastagent_llm import RequestParams
+from fast_agent.interfaces import ModelT
 from fast_agent.llm.internal.passthrough import PassthroughLLM
 from fast_agent.llm.provider_types import Provider
+from fast_agent.llm.request_params import RequestParams
 from fast_agent.llm.usage_tracking import create_turn_usage_from_messages
+from fast_agent.mcp.helpers.content_helpers import normalize_to_extended_list
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from mcp_agent.core.exceptions import ModelConfigError
 from mcp_agent.core.prompt import Prompt
-from mcp_agent.mcp.helpers.content_helpers import normalize_to_multipart_list
-from mcp_agent.mcp.interfaces import ModelT
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 from mcp_agent.mcp.prompts.prompt_helpers import MessageContent
 
 # TODO -- support tool usage/replay
@@ -32,11 +32,11 @@ class PlaybackLLM(PassthroughLLM):
 
     def __init__(self, name: str = "Playback", **kwargs: dict[str, Any]) -> None:
         super().__init__(name=name, provider=Provider.FAST_AGENT, **kwargs)
-        self._messages: List[PromptMessageMultipart] = []
+        self._messages: List[PromptMessageExtended] = []
         self._current_index = -1
         self._overage = -1
 
-    def _get_next_assistant_message(self) -> PromptMessageMultipart:
+    def _get_next_assistant_message(self) -> PromptMessageExtended:
         """
         Get the next assistant message from the loaded messages.
         Increments the current message index and skips user messages.
@@ -60,19 +60,19 @@ class PlaybackLLM(PassthroughLLM):
         messages: Union[
             str,
             PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
+            PromptMessageExtended,
+            List[Union[str, PromptMessage, PromptMessageExtended]],
         ],
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Handle playback of messages in two modes:
         1. First call: store messages for playback and return "HISTORY LOADED"
         2. Subsequent calls: return the next assistant message
         """
-        # Normalize all input types to a list of PromptMessageMultipart
-        multipart_messages = normalize_to_multipart_list(messages)
+        # Normalize all input types to a list of PromptMessageExtended
+        multipart_messages = normalize_to_extended_list(messages)
 
         # If this is the first call (initialization) or we're loading a prompt template
         # with multiple messages (comes from apply_prompt)
@@ -113,10 +113,10 @@ class PlaybackLLM(PassthroughLLM):
 
     async def structured(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
-    ) -> tuple[ModelT | None, PromptMessageMultipart]:
+    ) -> tuple[ModelT | None, PromptMessageExtended]:
         """
         Handle structured requests by returning the next assistant message.
         """

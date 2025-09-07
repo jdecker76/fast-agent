@@ -4,7 +4,7 @@ from typing import Any, Dict
 from mcp.types import TextContent
 
 from fast_agent.llm.provider.anthropic.multipart_converter_anthropic import AnthropicConverter
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
 
 def apply_cache_control_to_message(message: Dict[str, Any], position: int) -> bool:
@@ -97,10 +97,10 @@ class TestCacheControlApplication(unittest.TestCase):
         self.assertIn("cache_control", message["content"][0])
 
     def test_multipart_to_anthropic_conversion_preserves_structure(self):
-        """Test that PromptMessageMultipart -> Anthropic conversion preserves structure for caching."""
+        """Test that PromptMessageExtended -> Anthropic conversion preserves structure for caching."""
         # Create a multipart message
         text_content = TextContent(type="text", text="Test message for caching")
-        multipart = PromptMessageMultipart(role="user", content=[text_content])
+        multipart = PromptMessageExtended(role="user", content=[text_content])
 
         # Convert to Anthropic format
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -122,7 +122,7 @@ class TestCacheControlApplication(unittest.TestCase):
         messages = []
         for i in range(4):
             text_content = TextContent(type="text", text=f"Message {i}")
-            multipart = PromptMessageMultipart(
+            multipart = PromptMessageExtended(
                 role="user" if i % 2 == 0 else "assistant", content=[text_content]
             )
             anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
@@ -145,7 +145,7 @@ class TestCacheControlApplication(unittest.TestCase):
     def test_assistant_message_caching(self):
         """Test that assistant messages can also receive cache control."""
         text_content = TextContent(type="text", text="Assistant response")
-        multipart = PromptMessageMultipart(role="assistant", content=[text_content])
+        multipart = PromptMessageExtended(role="assistant", content=[text_content])
 
         anthropic_msg = AnthropicConverter.convert_to_anthropic(multipart)
         success = apply_cache_control_to_message(anthropic_msg, 0)

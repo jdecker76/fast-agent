@@ -1,7 +1,7 @@
 """
 Utility functions for Anthropic integration with MCP.
 
-Provides conversion between Anthropic message formats and PromptMessageMultipart,
+Provides conversion between Anthropic message formats and PromptMessageExtended,
 leveraging existing code for resource handling and delimited formats.
 """
 
@@ -15,28 +15,28 @@ from mcp.types import (
     TextResourceContents,
 )
 
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
 
 # TODO -- only used for saving, but this will be driven directly from PromptMessages
 def anthropic_message_param_to_prompt_message_multipart(
     message_param: MessageParam,
-) -> PromptMessageMultipart:
+) -> PromptMessageExtended:
     """
-    Convert an Anthropic MessageParam to a PromptMessageMultipart.
+    Convert an Anthropic MessageParam to a PromptMessageExtended.
 
     Args:
         message_param: The Anthropic MessageParam to convert
 
     Returns:
-        A PromptMessageMultipart representation
+        A PromptMessageExtended representation
     """
     role = message_param["role"]
     content = message_param["content"]
 
     # Handle string content (user messages can be simple strings)
     if isinstance(content, str):
-        return PromptMessageMultipart(role=role, content=[TextContent(type="text", text=content)])
+        return PromptMessageExtended(role=role, content=[TextContent(type="text", text=content)])
 
     # Convert content blocks to MCP content types
     mcp_contents = []
@@ -81,4 +81,4 @@ def anthropic_message_param_to_prompt_message_multipart(
                     data = source.get("data", "")
                     mcp_contents.append(ImageContent(type="image", data=data, mimeType=media_type))
 
-    return PromptMessageMultipart(role=role, content=mcp_contents)
+    return PromptMessageExtended(role=role, content=mcp_contents)

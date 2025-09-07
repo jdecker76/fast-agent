@@ -8,7 +8,7 @@ from typing import Dict, List, Literal, Union
 from mcp import CallToolRequest
 from mcp.types import ContentBlock, PromptMessage
 
-from mcp_agent.mcp.prompt_message_multipart import LlmStopReason, PromptMessageMultipart
+from fast_agent.mcp.prompt_message_extended import LlmStopReason, PromptMessageExtended
 
 # Import our content helper functions
 from .mcp_content import Assistant, MCPPrompt, User
@@ -20,7 +20,7 @@ class Prompt:
 
     This class provides static methods to create:
     - PromptMessage instances
-    - PromptMessageMultipart instances
+    - PromptMessageExtended instances
     - Lists of messages for conversations
 
     All methods intelligently handle various content types:
@@ -37,11 +37,11 @@ class Prompt:
     def user(
         cls,
         *content_items: Union[
-            str, Path, bytes, dict, ContentBlock, PromptMessage, PromptMessageMultipart
+            str, Path, bytes, dict, ContentBlock, PromptMessage, PromptMessageExtended
         ],
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
-        Create a user PromptMessageMultipart with various content items.
+        Create a user PromptMessageExtended with various content items.
 
         Args:
             *content_items: Content items in various formats:
@@ -53,35 +53,35 @@ class Prompt:
                 - ImageContent: Used directly
                 - EmbeddedResource: Used directly
                 - PromptMessage: Content extracted
-                - PromptMessageMultipart: Content extracted with role changed to user
+                - PromptMessageExtended: Content extracted with role changed to user
 
         Returns:
-            A PromptMessageMultipart with user role and the specified content
+            A PromptMessageExtended with user role and the specified content
         """
-        # Handle PromptMessage and PromptMessageMultipart directly
+        # Handle PromptMessage and PromptMessageExtended directly
         if len(content_items) == 1:
             item = content_items[0]
             if isinstance(item, PromptMessage):
-                return PromptMessageMultipart(role="user", content=[item.content])
-            elif isinstance(item, PromptMessageMultipart):
+                return PromptMessageExtended(role="user", content=[item.content])
+            elif isinstance(item, PromptMessageExtended):
                 # Keep the content but change role to user
-                return PromptMessageMultipart(role="user", content=item.content)
+                return PromptMessageExtended(role="user", content=item.content)
 
         # Use the original implementation for other types
         messages = User(*content_items)
-        return PromptMessageMultipart(role="user", content=[msg["content"] for msg in messages])
+        return PromptMessageExtended(role="user", content=[msg["content"] for msg in messages])
 
     @classmethod
     def assistant(
         cls,
         *content_items: Union[
-            str, Path, bytes, dict, ContentBlock, PromptMessage, PromptMessageMultipart
+            str, Path, bytes, dict, ContentBlock, PromptMessage, PromptMessageExtended
         ],
         stop_reason: LlmStopReason | None = None,
         tool_calls: Dict[str, CallToolRequest] | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
-        Create an assistant PromptMessageMultipart with various content items.
+        Create an assistant PromptMessageExtended with various content items.
 
         Args:
             *content_items: Content items in various formats:
@@ -93,24 +93,24 @@ class Prompt:
                 - ImageContent: Used directly
                 - EmbeddedResource: Used directly
                 - PromptMessage: Content extracted
-                - PromptMessageMultipart: Content extracted with role changed to assistant
+                - PromptMessageExtended: Content extracted with role changed to assistant
 
         Returns:
-            A PromptMessageMultipart with assistant role and the specified content
+            A PromptMessageExtended with assistant role and the specified content
         """
-        # Handle PromptMessage and PromptMessageMultipart directly
+        # Handle PromptMessage and PromptMessageExtended directly
         if len(content_items) == 1:
             item = content_items[0]
             if isinstance(item, PromptMessage):
-                return PromptMessageMultipart(
+                return PromptMessageExtended(
                     role="assistant",
                     content=[item.content],
                     stop_reason=stop_reason,
                     tool_calls=tool_calls,
                 )
-            elif isinstance(item, PromptMessageMultipart):
+            elif isinstance(item, PromptMessageExtended):
                 # Keep the content but change role to assistant
-                return PromptMessageMultipart(
+                return PromptMessageExtended(
                     role="assistant",
                     content=item.content,
                     stop_reason=stop_reason,
@@ -119,7 +119,7 @@ class Prompt:
 
         # Use the original implementation for other types
         messages = Assistant(*content_items)
-        return PromptMessageMultipart(
+        return PromptMessageExtended(
             role="assistant",
             content=[msg["content"] for msg in messages],
             stop_reason=stop_reason,
@@ -130,12 +130,12 @@ class Prompt:
     def message(
         cls,
         *content_items: Union[
-            str, Path, bytes, dict, ContentBlock, PromptMessage, PromptMessageMultipart
+            str, Path, bytes, dict, ContentBlock, PromptMessage, PromptMessageExtended
         ],
         role: Literal["user", "assistant"] = "user",
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
-        Create a PromptMessageMultipart with the specified role and content items.
+        Create a PromptMessageExtended with the specified role and content items.
 
         Args:
             *content_items: Content items in various formats:
@@ -147,24 +147,24 @@ class Prompt:
                 - ImageContent: Used directly
                 - EmbeddedResource: Used directly
                 - PromptMessage: Content extracted
-                - PromptMessageMultipart: Content extracted with role changed as specified
+                - PromptMessageExtended: Content extracted with role changed as specified
             role: Role for the message (user or assistant)
 
         Returns:
-            A PromptMessageMultipart with the specified role and content
+            A PromptMessageExtended with the specified role and content
         """
-        # Handle PromptMessage and PromptMessageMultipart directly
+        # Handle PromptMessage and PromptMessageExtended directly
         if len(content_items) == 1:
             item = content_items[0]
             if isinstance(item, PromptMessage):
-                return PromptMessageMultipart(role=role, content=[item.content])
-            elif isinstance(item, PromptMessageMultipart):
+                return PromptMessageExtended(role=role, content=[item.content])
+            elif isinstance(item, PromptMessageExtended):
                 # Keep the content but change role as specified
-                return PromptMessageMultipart(role=role, content=item.content)
+                return PromptMessageExtended(role=role, content=item.content)
 
         # Use the original implementation for other types
         messages = MCPPrompt(*content_items, role=role)
-        return PromptMessageMultipart(
+        return PromptMessageExtended(
             role=messages[0]["role"] if messages else role,
             content=[msg["content"] for msg in messages],
         )
@@ -175,7 +175,7 @@ class Prompt:
         Create a list of PromptMessages from various inputs.
 
         This method accepts:
-        - PromptMessageMultipart instances
+        - PromptMessageExtended instances
         - Dictionaries with role and content
         - Lists of dictionaries with role and content
 
@@ -188,8 +188,8 @@ class Prompt:
         result = []
 
         for item in messages:
-            if isinstance(item, PromptMessageMultipart):
-                # Convert PromptMessageMultipart to a list of PromptMessages
+            if isinstance(item, PromptMessageExtended):
+                # Convert PromptMessageExtended to a list of PromptMessages
                 result.extend(item.from_multipart())
             elif isinstance(item, dict) and "role" in item and "content" in item:
                 # Convert a single message dict to PromptMessage
@@ -204,12 +204,12 @@ class Prompt:
         return result
 
     @classmethod
-    def from_multipart(cls, multipart: List[PromptMessageMultipart]) -> List[PromptMessage]:
+    def from_multipart(cls, multipart: List[PromptMessageExtended]) -> List[PromptMessage]:
         """
-        Convert a list of PromptMessageMultipart objects to PromptMessages.
+        Convert a list of PromptMessageExtended objects to PromptMessages.
 
         Args:
-            multipart: List of PromptMessageMultipart objects
+            multipart: List of PromptMessageExtended objects
 
         Returns:
             A flat list of PromptMessage objects

@@ -2,14 +2,14 @@ from typing import List, Tuple, Type, cast
 
 from pydantic_core import from_json
 
+from fast_agent.interfaces import ModelT
 from fast_agent.llm.model_database import ModelDatabase
 from fast_agent.llm.provider.openai.llm_openai import OpenAILLM
 from fast_agent.llm.provider_types import Provider
-from mcp_agent.core.request_params import RequestParams
+from fast_agent.llm.request_params import RequestParams
+from fast_agent.mcp.helpers.content_helpers import get_text, split_thinking_content
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.helpers.content_helpers import get_text, split_thinking_content
-from mcp_agent.mcp.interfaces import ModelT
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 DEFAULT_GROQ_MODEL = "moonshotai/kimi-k2-instruct"
@@ -37,10 +37,10 @@ class GroqLLM(OpenAILLM):
 
     async def _apply_prompt_provider_specific_structured(
         self,
-        multipart_messages: List[PromptMessageMultipart],
+        multipart_messages: List[PromptMessageExtended],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:  # noqa: F821
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:  # noqa: F821
         request_params = self.get_request_params(request_params)
 
         assert self.default_request_params
@@ -65,7 +65,7 @@ IMPORTANT RULES:
 - All required fields must be included"""
             )
 
-        result: PromptMessageMultipart = await self._apply_prompt_provider_specific(
+        result: PromptMessageExtended = await self._apply_prompt_provider_specific(
             multipart_messages, request_params
         )
         reasoning_mode: str | None = ModelDatabase.get_reasoning(llm_model)

@@ -7,10 +7,10 @@ while delegating LLM operations to an attached AugmentedLLMProtocol instance.
 
 from typing import TYPE_CHECKING, Any, Dict, Optional, TypeVar
 
+from fast_agent.agents.agent_types import AgentConfig
 from fast_agent.agents.mcp_agent import McpAgent
-from mcp_agent.core.agent_types import AgentConfig
+from fast_agent.interfaces import FastAgentLLMProtocol
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.interfaces import FastAgentLLMProtocol
 
 if TYPE_CHECKING:
     from fast_agent.context import Context

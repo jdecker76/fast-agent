@@ -15,15 +15,15 @@ from mcp.types import (
     TextContent,
 )
 
-from mcp_agent.core.request_params import RequestParams
-from mcp_agent.mcp.helpers.content_helpers import (
+from fast_agent.llm.request_params import RequestParams
+from fast_agent.mcp.helpers.content_helpers import (
     get_image_data,
     get_text,
     is_image_content,
     is_resource_content,
     is_text_content,
 )
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
 
 class GoogleConverter:
@@ -121,10 +121,10 @@ class GoogleConverter:
         return resolved
 
     def convert_to_google_content(
-        self, messages: List[PromptMessageMultipart]
+        self, messages: List[PromptMessageExtended]
     ) -> List[types.Content]:
         """
-        Converts a list of fast-agent PromptMessageMultipart to google.genai types.Content.
+        Converts a list of fast-agent PromptMessageExtended to google.genai types.Content.
         Handles different roles and content types (text, images, etc.).
         """
         google_contents: List[types.Content] = []
@@ -379,22 +379,22 @@ class GoogleConverter:
 
     def convert_from_google_content_list(
         self, contents: List[types.Content]
-    ) -> List[PromptMessageMultipart]:
+    ) -> List[PromptMessageExtended]:
         """
-        Converts a list of google.genai types.Content to a list of fast-agent PromptMessageMultipart.
+        Converts a list of google.genai types.Content to a list of fast-agent PromptMessageExtended.
         """
         return [self._convert_from_google_content(content) for content in contents]
 
-    def _convert_from_google_content(self, content: types.Content) -> PromptMessageMultipart:
+    def _convert_from_google_content(self, content: types.Content) -> PromptMessageExtended:
         """
-        Converts a single google.genai types.Content to a fast-agent PromptMessageMultipart.
+        Converts a single google.genai types.Content to a fast-agent PromptMessageExtended.
         """
         # Official fix for GitHub issue #207: Handle None content or content.parts
         if content is None or not hasattr(content, "parts") or content.parts is None:
-            return PromptMessageMultipart(role="assistant", content=[])
+            return PromptMessageExtended(role="assistant", content=[])
 
         if content.role == "model" and any(part.function_call for part in content.parts):
-            return PromptMessageMultipart(role="assistant", content=[])
+            return PromptMessageExtended(role="assistant", content=[])
 
         fast_agent_parts: List[ContentBlock | CallToolRequestParams] = []
         for part in content.parts:
@@ -416,4 +416,4 @@ class GoogleConverter:
                 )
 
         fast_agent_role = "user" if content.role == "user" else "assistant"
-        return PromptMessageMultipart(role=fast_agent_role, content=fast_agent_parts)
+        return PromptMessageExtended(role=fast_agent_role, content=fast_agent_parts)

@@ -5,6 +5,7 @@ Implements type-safe factories with improved error handling.
 
 from typing import Any, Dict, Optional, Protocol, TypeVar
 
+from fast_agent.agents.agent_types import AgentType
 from fast_agent.agents.workflow.evaluator_optimizer import (
     EvaluatorOptimizerAgent,
     QualityRating,
@@ -15,18 +16,17 @@ from fast_agent.agents.workflow.parallel_agent import ParallelAgent
 from fast_agent.agents.workflow.router_agent import RouterAgent
 from fast_agent.core import Core
 from fast_agent.event_progress import ProgressAction
-from fast_agent.llm.fastagent_llm import RequestParams
-from fast_agent.llm.model_factory import ModelFactory
-from mcp_agent.agents.agent import Agent, AgentConfig
-from mcp_agent.core.agent_types import AgentType
-from mcp_agent.core.exceptions import AgentConfigError
-from mcp_agent.core.validation import get_dependencies_groups
-from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.interfaces import (
+from fast_agent.interfaces import (
     AgentProtocol,
     LLMFactoryProtocol,
     ModelFactoryFunctionProtocol,
 )
+from fast_agent.llm.model_factory import ModelFactory
+from fast_agent.llm.request_params import RequestParams
+from mcp_agent.agents.agent import Agent, AgentConfig
+from mcp_agent.core.exceptions import AgentConfigError
+from mcp_agent.core.validation import get_dependencies_groups
+from mcp_agent.logging.logger import get_logger
 
 # Type aliases for improved readability and IDE support
 AgentDict = Dict[str, AgentProtocol]

@@ -10,11 +10,11 @@ from fast_agent.llm.fastagent_llm import (
 )
 from fast_agent.llm.provider_types import Provider
 from fast_agent.llm.usage_tracking import create_turn_usage_from_messages
+from fast_agent.mcp.helpers.content_helpers import get_text
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.helpers.content_helpers import get_text
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 CALL_TOOL_INDICATOR = "***CALL_TOOL"
 FIXED_RESPONSE_INDICATOR = "***FIXED_RESPONSE"
@@ -72,11 +72,11 @@ class PassthroughLLM(FastAgentLLM):
 
     async def _apply_prompt_provider_specific(
         self,
-        multipart_messages: List["PromptMessageMultipart"],
+        multipart_messages: List["PromptMessageExtended"],
         request_params: RequestParams | None = None,
         tools: list[Tool] | None = None,
         is_template: bool = False,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         # Add messages to history with proper is_prompt flag
         self.history.extend(multipart_messages, is_prompt=is_template)
 
@@ -133,5 +133,5 @@ class PassthroughLLM(FastAgentLLM):
 
         return result
 
-    def is_tool_call(self, message: PromptMessageMultipart) -> bool:
+    def is_tool_call(self, message: PromptMessageExtended) -> bool:
         return message.first_text().startswith(CALL_TOOL_INDICATOR)

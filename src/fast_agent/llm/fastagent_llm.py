@@ -24,19 +24,19 @@ from pydantic_core import from_json
 
 from fast_agent.context_dependent import ContextDependent
 from fast_agent.event_progress import ProgressAction
-from fast_agent.llm.memory import Memory, SimpleMemory
-from fast_agent.llm.model_database import ModelDatabase
-from fast_agent.llm.provider_types import Provider
-from fast_agent.llm.usage_tracking import TurnUsage, UsageAccumulator
-from mcp_agent.core.prompt import Prompt
-from mcp_agent.core.request_params import RequestParams
-from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.helpers.content_helpers import get_text
-from mcp_agent.mcp.interfaces import (
+from fast_agent.interfaces import (
     FastAgentLLMProtocol,
     ModelT,
 )
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from fast_agent.llm.memory import Memory, SimpleMemory
+from fast_agent.llm.model_database import ModelDatabase
+from fast_agent.llm.provider_types import Provider
+from fast_agent.llm.request_params import RequestParams
+from fast_agent.llm.usage_tracking import TurnUsage, UsageAccumulator
+from fast_agent.mcp.helpers.content_helpers import get_text
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from mcp_agent.core.prompt import Prompt
+from mcp_agent.logging.logger import get_logger
 
 # Define type variables locally
 MessageParamT = TypeVar("MessageParamT")
@@ -129,7 +129,7 @@ class FastAgentLLM(ContextDependent, FastAgentLLMProtocol, Generic[MessageParamT
         # memory contains provider specific API types.
         self.history: Memory[MessageParamT] = SimpleMemory[MessageParamT]()
 
-        self._message_history: List[PromptMessageMultipart] = []
+        self._message_history: List[PromptMessageExtended] = []
 
         # Initialize the display component
         from mcp_agent.ui.console_display import ConsoleDisplay
@@ -173,23 +173,23 @@ class FastAgentLLM(ContextDependent, FastAgentLLMProtocol, Generic[MessageParamT
 
     async def generate(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Generate a completion using normalized message lists.
 
         This is the primary LLM interface that works directly with
-        List[PromptMessageMultipart] for efficient internal usage.
+        List[PromptMessageExtended] for efficient internal usage.
 
         Args:
-            messages: List of PromptMessageMultipart objects
+            messages: List of PromptMessageExtended objects
             request_params: Optional parameters to configure the LLM request
             tools: Optional list of tools available to the LLM
 
         Returns:
-            A PromptMessageMultipart containing the Assistant response
+            A PromptMessageExtended containing the Assistant response
         """
         # TODO -- create a "fast-agent" control role rather than magic strings
 
@@ -208,7 +208,7 @@ class FastAgentLLM(ContextDependent, FastAgentLLMProtocol, Generic[MessageParamT
         if final_request_params.mcp_metadata:
             _mcp_metadata_var.set(final_request_params.mcp_metadata)
 
-        assistant_response: PromptMessageMultipart = await self._apply_prompt_provider_specific(
+        assistant_response: PromptMessageExtended = await self._apply_prompt_provider_specific(
             messages, request_params, tools
         )
 
@@ -222,11 +222,11 @@ class FastAgentLLM(ContextDependent, FastAgentLLMProtocol, Generic[MessageParamT
     @abstractmethod
     async def _apply_prompt_provider_specific(
         self,
-        multipart_messages: List["PromptMessageMultipart"],
+        multipart_messages: List["PromptMessageExtended"],
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
         is_template: bool = False,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Provider-specific implementation of apply_prompt_template.
         This default implementation handles basic text content for any LLM type.
@@ -234,7 +234,7 @@ class FastAgentLLM(ContextDependent, FastAgentLLMProtocol, Generic[MessageParamT
         multimodal content appropriately.
 
         Args:
-            multipart_messages: List of PromptMessageMultipart objects parsed from the prompt template
+            multipart_messages: List of PromptMessageExtended objects parsed from the prompt template
 
         Returns:
             String representation of the assistant's response if generated,
@@ -243,18 +243,18 @@ class FastAgentLLM(ContextDependent, FastAgentLLMProtocol, Generic[MessageParamT
 
     async def structured(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:
         """
         Generate a structured response using normalized message lists.
 
         This is the primary LLM interface for structured output that works directly with
-        List[PromptMessageMultipart] for efficient internal usage.
+        List[PromptMessageExtended] for efficient internal usage.
 
         Args:
-            messages: List of PromptMessageMultipart objects
+            messages: List of PromptMessageExtended objects
             model: The Pydantic model class to parse the response into
             request_params: Optional parameters to configure the LLM request
 
@@ -319,10 +319,10 @@ class FastAgentLLM(ContextDependent, FastAgentLLMProtocol, Generic[MessageParamT
 
     async def _apply_prompt_provider_specific_structured(
         self,
-        multipart_messages: List[PromptMessageMultipart],
+        multipart_messages: List[PromptMessageExtended],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:
         """Base class attempts to parse JSON - subclasses can use provider specific functionality"""
 
         request_params = self.get_request_params(request_params)
@@ -332,14 +332,14 @@ class FastAgentLLM(ContextDependent, FastAgentLLMProtocol, Generic[MessageParamT
             if schema is not NotGiven:
                 request_params.response_format = schema
 
-        result: PromptMessageMultipart = await self._apply_prompt_provider_specific(
+        result: PromptMessageExtended = await self._apply_prompt_provider_specific(
             multipart_messages, request_params
         )
         return self._structured_from_multipart(result, model)
 
     def _structured_from_multipart(
-        self, message: PromptMessageMultipart, model: Type[ModelT]
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+        self, message: PromptMessageExtended, model: Type[ModelT]
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:
         """Parse the content of a PromptMessage and return the structured model and message itself"""
         try:
             text = get_text(message.content[-1]) or ""
@@ -351,9 +351,9 @@ class FastAgentLLM(ContextDependent, FastAgentLLMProtocol, Generic[MessageParamT
             logger.warning(f"Failed to parse structured response: {str(e)}")
             return None, message
 
-    def _precall(self, multipart_messages: List[PromptMessageMultipart]) -> None:
+    def _precall(self, multipart_messages: List[PromptMessageExtended]) -> None:
         """Pre-call hook to modify the message before sending it to the provider."""
-        # Ensure all messages are PromptMessageMultipart before extending history
+        # Ensure all messages are PromptMessageExtended before extending history
         self._message_history.extend(multipart_messages)
 
     def chat_turn(self) -> int:
@@ -554,7 +554,7 @@ class FastAgentLLM(ContextDependent, FastAgentLLMProtocol, Generic[MessageParamT
             String representation of the assistant's response if generated,
             or the last assistant message in the prompt
         """
-        from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+        from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
         # Check if we have any messages
         if not prompt_result.messages:
@@ -571,8 +571,8 @@ class FastAgentLLM(ContextDependent, FastAgentLLMProtocol, Generic[MessageParamT
             arguments=arguments,
         )
 
-        # Convert to PromptMessageMultipart objects
-        multipart_messages = PromptMessageMultipart.parse_get_prompt_result(prompt_result)
+        # Convert to PromptMessageExtended objects
+        multipart_messages = PromptMessageExtended.parse_get_prompt_result(prompt_result)
 
         # Delegate to the provider-specific implementation
         result = await self._apply_prompt_provider_specific(
@@ -593,15 +593,15 @@ class FastAgentLLM(ContextDependent, FastAgentLLMProtocol, Generic[MessageParamT
         save_messages_to_file(self._message_history, filename)
 
     @property
-    def message_history(self) -> List[PromptMessageMultipart]:
+    def message_history(self) -> List[PromptMessageExtended]:
         """
-        Return the agent's message history as PromptMessageMultipart objects.
+        Return the agent's message history as PromptMessageExtended objects.
 
         This history can be used to transfer state between agents or for
         analysis and debugging purposes.
 
         Returns:
-            List of PromptMessageMultipart objects representing the conversation history
+            List of PromptMessageExtended objects representing the conversation history
         """
         return self._message_history
 

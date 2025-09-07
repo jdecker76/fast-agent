@@ -9,8 +9,7 @@ from mcp.types import (
 )
 from openai.types.chat import ChatCompletionMessageParam
 
-from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.helpers.content_helpers import (
+from fast_agent.mcp.helpers.content_helpers import (
     get_image_data,
     get_resource_uri,
     get_text,
@@ -19,12 +18,13 @@ from mcp_agent.mcp.helpers.content_helpers import (
     is_resource_link,
     is_text_content,
 )
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
+from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.mime_utils import (
     guess_mime_type,
     is_image_mime_type,
     is_text_mime_type,
 )
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 _logger = get_logger("multipart_converter_openai")
 
@@ -53,13 +53,13 @@ class OpenAIConverter:
 
     @staticmethod
     def convert_to_openai(
-        multipart_msg: PromptMessageMultipart, concatenate_text_blocks: bool = False
+        multipart_msg: PromptMessageExtended, concatenate_text_blocks: bool = False
     ) -> List[Dict[str, Any]]:
         """
-        Convert a PromptMessageMultipart message to OpenAI API format.
+        Convert a PromptMessageExtended message to OpenAI API format.
 
         Args:
-            multipart_msg: The PromptMessageMultipart message to convert
+            multipart_msg: The PromptMessageExtended message to convert
             concatenate_text_blocks: If True, adjacent text blocks will be combined
 
         Returns:
@@ -216,8 +216,8 @@ class OpenAIConverter:
         Returns:
             An OpenAI API message object
         """
-        # Convert the PromptMessage to a PromptMessageMultipart containing a single content item
-        multipart = PromptMessageMultipart(role=message.role, content=[message.content])
+        # Convert the PromptMessage to a PromptMessageExtended containing a single content item
+        multipart = PromptMessageExtended(role=message.role, content=[message.content])
 
         # Use the existing conversion method with the specified concatenation option
         # Since convert_to_openai now returns a list, we return the first element
@@ -431,7 +431,7 @@ class OpenAIConverter:
         tool_message_content = ""
         if text_content:
             # Convert text content to OpenAI format
-            temp_multipart = PromptMessageMultipart(role="user", content=text_content)
+            temp_multipart = PromptMessageExtended(role="user", content=text_content)
             converted_messages = OpenAIConverter.convert_to_openai(
                 temp_multipart, concatenate_text_blocks=concatenate_text_blocks
             )
@@ -458,7 +458,7 @@ class OpenAIConverter:
             return tool_message
 
         # Process non-text content as a separate user message
-        non_text_multipart = PromptMessageMultipart(role="user", content=non_text_content)
+        non_text_multipart = PromptMessageExtended(role="user", content=non_text_content)
 
         # Convert to OpenAI format (returns a list now)
         user_messages = OpenAIConverter.convert_to_openai(non_text_multipart)

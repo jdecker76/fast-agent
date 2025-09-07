@@ -18,7 +18,7 @@ from fast_agent.llm.provider.openai.multipart_converter_openai import (
     OpenAIConverter,
 )
 from fast_agent.llm.provider_types import Provider
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
 
 class TestOpenAIUserConverter(unittest.TestCase):
@@ -33,7 +33,7 @@ class TestOpenAIUserConverter(unittest.TestCase):
         """Test conversion of TextContent to OpenAI text content."""
         # Create a text content message
         text_content = TextContent(type="text", text=self.sample_text)
-        multipart = PromptMessageMultipart(role="user", content=[text_content])
+        multipart = PromptMessageExtended(role="user", content=[text_content])
 
         # Convert to OpenAI format
         openai_msgs = OpenAIConverter.convert_to_openai(multipart)
@@ -50,7 +50,7 @@ class TestOpenAIUserConverter(unittest.TestCase):
         image_content = ImageContent(
             type="image", data=self.sample_image_base64, mimeType="image/jpeg"
         )
-        multipart = PromptMessageMultipart(role="user", content=[image_content])
+        multipart = PromptMessageExtended(role="user", content=[image_content])
 
         # Convert to OpenAI format
         openai_msgs = OpenAIConverter.convert_to_openai(multipart)
@@ -75,7 +75,7 @@ class TestOpenAIUserConverter(unittest.TestCase):
             text=self.sample_text,
         )
         embedded_resource = EmbeddedResource(type="resource", resource=text_resource)
-        multipart = PromptMessageMultipart(role="user", content=[embedded_resource])
+        multipart = PromptMessageExtended(role="user", content=[embedded_resource])
 
         # Convert to OpenAI format
         openai_msgs = OpenAIConverter.convert_to_openai(multipart)
@@ -102,7 +102,7 @@ class TestOpenAIUserConverter(unittest.TestCase):
             blob=pdf_base64,
         )
         embedded_resource = EmbeddedResource(type="resource", resource=pdf_resource)
-        multipart = PromptMessageMultipart(role="user", content=[embedded_resource])
+        multipart = PromptMessageExtended(role="user", content=[embedded_resource])
 
         # Convert to OpenAI format
         openai_msgs = OpenAIConverter.convert_to_openai(multipart)
@@ -128,7 +128,7 @@ class TestOpenAIUserConverter(unittest.TestCase):
             blob=self.sample_image_base64,  # This would be ignored for URL in OpenAI
         )
         embedded_resource = EmbeddedResource(type="resource", resource=image_resource)
-        multipart = PromptMessageMultipart(role="user", content=[embedded_resource])
+        multipart = PromptMessageExtended(role="user", content=[embedded_resource])
 
         # Convert to OpenAI format
         openai_msgs = OpenAIConverter.convert_to_openai(multipart)
@@ -154,7 +154,7 @@ class TestOpenAIUserConverter(unittest.TestCase):
             description="Some description",
             name="some name",
         )
-        multipart = PromptMessageMultipart(role="user", content=[resource_link])
+        multipart = PromptMessageExtended(role="user", content=[resource_link])
 
         # Convert to OpenAI format
         openai_msgs = OpenAIConverter.convert_to_openai(multipart)
@@ -179,7 +179,7 @@ class TestOpenAIUserConverter(unittest.TestCase):
         )
         text_content2 = TextContent(type="text", text="Second text")
 
-        multipart = PromptMessageMultipart(
+        multipart = PromptMessageExtended(
             role="user", content=[text_content1, image_content, text_content2]
         )
 
@@ -207,7 +207,7 @@ class TestOpenAIUserConverter(unittest.TestCase):
             text=svg_content,
         )
         embedded_resource = EmbeddedResource(type="resource", resource=svg_resource)
-        multipart = PromptMessageMultipart(role="user", content=[embedded_resource])
+        multipart = PromptMessageExtended(role="user", content=[embedded_resource])
 
         # Convert to OpenAI format
         openai_msgs = OpenAIConverter.convert_to_openai(multipart)
@@ -225,7 +225,7 @@ class TestOpenAIUserConverter(unittest.TestCase):
 
     def test_empty_content_list(self):
         """Test conversion with empty content list."""
-        multipart = PromptMessageMultipart(role="user", content=[])
+        multipart = PromptMessageExtended(role="user", content=[])
 
         # Convert to OpenAI format
         openai_msgs = OpenAIConverter.convert_to_openai(multipart)
@@ -248,7 +248,7 @@ class TestOpenAIUserConverter(unittest.TestCase):
         )
         embedded_resource = EmbeddedResource(type="resource", resource=code_resource)
 
-        multipart = PromptMessageMultipart(role="user", content=[embedded_resource])
+        multipart = PromptMessageExtended(role="user", content=[embedded_resource])
 
         # Convert to OpenAI format (now returns a list)
         openai_msgs = OpenAIConverter.convert_to_openai(multipart)
@@ -276,7 +276,7 @@ class TestOpenAIAssistantConverter(unittest.TestCase):
         """Test conversion of assistant TextContent to OpenAI string content."""
         # Create a text content message from assistant
         text_content = TextContent(type="text", text=self.sample_text)
-        multipart = PromptMessageMultipart(role="assistant", content=[text_content])
+        multipart = PromptMessageExtended(role="assistant", content=[text_content])
 
         # Convert to OpenAI format
         openai_msgs = OpenAIConverter.convert_to_openai(multipart)
@@ -358,7 +358,7 @@ class TestOpenAIAssistantConverter(unittest.TestCase):
     def test_empty_assistant_message(self):
         """Test conversion of empty assistant message."""
         # Create an assistant message with empty content
-        multipart = PromptMessageMultipart(role="assistant", content=[])
+        multipart = PromptMessageExtended(role="assistant", content=[])
 
         # Convert to OpenAI format
         openai_msgs = OpenAIConverter.convert_to_openai(multipart)
@@ -501,7 +501,7 @@ class TestTextConcatenation(unittest.TestCase):
         text2 = TextContent(type="text", text="Second sentence.")
         text3 = TextContent(type="text", text="Third sentence.")
 
-        multipart = PromptMessageMultipart(role="user", content=[text1, text2, text3])
+        multipart = PromptMessageExtended(role="user", content=[text1, text2, text3])
 
         # Convert with concatenation enabled
         openai_msgs = OpenAIConverter.convert_to_openai(multipart, concatenate_text_blocks=True)
@@ -528,7 +528,7 @@ class TestTextConcatenation(unittest.TestCase):
         text2 = TextContent(type="text", text="Text after image.")
         text3 = TextContent(type="text", text="More text after image.")
 
-        multipart = PromptMessageMultipart(role="user", content=[text1, image, text2, text3])
+        multipart = PromptMessageExtended(role="user", content=[text1, image, text2, text3])
 
         # Convert with concatenation enabled
         openai_msgs = OpenAIConverter.convert_to_openai(multipart, concatenate_text_blocks=True)
@@ -583,7 +583,7 @@ class TestTextConcatenation(unittest.TestCase):
             blob=binary_base64,
         )
         embedded_resource = EmbeddedResource(type="resource", resource=binary_resource)
-        multipart = PromptMessageMultipart(role="user", content=[embedded_resource])
+        multipart = PromptMessageExtended(role="user", content=[embedded_resource])
 
         # Convert to OpenAI format
         openai_msgs = OpenAIConverter.convert_to_openai(multipart)

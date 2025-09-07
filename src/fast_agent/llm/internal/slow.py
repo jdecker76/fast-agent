@@ -7,7 +7,7 @@ from fast_agent.llm.fastagent_llm import (
 )
 from fast_agent.llm.internal.passthrough import PassthroughLLM
 from fast_agent.llm.provider_types import Provider
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
 
 class SlowLLM(PassthroughLLM):
@@ -45,9 +45,9 @@ class SlowLLM(PassthroughLLM):
 
     async def _apply_prompt_provider_specific(
         self,
-        multipart_messages: List["PromptMessageMultipart"],
+        multipart_messages: List["PromptMessageExtended"],
         request_params: RequestParams | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """Sleep for 3 seconds then apply prompt like PassthroughLLM."""
         await asyncio.sleep(3)
         return await super()._apply_prompt_provider_specific(multipart_messages, request_params)

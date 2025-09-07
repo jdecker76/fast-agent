@@ -24,6 +24,7 @@ from fast_agent.config import (
     TensorZeroSettings,
     XAISettings,
 )
+from fast_agent.llm.request_params import RequestParams
 
 # Type definitions and enums (safe - no dependencies)
 from fast_agent.types import LlmStopReason
@@ -112,6 +113,7 @@ __all__ = [
     "ProgressEvent",
     # Type definitions and enums (eagerly loaded)
     "LlmStopReason",
+    "RequestParams",
     # Agents (lazy loaded)
     "ToolAgentSynchronous",
     "LlmAgent",

@@ -54,7 +54,7 @@ class HumanFormArgs(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     message: Optional[str] = None
-    fields: List[FormField] = Field(default_factory=list, max_items=7)
+    fields: List[FormField] = Field(default_factory=list, max_length=7)
 
 
 # -----------------------
@@ -347,7 +347,7 @@ def get_elicitation_fastmcp_tool() -> FastMCPTool:
         title: Optional[str] = None,
         description: Optional[str] = None,
         message: Optional[str] = None,
-        fields: List[FormField] = Field(default_factory=list, max_items=7),
+        fields: List[FormField] = Field(default_factory=list, max_length=7),
     ) -> str:
         args = {
             "title": title,

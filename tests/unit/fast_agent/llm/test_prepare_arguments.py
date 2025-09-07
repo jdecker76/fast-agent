@@ -4,8 +4,8 @@ from fast_agent.llm.fastagent_llm import FastAgentLLM
 from fast_agent.llm.provider.anthropic.llm_anthropic import AnthropicLLM
 from fast_agent.llm.provider.openai.llm_openai import OpenAILLM
 from fast_agent.llm.provider_types import Provider
-from mcp_agent.core.request_params import RequestParams
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from fast_agent.llm.request_params import RequestParams
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
 
 # Create a minimal testable subclass of AugmentedLLM
@@ -17,10 +17,11 @@ class StubLLM(FastAgentLLM):
 
     async def _apply_prompt_provider_specific(
         self,
-        multipart_messages: List["PromptMessageMultipart"],
+        multipart_messages: List["PromptMessageExtended"],
         request_params: RequestParams | None = None,
+        tools=None,
         is_template: bool = False,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """Implement the abstract method with minimal functionality"""
         return multipart_messages[-1] if multipart_messages else None
 

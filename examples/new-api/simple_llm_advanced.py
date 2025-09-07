@@ -3,10 +3,10 @@ from typing import Any, Dict
 
 from mcp.server.fastmcp.tools.base import Tool as FastMCPTool
 
+from fast_agent.agents.agent_types import AgentConfig
 from fast_agent.agents.tool_agent_sync import ToolAgentSynchronous
 from fast_agent.core import Core
 from fast_agent.llm.model_factory import ModelFactory
-from mcp_agent.core.agent_types import AgentConfig
 
 
 # Example 1: Simple function that will be wrapped

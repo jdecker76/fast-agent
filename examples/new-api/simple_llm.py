@@ -2,10 +2,10 @@ import asyncio
 
 from mcp.server.fastmcp import FastMCP
 
+from fast_agent.agents.agent_types import AgentConfig
 from fast_agent.agents.tool_agent import ToolAgent
 from fast_agent.core import Core
 from fast_agent.llm.model_factory import ModelFactory
-from mcp_agent.core.agent_types import AgentConfig
 
 # Initialize FastMCP instance for decorator-based tools
 # Set log_level to WARNING or ERROR to avoid httpx INFO logs

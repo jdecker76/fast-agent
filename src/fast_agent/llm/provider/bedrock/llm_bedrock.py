@@ -15,15 +15,15 @@ from mcp.types import (
 from rich.text import Text
 
 from fast_agent.event_progress import ProgressAction
+from fast_agent.interfaces import ModelT
 from fast_agent.llm.fastagent_llm import FastAgentLLM
 from fast_agent.llm.provider_types import Provider
+from fast_agent.llm.request_params import RequestParams
 from fast_agent.llm.usage_tracking import TurnUsage
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.exceptions import ProviderKeyError
-from mcp_agent.core.request_params import RequestParams
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.interfaces import ModelT
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 # Mapping from Bedrock's snake_case stop reasons to MCP's camelCase
 BEDROCK_TO_MCP_STOP_REASON = {
@@ -1723,27 +1723,27 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
         self,
         message_param: BedrockMessageParam,
         request_params: RequestParams | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """Generate messages using Bedrock."""
         responses = await self._bedrock_completion(message_param, request_params)
 
-        # Convert responses to PromptMessageMultipart
+        # Convert responses to PromptMessageExtended
         content_list = []
         for response in responses:
             if isinstance(response, TextContent):
                 content_list.append(response)
 
-        return PromptMessageMultipart(role="assistant", content=content_list)
+        return PromptMessageExtended(role="assistant", content=content_list)
 
     async def _apply_prompt_provider_specific(
         self,
-        multipart_messages: List[PromptMessageMultipart],
+        multipart_messages: List[PromptMessageExtended],
         request_params: RequestParams | None = None,
         is_template: bool = False,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """Apply Bedrock-specific prompt formatting."""
         if not multipart_messages:
-            return PromptMessageMultipart(role="user", content=[])
+            return PromptMessageExtended(role="user", content=[])
 
         # Check the last message role
         last_message = multipart_messages[-1]
@@ -1842,10 +1842,10 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
 
     async def _apply_prompt_provider_specific_structured(
         self,
-        multipart_messages: List[PromptMessageMultipart],
+        multipart_messages: List[PromptMessageExtended],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:
         """Apply structured output for Bedrock using prompt engineering with a simplified schema."""
         # Short-circuit: if the last message is already an assistant JSON payload,
         # parse it directly without invoking the model. This restores pre-regression behavior
@@ -1908,7 +1908,7 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
             temp_last = multipart_messages[-1].model_copy(deep=True)
         except Exception:
             # Fallback: construct a minimal copy if model_copy is unavailable
-            temp_last = PromptMessageMultipart(
+            temp_last = PromptMessageExtended(
                 role=multipart_messages[-1].role, content=list(multipart_messages[-1].content)
             )
 
@@ -1919,7 +1919,7 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
         )
 
         try:
-            result: PromptMessageMultipart = await self._apply_prompt_provider_specific(
+            result: PromptMessageExtended = await self._apply_prompt_provider_specific(
                 [temp_last], request_params
             )
             try:
@@ -1945,13 +1945,13 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
                 try:
                     temp_last_retry = multipart_messages[-1].model_copy(deep=True)
                 except Exception:
-                    temp_last_retry = PromptMessageMultipart(
+                    temp_last_retry = PromptMessageExtended(
                         role=multipart_messages[-1].role,
                         content=list(multipart_messages[-1].content),
                     )
                 temp_last_retry.add_text("\n".join(strict_parts + [simplified_schema_text]))
 
-                retry_result: PromptMessageMultipart = await self._apply_prompt_provider_specific(
+                retry_result: PromptMessageExtended = await self._apply_prompt_provider_specific(
                     [temp_last_retry], request_params
                 )
                 return self._structured_from_multipart(retry_result, model)
@@ -2015,8 +2015,8 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
         return text
 
     def _structured_from_multipart(
-        self, message: PromptMessageMultipart, model: Type[ModelT]
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+        self, message: PromptMessageExtended, model: Type[ModelT]
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:
         """Override to apply JSON cleaning before parsing."""
         # Get the text from the multipart message
         text = message.all_text()
@@ -2028,7 +2028,7 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
         if cleaned_text != text:
             from mcp.types import TextContent
 
-            cleaned_multipart = PromptMessageMultipart(
+            cleaned_multipart = PromptMessageExtended(
                 role=message.role, content=[TextContent(type="text", text=cleaned_text)]
             )
         else:

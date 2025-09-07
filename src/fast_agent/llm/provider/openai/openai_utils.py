@@ -14,50 +14,50 @@ from openai.types.chat import (
 
 from fast_agent.llm.provider.openai.multipart_converter_openai import OpenAIConverter
 from fast_agent.llm.provider.openai.openai_multipart import (
-    openai_to_multipart,
+    openai_to_extended,
 )
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
 
 def openai_message_to_prompt_message_multipart(
     message: Union[ChatCompletionMessage, Dict[str, Any]],
-) -> PromptMessageMultipart:
+) -> PromptMessageExtended:
     """
-    Convert an OpenAI ChatCompletionMessage to a PromptMessageMultipart.
+    Convert an OpenAI ChatCompletionMessage to a PromptMessageExtended.
 
     Args:
         message: The OpenAI message to convert (can be an actual ChatCompletionMessage
                 or a dictionary with the same structure)
 
     Returns:
-        A PromptMessageMultipart representation
+        A PromptMessageExtended representation
     """
-    return openai_to_multipart(message)
+    return openai_to_extended(message)
 
 
 def openai_message_param_to_prompt_message_multipart(
     message_param: ChatCompletionMessageParam,
-) -> PromptMessageMultipart:
+) -> PromptMessageExtended:
     """
-    Convert an OpenAI ChatCompletionMessageParam to a PromptMessageMultipart.
+    Convert an OpenAI ChatCompletionMessageParam to a PromptMessageExtended.
 
     Args:
         message_param: The OpenAI message param to convert
 
     Returns:
-        A PromptMessageMultipart representation
+        A PromptMessageExtended representation
     """
-    return openai_to_multipart(message_param)
+    return openai_to_extended(message_param)
 
 
 def prompt_message_multipart_to_openai_message_param(
-    multipart: PromptMessageMultipart,
+    multipart: PromptMessageExtended,
 ) -> ChatCompletionMessageParam:
     """
-    Convert a PromptMessageMultipart to an OpenAI ChatCompletionMessageParam.
+    Convert a PromptMessageExtended to an OpenAI ChatCompletionMessageParam.
 
     Args:
-        multipart: The PromptMessageMultipart to convert
+        multipart: The PromptMessageExtended to convert
 
     Returns:
         An OpenAI ChatCompletionMessageParam representation

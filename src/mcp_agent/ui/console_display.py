@@ -261,7 +261,7 @@ class ConsoleDisplay:
         from rich.pretty import Pretty
         from rich.syntax import Syntax
 
-        from mcp_agent.mcp.helpers.content_helpers import get_text, is_text_content
+        from fast_agent.mcp.helpers.content_helpers import get_text, is_text_content
 
         # Determine the style based on message type
         # USER and ASSISTANT messages should display in normal style
@@ -524,7 +524,7 @@ class ConsoleDisplay:
             return
 
         # Import content helpers
-        from mcp_agent.mcp.helpers.content_helpers import get_text, is_text_content
+        from fast_agent.mcp.helpers.content_helpers import get_text, is_text_content
 
         # Analyze content to determine display format and status
         content = result.content

@@ -7,6 +7,7 @@ import pytest_asyncio
 from mcp.types import TextContent
 
 from fast_agent.agents import OrchestratorAgent
+from fast_agent.agents.agent_types import AgentConfig
 from fast_agent.agents.workflow.orchestrator_models import (
     AgentTask,
     Plan,
@@ -14,9 +15,8 @@ from fast_agent.agents.workflow.orchestrator_models import (
     PlanResult,
     Step,
 )
-from mcp_agent.core.agent_types import AgentConfig
-from mcp_agent.core.request_params import RequestParams
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from fast_agent.llm.request_params import RequestParams
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
 
 @pytest_asyncio.fixture
@@ -28,7 +28,7 @@ async def orchestrator_fixture():
     agent1.name = "agent1"  # Keep this for backward compatibility
     agent1.instruction = "Test agent 1 for testing purposes"
     agent1.generate = AsyncMock(
-        return_value=PromptMessageMultipart(
+        return_value=PromptMessageExtended(
             role="assistant", content=[TextContent(type="text", text="Agent1 response")]
         )
     )
@@ -41,7 +41,7 @@ async def orchestrator_fixture():
     agent2.name = "agent2"  # Keep this for backward compatibility
     agent2.instruction = "Test agent 2 for testing purposes"
     agent2.generate = AsyncMock(
-        return_value=PromptMessageMultipart(
+        return_value=PromptMessageExtended(
             role="assistant", content=[TextContent(type="text", text="Agent2 response")]
         )
     )
@@ -56,7 +56,7 @@ async def orchestrator_fixture():
     llm = MagicMock()
     llm.structured = AsyncMock()
     llm.generate = AsyncMock(
-        return_value=PromptMessageMultipart(
+        return_value=PromptMessageExtended(
             role="assistant", content=[TextContent(type="text", text="LLM response")]
         )
     )

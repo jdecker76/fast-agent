@@ -1,5 +1,5 @@
 """
-Decorator for LlmAgent, normalizes PromptMessageMultipart, allows easy extension of Agents
+Decorator for LlmAgent, normalizes PromptMessageExtended, allows easy extension of Agents
 """
 
 from typing import (
@@ -20,15 +20,15 @@ from mcp.types import (
 from opentelemetry import trace
 from pydantic import BaseModel
 
+from fast_agent.agents.agent_types import AgentConfig, AgentType
 from fast_agent.context import Context
+from fast_agent.interfaces import FastAgentLLMProtocol, LlmAgentProtocol, LLMFactoryProtocol
 from fast_agent.llm.provider_types import Provider
+from fast_agent.llm.request_params import RequestParams
 from fast_agent.llm.usage_tracking import UsageAccumulator
-from mcp_agent.core.agent_types import AgentConfig, AgentType
-from mcp_agent.core.request_params import RequestParams
+from fast_agent.mcp.helpers.content_helpers import normalize_to_extended_list
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.helpers.content_helpers import normalize_to_multipart_list
-from mcp_agent.mcp.interfaces import FastAgentLLMProtocol, LlmAgentProtocol, LLMFactoryProtocol
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 logger = get_logger(__name__)
 # Define a TypeVar for models
@@ -134,7 +134,7 @@ class LlmDecorator(LlmAgentProtocol):
 
     async def __call__(
         self,
-        message: Union[str, PromptMessage, PromptMessageMultipart],
+        message: Union[str, PromptMessage, PromptMessageExtended],
     ) -> str:
         """
         Make the agent callable to send messages.
@@ -147,7 +147,7 @@ class LlmDecorator(LlmAgentProtocol):
         """
         return await self.send(message)
 
-    async def send(self, message: Union[str, PromptMessage, PromptMessageMultipart]) -> str:
+    async def send(self, message: Union[str, PromptMessage, PromptMessageExtended]) -> str:
         """
         Convenience method to generate and return a string directly
         """
@@ -159,12 +159,12 @@ class LlmDecorator(LlmAgentProtocol):
         messages: Union[
             str,
             PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
+            PromptMessageExtended,
+            List[Union[str, PromptMessage, PromptMessageExtended]],
         ],
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Create a completion with the LLM using the provided messages.
 
@@ -173,28 +173,28 @@ class LlmDecorator(LlmAgentProtocol):
 
         Args:
             messages: Message(s) in various formats:
-                - String: Converted to a user PromptMessageMultipart
-                - PromptMessage: Converted to PromptMessageMultipart
-                - PromptMessageMultipart: Used directly
+                - String: Converted to a user PromptMessageExtended
+                - PromptMessage: Converted to PromptMessageExtended
+                - PromptMessageExtended: Used directly
                 - List of any combination of the above
             request_params: Optional parameters to configure the request
             tools: Optional list of tools available to the LLM
 
         Returns:
-            The LLM's response as a PromptMessageMultipart
+            The LLM's response as a PromptMessageExtended
         """
-        # Normalize all input types to a list of PromptMessageMultipart
-        multipart_messages = normalize_to_multipart_list(messages)
+        # Normalize all input types to a list of PromptMessageExtended
+        multipart_messages = normalize_to_extended_list(messages)
 
         with self._tracer.start_as_current_span(f"Agent: '{self._name}' generate"):
             return await self.generate_impl(multipart_messages, request_params, tools)
 
     async def generate_impl(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         request_params: RequestParams | None = None,
         tools: List[Tool] | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Implementation method for generate.
 
@@ -203,12 +203,12 @@ class LlmDecorator(LlmAgentProtocol):
         benefiting from the message normalization in generate().
 
         Args:
-            messages: Normalized list of PromptMessageMultipart objects
+            messages: Normalized list of PromptMessageExtended objects
             request_params: Optional parameters to configure the request
             tools: Optional list of tools available to the LLM
 
         Returns:
-            The LLM's response as a PromptMessageMultipart
+            The LLM's response as a PromptMessageExtended
         """
         assert self._llm, "LLM is not attached"
         return await self._llm.generate(messages, request_params, tools)
@@ -233,12 +233,12 @@ class LlmDecorator(LlmAgentProtocol):
         messages: Union[
             str,
             PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
+            PromptMessageExtended,
+            List[Union[str, PromptMessage, PromptMessageExtended]],
         ],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:
         """
         Apply the prompt and return the result as a Pydantic model.
 
@@ -247,9 +247,9 @@ class LlmDecorator(LlmAgentProtocol):
 
         Args:
             messages: Message(s) in various formats:
-                - String: Converted to a user PromptMessageMultipart
-                - PromptMessage: Converted to PromptMessageMultipart
-                - PromptMessageMultipart: Used directly
+                - String: Converted to a user PromptMessageExtended
+                - PromptMessage: Converted to PromptMessageExtended
+                - PromptMessageExtended: Used directly
                 - List of any combination of the above
             model: The Pydantic model class to parse the result into
             request_params: Optional parameters to configure the LLM request
@@ -257,18 +257,18 @@ class LlmDecorator(LlmAgentProtocol):
         Returns:
             A tuple of (parsed model instance or None, assistant response message)
         """
-        # Normalize all input types to a list of PromptMessageMultipart
-        multipart_messages = normalize_to_multipart_list(messages)
+        # Normalize all input types to a list of PromptMessageExtended
+        multipart_messages = normalize_to_extended_list(messages)
 
         with self._tracer.start_as_current_span(f"Agent: '{self._name}' structured"):
             return await self.structured_impl(multipart_messages, model, request_params)
 
     async def structured_impl(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:
         """
         Implementation method for structured.
 
@@ -277,7 +277,7 @@ class LlmDecorator(LlmAgentProtocol):
         benefiting from the message normalization in structured().
 
         Args:
-            messages: Normalized list of PromptMessageMultipart objects
+            messages: Normalized list of PromptMessageExtended objects
             model: The Pydantic model class to parse the result into
             request_params: Optional parameters to configure the LLM request
 
@@ -288,15 +288,15 @@ class LlmDecorator(LlmAgentProtocol):
         return await self._llm.structured(messages, model, request_params)
 
     @property
-    def message_history(self) -> List[PromptMessageMultipart]:
+    def message_history(self) -> List[PromptMessageExtended]:
         """
-        Return the agent's message history as PromptMessageMultipart objects.
+        Return the agent's message history as PromptMessageExtended objects.
 
         This history can be used to transfer state between agents or for
         analysis and debugging purposes.
 
         Returns:
-            List of PromptMessageMultipart objects representing the conversation history
+            List of PromptMessageExtended objects representing the conversation history
         """
         if self._llm:
             return self._llm.message_history

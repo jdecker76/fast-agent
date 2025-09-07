@@ -1,5 +1,5 @@
 """
-Simplified converter between MCP sampling types and PromptMessageMultipart.
+Simplified converter between MCP sampling types and PromptMessageExtended.
 This replaces the more complex provider-specific converters with direct conversions.
 """
 
@@ -12,9 +12,9 @@ from mcp.types import (
     TextContent,
 )
 
+from fast_agent.llm.request_params import RequestParams
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.types.llm_stop_reason import LlmStopReason
-from mcp_agent.mcp.interfaces import RequestParams
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 
 class SamplingConverter:
@@ -22,7 +22,7 @@ class SamplingConverter:
     Simplified converter between MCP sampling types and internal LLM types.
 
     This handles converting between:
-    - SamplingMessage and PromptMessageMultipart
+    - SamplingMessage and PromptMessageExtended
     - CreateMessageRequestParams and RequestParams
     - LLM responses and CreateMessageResult
     """
@@ -30,17 +30,17 @@ class SamplingConverter:
     @staticmethod
     def sampling_message_to_prompt_message(
         message: SamplingMessage,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
-        Convert a SamplingMessage to a PromptMessageMultipart.
+        Convert a SamplingMessage to a PromptMessageExtended.
 
         Args:
             message: MCP SamplingMessage to convert
 
         Returns:
-            PromptMessageMultipart suitable for use with LLMs
+            PromptMessageExtended suitable for use with LLMs
         """
-        return PromptMessageMultipart(role=message.role, content=[message.content])
+        return PromptMessageExtended(role=message.role, content=[message.content])
 
     @staticmethod
     def extract_request_params(params: CreateMessageRequestParams) -> RequestParams:
@@ -84,9 +84,9 @@ class SamplingConverter:
     @staticmethod
     def convert_messages(
         messages: List[SamplingMessage],
-    ) -> List[PromptMessageMultipart]:
+    ) -> List[PromptMessageExtended]:
         """
-        Convert multiple SamplingMessages to PromptMessageMultipart objects.
+        Convert multiple SamplingMessages to PromptMessageExtended objects.
 
         This properly combines consecutive messages with the same role into a single
         multipart message, which is required by APIs like Anthropic.
@@ -95,14 +95,6 @@ class SamplingConverter:
             messages: List of SamplingMessages to convert
 
         Returns:
-            List of PromptMessageMultipart objects with consecutive same-role messages combined
+            List of PromptMessageExtended objects with consecutive same-role messages combined
         """
         return [SamplingConverter.sampling_message_to_prompt_message(msg) for msg in messages]
-        # # First convert SamplingMessages to PromptMessages
-        # prompt_messages = [
-        #     PromptMessage(role=msg.role, content=msg.content)
-        #     for msg in messages
-        # ]
-
-        # # Then use the existing to_multipart method to properly combine them
-        # return PromptMessageMultipart.to_multipart(prompt_messages)

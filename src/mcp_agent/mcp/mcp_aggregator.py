@@ -15,6 +15,7 @@ from pydantic import AnyUrl, BaseModel, ConfigDict
 
 from fast_agent.context_dependent import ContextDependent
 from fast_agent.event_progress import ProgressAction
+from fast_agent.mcp.common import SEP, create_namespaced_name, is_namespaced_name
 from mcp import GetPromptResult, ReadResourceResult
 from mcp.client.session import ClientSession
 from mcp.shared.session import ProgressFnT
@@ -26,7 +27,6 @@ from mcp.types import (
     Tool,
 )
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.common import SEP, create_namespaced_name, is_namespaced_name
 from mcp_agent.mcp.gen_client import gen_client
 from mcp_agent.mcp.mcp_agent_client_session import MCPAgentClientSession
 from mcp_agent.mcp.mcp_connection_manager import MCPConnectionManager

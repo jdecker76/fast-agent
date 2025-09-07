@@ -6,11 +6,11 @@ from openai.types.chat import (
     ChatCompletionMessage,
 )
 
+from fast_agent.interfaces import ModelT
 from fast_agent.llm.provider.openai.llm_openai import OpenAILLM
 from fast_agent.llm.provider_types import Provider
-from mcp_agent.core.request_params import RequestParams
-from mcp_agent.mcp.interfaces import ModelT
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from fast_agent.llm.request_params import RequestParams
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEFAULT_DEEPSEEK_MODEL = "deepseekchat"  # current Deepseek only has two type models
@@ -40,10 +40,10 @@ class DeepSeekLLM(OpenAILLM):
 
     async def _apply_prompt_provider_specific_structured(
         self,
-        multipart_messages: List[PromptMessageMultipart],
+        multipart_messages: List[PromptMessageExtended],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:  # noqa: F821
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:  # noqa: F821
         request_params = self.get_request_params(request_params)
 
         request_params.response_format = {"type": "json_object"}
@@ -78,7 +78,7 @@ class DeepSeekLLM(OpenAILLM):
             - All required fields must be included"""
         )
 
-        result: PromptMessageMultipart = await self._apply_prompt_provider_specific(
+        result: PromptMessageExtended = await self._apply_prompt_provider_specific(
             multipart_messages, request_params
         )
         return self._structured_from_multipart(result, model)

@@ -10,13 +10,13 @@ from typing import Any, List, Optional, Tuple, Type
 from mcp import Tool
 from mcp.types import TextContent
 
+from fast_agent.agents.agent_types import AgentConfig, AgentType
 from fast_agent.agents.llm_agent import LlmAgent
-from mcp_agent.core.agent_types import AgentConfig, AgentType
+from fast_agent.interfaces import ModelT
+from fast_agent.llm.request_params import RequestParams
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from mcp_agent.core.prompt import Prompt
-from mcp_agent.core.request_params import RequestParams
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.interfaces import ModelT
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 logger = get_logger(__name__)
 
@@ -57,15 +57,15 @@ class ChainAgent(LlmAgent):
 
     async def generate_impl(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         request_params: Optional[RequestParams] = None,
         tools: list[Tool] | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Chain the request through multiple agents in sequence.
 
         Args:
-            normalized_messages: Already normalized list of PromptMessageMultipart
+            normalized_messages: Already normalized list of PromptMessageExtended
             request_params: Optional request parameters
 
         Returns:
@@ -75,7 +75,7 @@ class ChainAgent(LlmAgent):
         user_message = messages[-1] if messages else None
 
         if not self.cumulative:
-            response: PromptMessageMultipart = await self.agents[0].generate_impl(
+            response: PromptMessageExtended = await self.agents[0].generate_impl(
                 messages, request_params, tools
             )
             # Process the rest of the agents in the chain
@@ -86,7 +86,7 @@ class ChainAgent(LlmAgent):
             return response
 
         # Track all responses in the chain
-        all_responses: List[PromptMessageMultipart] = []
+        all_responses: List[PromptMessageExtended] = []
 
         # Initialize list for storing formatted results
         final_results: List[str] = []
@@ -117,17 +117,17 @@ class ChainAgent(LlmAgent):
 
         # For cumulative mode, return the properly formatted output with XML tags
         response_text = "\n\n".join(final_results)
-        return PromptMessageMultipart(
+        return PromptMessageExtended(
             role="assistant",
             content=[TextContent(type="text", text=response_text)],
         )
 
     async def structured_impl(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         model: Type[ModelT],
         request_params: Optional[RequestParams] = None,
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:
         """
         Chain the request through multiple agents and parse the final response.
 

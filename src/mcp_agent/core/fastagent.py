@@ -67,8 +67,8 @@ from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.prompts.prompt_load import load_prompt_multipart
 
 if TYPE_CHECKING:
+    from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
     from mcp_agent.agents.agent import Agent
-    from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 F = TypeVar("F", bound=Callable[..., Any])  # For decorated functions
 logger = get_logger(__name__)
@@ -397,7 +397,7 @@ class FastAgent:
 
                     if hasattr(self.args, "prompt_file") and self.args.prompt_file:
                         agent_name = self.args.agent
-                        prompt: List[PromptMessageMultipart] = load_prompt_multipart(
+                        prompt: List[PromptMessageExtended] = load_prompt_multipart(
                             Path(self.args.prompt_file)
                         )
                         if agent_name not in active_agents:

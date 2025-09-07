@@ -1,20 +1,20 @@
 """
-This simplified implementation directly converts between MCP types and PromptMessageMultipart.
+This simplified implementation directly converts between MCP types and PromptMessageExtended.
 """
 
 from typing import TYPE_CHECKING
 
+from fast_agent.agents.agent_types import AgentConfig
+from fast_agent.interfaces import FastAgentLLMProtocol
 from fast_agent.llm.sampling_converter import SamplingConverter
+from fast_agent.mcp.helpers.server_config_helpers import get_server_config
 from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp import ClientSession
 from mcp.types import CreateMessageRequestParams, CreateMessageResult, TextContent
-from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.helpers.server_config_helpers import get_server_config
-from mcp_agent.mcp.interfaces import FastAgentLLMProtocol
 
 if TYPE_CHECKING:
-    from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+    from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
 logger = get_logger(__name__)
 
@@ -136,13 +136,13 @@ async def sample(mcp_ctx: ClientSession, params: CreateMessageRequestParams) -> 
         if not params.messages:
             raise ValueError("No messages provided")
 
-        # Convert all SamplingMessages to PromptMessageMultipart objects
+        # Convert all SamplingMessages to PromptMessageExtended objects
         conversation = SamplingConverter.convert_messages(params.messages)
 
         # Extract request parameters using our converter
         request_params = SamplingConverter.extract_request_params(params)
 
-        llm_response: PromptMessageMultipart = await llm.generate(conversation, request_params)
+        llm_response: PromptMessageExtended = await llm.generate(conversation, request_params)
         logger.info(f"Complete sampling request : {llm_response.first_text()[:50]}...")
 
         return CreateMessageResult(

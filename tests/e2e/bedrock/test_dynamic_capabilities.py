@@ -328,7 +328,7 @@ async def test_bedrock_temperature_parameter(fast_agent, model_name):
     )
     async def temperature_test():
         async with fast.run() as agent:
-            from mcp_agent.core.request_params import RequestParams
+            from fast_agent.llm.request_params import RequestParams
 
             # Test with low temperature (should be more deterministic)
             response = await agent.temperature_test.send(

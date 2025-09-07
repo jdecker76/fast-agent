@@ -5,7 +5,7 @@ from mcp.types import TextContent
 
 from fast_agent.config import AnthropicSettings, Settings
 from fast_agent.llm.provider.anthropic.llm_anthropic import AnthropicLLM
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
 
 class TestAnthropicCaching(unittest.IsolatedAsyncioTestCase):
@@ -301,13 +301,13 @@ class TestAnthropicCaching(unittest.IsolatedAsyncioTestCase):
 
         # Create template messages
         template_messages = [
-            PromptMessageMultipart(
+            PromptMessageExtended(
                 role="user", content=[TextContent(type="text", text="Template message 1")]
             ),
-            PromptMessageMultipart(
+            PromptMessageExtended(
                 role="assistant", content=[TextContent(type="text", text="Template response 1")]
             ),
-            PromptMessageMultipart(
+            PromptMessageExtended(
                 role="user", content=[TextContent(type="text", text="Current question")]
             ),
         ]
@@ -371,10 +371,10 @@ class TestAnthropicCaching(unittest.IsolatedAsyncioTestCase):
 
         # Create template messages
         template_messages = [
-            PromptMessageMultipart(
+            PromptMessageExtended(
                 role="user", content=[TextContent(type="text", text="Template message")]
             ),
-            PromptMessageMultipart(
+            PromptMessageExtended(
                 role="user", content=[TextContent(type="text", text="Current question")]
             ),
         ]

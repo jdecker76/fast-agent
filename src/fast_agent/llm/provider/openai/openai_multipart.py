@@ -1,6 +1,6 @@
 # openai_multipart.py
 """
-Clean utilities for converting between PromptMessageMultipart and OpenAI message formats.
+Clean utilities for converting between PromptMessageExtended and OpenAI message formats.
 Each function handles all content types consistently and is designed for simple testing.
 """
 
@@ -18,34 +18,34 @@ from openai.types.chat import (
     ChatCompletionMessageParam,
 )
 
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
 
-def openai_to_multipart(
+def openai_to_extended(
     message: Union[
         ChatCompletionMessage,
         ChatCompletionMessageParam,
         List[Union[ChatCompletionMessage, ChatCompletionMessageParam]],
     ],
-) -> Union[PromptMessageMultipart, List[PromptMessageMultipart]]:
+) -> Union[PromptMessageExtended, List[PromptMessageExtended]]:
     """
-    Convert OpenAI messages to PromptMessageMultipart format.
+    Convert OpenAI messages to PromptMessageExtended format.
 
     Args:
         message: OpenAI Message, MessageParam, or list of them
 
     Returns:
-        Equivalent message(s) in PromptMessageMultipart format
+        Equivalent message(s) in PromptMessageExtended format
     """
     if isinstance(message, list):
-        return [_openai_message_to_multipart(m) for m in message]
-    return _openai_message_to_multipart(message)
+        return [_openai_message_to_extended(m) for m in message]
+    return _openai_message_to_extended(message)
 
 
-def _openai_message_to_multipart(
+def _openai_message_to_extended(
     message: Union[ChatCompletionMessage, Dict[str, Any]],
-) -> PromptMessageMultipart:
-    """Convert a single OpenAI message to PromptMessageMultipart."""
+) -> PromptMessageExtended:
+    """Convert a single OpenAI message to PromptMessageExtended."""
     # Get role and content from message
     if isinstance(message, dict):
         role = message.get("role", "assistant")
@@ -166,4 +166,4 @@ def _openai_message_to_multipart(
                                 )
                             )
 
-    return PromptMessageMultipart(role=role, content=mcp_contents)
+    return PromptMessageExtended(role=role, content=mcp_contents)

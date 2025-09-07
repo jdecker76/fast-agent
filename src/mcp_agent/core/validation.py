@@ -4,8 +4,8 @@ Validation utilities for FastAgent configuration and dependencies.
 
 from typing import Any, Dict, List
 
+from fast_agent.agents.agent_types import AgentType
 from fast_agent.llm.fastagent_llm import FastAgentLLM
-from mcp_agent.core.agent_types import AgentType
 from mcp_agent.core.exceptions import (
     AgentConfigError,
     CircularDependencyError,

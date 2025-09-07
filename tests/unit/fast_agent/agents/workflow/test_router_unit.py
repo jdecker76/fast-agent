@@ -4,6 +4,7 @@ Unit tests for the router agent, covering models and core functionality.
 
 import pytest
 
+from fast_agent.agents.agent_types import AgentConfig
 from fast_agent.agents.llm_agent import LlmAgent
 from fast_agent.agents.workflow.router_agent import RouterAgent, RoutingResponse
 from fast_agent.llm.internal.passthrough import (
@@ -11,7 +12,6 @@ from fast_agent.llm.internal.passthrough import (
     PassthroughLLM,
 )
 from mcp_agent.agents.agent import Agent
-from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.core.exceptions import AgentConfigError
 from mcp_agent.core.prompt import Prompt
 

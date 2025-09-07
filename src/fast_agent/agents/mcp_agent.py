@@ -34,23 +34,23 @@ from mcp.types import (
 )
 from pydantic import BaseModel
 
+from fast_agent.agents.agent_types import AgentConfig, AgentType
 from fast_agent.agents.llm_agent import DEFAULT_CAPABILITIES
 from fast_agent.agents.tool_agent import ToolAgent
 from fast_agent.constants import HUMAN_INPUT_TOOL_NAME
+from fast_agent.interfaces import FastAgentLLMProtocol
+from fast_agent.llm.request_params import RequestParams
+from fast_agent.mcp.helpers.content_helpers import normalize_to_extended_list
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.tools.elicitation import (
     get_elicitation_tool,
     run_elicitation_form,
     set_elicitation_input_callback,
 )
-from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.exceptions import PromptExitError
 from mcp_agent.core.prompt import Prompt
-from mcp_agent.core.request_params import RequestParams
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.helpers.content_helpers import normalize_to_multipart_list
-from mcp_agent.mcp.interfaces import FastAgentLLMProtocol
 from mcp_agent.mcp.mcp_aggregator import MCPAggregator
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 # Define a TypeVar for models
 ModelT = TypeVar("ModelT", bound=BaseModel)
@@ -180,8 +180,8 @@ class McpAgent(ABC, ToolAgent):
         message: Union[
             str,
             PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
+            PromptMessageExtended,
+            List[Union[str, PromptMessage, PromptMessageExtended]],
         ],
     ) -> str:
         return await self.send(message)
@@ -191,8 +191,8 @@ class McpAgent(ABC, ToolAgent):
         message: Union[
             str,
             PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
+            PromptMessageExtended,
+            List[Union[str, PromptMessage, PromptMessageExtended]],
         ],
         request_params: RequestParams | None = None,
     ) -> str:
@@ -201,9 +201,9 @@ class McpAgent(ABC, ToolAgent):
 
         Args:
             message: Message content in various formats:
-                - String: Converted to a user PromptMessageMultipart
-                - PromptMessage: Converted to PromptMessageMultipart
-                - PromptMessageMultipart: Used directly
+                - String: Converted to a user PromptMessageExtended
+                - PromptMessage: Converted to PromptMessageExtended
+                - PromptMessageExtended: Used directly
                 - request_params: Optional request parameters
 
         Returns:
@@ -415,7 +415,7 @@ class McpAgent(ABC, ToolAgent):
         self.logger.debug(f"Using prompt '{namespaced_name}'")
 
         # Convert prompt messages to multipart format using the safer method
-        multipart_messages = PromptMessageMultipart.from_get_prompt_result(prompt_result)
+        multipart_messages = PromptMessageExtended.from_get_prompt_result(prompt_result)
 
         if as_template:
             # Use apply_prompt_template to store as persistent prompt messages
@@ -437,7 +437,7 @@ class McpAgent(ABC, ToolAgent):
             server_name: Optional name of the MCP server to retrieve the resource from
 
         Returns:
-            List of EmbeddedResource objects ready to use in a PromptMessageMultipart
+            List of EmbeddedResource objects ready to use in a PromptMessageExtended
 
         Raises:
             ValueError: If the server doesn't exist or the resource couldn't be found
@@ -477,7 +477,7 @@ class McpAgent(ABC, ToolAgent):
 
     async def with_resource(
         self,
-        prompt_content: Union[str, PromptMessage, PromptMessageMultipart],
+        prompt_content: Union[str, PromptMessage, PromptMessageExtended],
         resource_uri: str,
         server_name: str | None = None,
     ) -> str:
@@ -487,8 +487,8 @@ class McpAgent(ABC, ToolAgent):
         Args:
             prompt_content: Content in various formats:
                 - String: Converted to a user message with the text
-                - PromptMessage: Converted to PromptMessageMultipart
-                - PromptMessageMultipart: Used directly
+                - PromptMessage: Converted to PromptMessageExtended
+                - PromptMessageExtended: Used directly
             resource_uri: URI of the resource to retrieve
             server_name: Optional name of the MCP server to retrieve the resource from
 
@@ -501,34 +501,34 @@ class McpAgent(ABC, ToolAgent):
         )
 
         # Create or update the prompt message
-        prompt: PromptMessageMultipart
+        prompt: PromptMessageExtended
         if isinstance(prompt_content, str):
             # Create a new prompt with the text and resources
             content = [TextContent(type="text", text=prompt_content)]
             content.extend(embedded_resources)
-            prompt = PromptMessageMultipart(role="user", content=content)
+            prompt = PromptMessageExtended(role="user", content=content)
         elif isinstance(prompt_content, PromptMessage):
-            # Convert PromptMessage to PromptMessageMultipart and add resources
+            # Convert PromptMessage to PromptMessageExtended and add resources
             content = [prompt_content.content]
             content.extend(embedded_resources)
-            prompt = PromptMessageMultipart(role=prompt_content.role, content=content)
-        elif isinstance(prompt_content, PromptMessageMultipart):
+            prompt = PromptMessageExtended(role=prompt_content.role, content=content)
+        elif isinstance(prompt_content, PromptMessageExtended):
             # Add resources to the existing prompt
             prompt = prompt_content
             prompt.content.extend(embedded_resources)
         else:
             raise TypeError(
-                "prompt_content must be a string, PromptMessage, or PromptMessageMultipart"
+                "prompt_content must be a string, PromptMessage, or PromptMessageExtended"
             )
 
-        response: PromptMessageMultipart = await self.generate([prompt], None)
+        response: PromptMessageExtended = await self.generate([prompt], None)
         return response.first_text()
 
-    async def run_tools(self, request: PromptMessageMultipart) -> PromptMessageMultipart:
+    async def run_tools(self, request: PromptMessageExtended) -> PromptMessageExtended:
         """Override ToolAgent's run_tools to use MCP tools via aggregator."""
         if not request.tool_calls:
             self.logger.warning("No tool calls found in request", data=request)
-            return PromptMessageMultipart(role="user", tool_results={})
+            return PromptMessageExtended(role="user", tool_results={})
 
         tool_results: dict[str, CallToolResult] = {}
 
@@ -576,7 +576,7 @@ class McpAgent(ABC, ToolAgent):
                 # Show error result too
                 self.display.show_tool_result(name=self._name, result=error_result)
 
-        return PromptMessageMultipart(role="user", tool_results=tool_results)
+        return PromptMessageExtended(role="user", tool_results=tool_results)
 
     async def apply_prompt_template(self, prompt_result: GetPromptResult, prompt_name: str) -> str:
         """
@@ -599,21 +599,21 @@ class McpAgent(ABC, ToolAgent):
         messages: Union[
             str,
             PromptMessage,
-            PromptMessageMultipart,
-            List[Union[str, PromptMessage, PromptMessageMultipart]],
+            PromptMessageExtended,
+            List[Union[str, PromptMessage, PromptMessageExtended]],
         ],
         model: Type[ModelT],
         request_params: RequestParams | None = None,
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:
         """
         Apply the prompt and return the result as a Pydantic model.
         Normalizes input messages and delegates to the attached LLM.
 
         Args:
             messages: Message(s) in various formats:
-                - String: Converted to a user PromptMessageMultipart
-                - PromptMessage: Converted to PromptMessageMultipart
-                - PromptMessageMultipart: Used directly
+                - String: Converted to a user PromptMessageExtended
+                - PromptMessage: Converted to PromptMessageExtended
+                - PromptMessageExtended: Used directly
                 - List of any combination of the above
             model: The Pydantic model class to parse the result into
             request_params: Optional parameters to configure the LLM request
@@ -622,20 +622,20 @@ class McpAgent(ABC, ToolAgent):
             An instance of the specified model, or None if coercion fails
         """
         assert self._llm
-        # Normalize all input types to a list of PromptMessageMultipart
-        normalized_messages = normalize_to_multipart_list(messages)
+        # Normalize all input types to a list of PromptMessageExtended
+        normalized_messages = normalize_to_extended_list(messages)
 
         with self._tracer.start_as_current_span(f"Agent: '{self._name}' structured"):
             return await self._llm.structured(normalized_messages, model, request_params)
 
     async def apply_prompt_messages(
-        self, prompts: List[PromptMessageMultipart], request_params: RequestParams | None = None
+        self, prompts: List[PromptMessageExtended], request_params: RequestParams | None = None
     ) -> str:
         """
         Apply a list of prompt messages and return the result.
 
         Args:
-            prompts: List of PromptMessageMultipart messages
+            prompts: List of PromptMessageExtended messages
             request_params: Optional request parameters
 
         Returns:
@@ -783,7 +783,7 @@ class McpAgent(ABC, ToolAgent):
 
     async def show_assistant_message(
         self,
-        message: PromptMessageMultipart,
+        message: PromptMessageExtended,
         bottom_items: List[str] | None = None,
         highlight_items: str | List[str] | None = None,
         max_item_length: int | None = None,
@@ -821,7 +821,7 @@ class McpAgent(ABC, ToolAgent):
             max_item_length=max_item_length or 12,
         )
 
-    def _extract_servers_from_message(self, message: PromptMessageMultipart) -> List[str]:
+    def _extract_servers_from_message(self, message: PromptMessageExtended) -> List[str]:
         """
         Extract server names from tool calls in the message.
 
@@ -870,15 +870,15 @@ class McpAgent(ABC, ToolAgent):
         )
 
     @property
-    def message_history(self) -> List[PromptMessageMultipart]:
+    def message_history(self) -> List[PromptMessageExtended]:
         """
-        Return the agent's message history as PromptMessageMultipart objects.
+        Return the agent's message history as PromptMessageExtended objects.
 
         This history can be used to transfer state between agents or for
         analysis and debugging purposes.
 
         Returns:
-            List of PromptMessageMultipart objects representing the conversation history
+            List of PromptMessageExtended objects representing the conversation history
         """
         if self._llm:
             return self._llm.message_history

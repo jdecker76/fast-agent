@@ -11,14 +11,14 @@ from mcp import Tool
 from opentelemetry import trace
 from pydantic import BaseModel
 
+from fast_agent.agents.agent_types import AgentConfig, AgentType
 from fast_agent.agents.llm_agent import LlmAgent
-from mcp_agent.core.agent_types import AgentConfig, AgentType
+from fast_agent.interfaces import FastAgentLLMProtocol, LLMFactoryProtocol, ModelT
+from fast_agent.llm.request_params import RequestParams
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from mcp_agent.core.exceptions import AgentConfigError
 from mcp_agent.core.prompt import Prompt
-from mcp_agent.core.request_params import RequestParams
 from mcp_agent.logging.logger import get_logger
-from mcp_agent.mcp.interfaces import FastAgentLLMProtocol, LLMFactoryProtocol, ModelT
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 if TYPE_CHECKING:
     from a2a.types import AgentCard
@@ -185,15 +185,15 @@ class RouterAgent(LlmAgent):
 
     async def generate_impl(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         request_params: Optional[RequestParams] = None,
         tools: List[Tool] | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Route the request to the most appropriate agent and return its response.
 
         Args:
-            normalized_messages: Already normalized list of PromptMessageMultipart
+            normalized_messages: Already normalized list of PromptMessageExtended
             request_params: Optional request parameters
 
         Returns:
@@ -218,10 +218,10 @@ class RouterAgent(LlmAgent):
 
     async def structured_impl(
         self,
-        messages: List[PromptMessageMultipart],
+        messages: List[PromptMessageExtended],
         model: Type[ModelT],
         request_params: Optional[RequestParams] = None,
-    ) -> Tuple[ModelT | None, PromptMessageMultipart]:
+    ) -> Tuple[ModelT | None, PromptMessageExtended]:
         """
         Route the request to the most appropriate agent and parse its response.
 
@@ -250,7 +250,7 @@ class RouterAgent(LlmAgent):
             return await agent.structured_impl(messages, model, request_params)
 
     async def _route_request(
-        self, message: PromptMessageMultipart
+        self, message: PromptMessageExtended
     ) -> Tuple[RoutingResponse | None, str | None]:
         """
         Determine which agent to route the request to.

@@ -10,7 +10,7 @@ class LlmStopReason(str, Enum):
 
     Extends the MCP SDK's standard stop reasons with additional custom values.
     Inherits from str to ensure compatibility with string-based APIs.
-    Used primarily in PromptMessageMultipart and LLM response handling.
+    Used primarily in PromptMessageExtended and LLM response handling.
     """
 
     # MCP SDK standard values (from mcp.types.StopReason)

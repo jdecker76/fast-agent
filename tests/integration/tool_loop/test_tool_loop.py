@@ -4,23 +4,23 @@ import pytest
 from mcp import CallToolRequest, Tool
 from mcp.types import CallToolRequestParams
 
+from fast_agent.agents.agent_types import AgentConfig
 from fast_agent.agents.tool_agent import ToolAgent
 from fast_agent.llm.internal.passthrough import PassthroughLLM
+from fast_agent.llm.request_params import RequestParams
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.types.llm_stop_reason import LlmStopReason
-from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.core.prompt import Prompt
-from mcp_agent.core.request_params import RequestParams
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 
 class ToolGeneratingLlm(PassthroughLLM):
     async def _apply_prompt_provider_specific(
         self,
-        multipart_messages: List[PromptMessageMultipart],
+        multipart_messages: List[PromptMessageExtended],
         request_params: RequestParams | None = None,
         tools: list[Tool] | None = None,
         is_template: bool = False,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         tool_calls = {}
         tool_calls["my_id"] = CallToolRequest(
             method="tools/call", params=CallToolRequestParams(name="tool_function")

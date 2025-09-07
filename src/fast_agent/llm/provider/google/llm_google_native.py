@@ -20,12 +20,12 @@ from fast_agent.llm.fastagent_llm import FastAgentLLM
 # Import the new converter class
 from fast_agent.llm.provider.google.google_converter import GoogleConverter
 from fast_agent.llm.provider_types import Provider
+from fast_agent.llm.request_params import RequestParams
 from fast_agent.llm.usage_tracking import TurnUsage
+from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp_agent.core.exceptions import ProviderKeyError
 from mcp_agent.core.prompt import Prompt
-from mcp_agent.core.request_params import RequestParams
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 # Define default model and potentially other Google-specific defaults
 DEFAULT_GOOGLE_MODEL = "gemini25"
@@ -120,7 +120,7 @@ class GoogleNativeLLM(FastAgentLLM[types.Content, types.Content]):
         *,
         response_mime_type: str | None = None,
         response_schema: object | None = None,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Process a query using Google's generate_content API and available tools.
         """
@@ -260,11 +260,11 @@ class GoogleNativeLLM(FastAgentLLM[types.Content, types.Content]):
 
     async def _apply_prompt_provider_specific(
         self,
-        multipart_messages: List[PromptMessageMultipart],
+        multipart_messages: List[PromptMessageExtended],
         request_params: RequestParams | None = None,
         tools: List[McpTool] | None = None,
         is_template: bool = False,
-    ) -> PromptMessageMultipart:
+    ) -> PromptMessageExtended:
         """
         Applies the prompt messages and potentially calls the LLM for completion.
         """
