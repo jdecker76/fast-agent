@@ -494,7 +494,7 @@ class MCPAggregator(ContextDependent):
                 # Get metadata from context for tool, resource, and prompt calls
                 metadata = None
                 if method_name in ["call_tool", "read_resource", "get_prompt"]:
-                    from mcp_agent.llm.augmented_llm import _mcp_metadata_var
+                    from fast_agent.llm.fastagent_llm import _mcp_metadata_var
 
                     metadata = _mcp_metadata_var.get()
 

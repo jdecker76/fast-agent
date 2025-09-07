@@ -4,10 +4,10 @@ from typing import Annotated, List
 import pytest
 from pydantic import BaseModel, Field
 
+from fast_agent.llm.provider.bedrock.bedrock_utils import all_bedrock_models
+from fast_agent.llm.provider.bedrock.llm_bedrock import BedrockLLM
 from mcp_agent.core.prompt import Prompt
 from mcp_agent.core.request_params import RequestParams
-from mcp_agent.llm.providers.augmented_llm_bedrock import BedrockLLM
-from mcp_agent.llm.providers.bedrock_utils import all_bedrock_models
 from mcp_agent.mcp.helpers.content_helpers import split_thinking_content
 
 

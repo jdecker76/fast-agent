@@ -2,9 +2,9 @@ import asyncio
 
 from fast_agent.agents.llm_agent import LlmAgent
 from fast_agent.core import Core
+from fast_agent.llm.model_factory import ModelFactory
 from mcp_agent.core.agent_types import AgentConfig
 from mcp_agent.core.request_params import RequestParams
-from mcp_agent.llm.model_factory import ModelFactory
 
 
 async def main():

@@ -12,8 +12,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from mcp_agent.llm.provider_key_manager import API_KEY_HINT_TEXT, ProviderKeyManager
-from mcp_agent.llm.provider_types import Provider
+from fast_agent.llm.provider_key_manager import API_KEY_HINT_TEXT, ProviderKeyManager
+from fast_agent.llm.provider_types import Provider
 
 app = typer.Typer(
     help="Check and diagnose FastAgent configuration",
@@ -410,7 +410,7 @@ def show_check_summary() -> None:
             active = "[dim]Not configured[/dim]"
 
         # Get the proper display name for the provider
-        from mcp_agent.llm.provider_types import Provider
+        from fast_agent.llm.provider_types import Provider
 
         provider_enum = Provider(provider)
         display_name = provider_enum.display_name

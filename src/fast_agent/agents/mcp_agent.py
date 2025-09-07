@@ -60,7 +60,7 @@ LLM = TypeVar("LLM", bound=FastAgentLLMProtocol)
 
 if TYPE_CHECKING:
     from fast_agent.context import Context
-    from mcp_agent.llm.usage_tracking import UsageAccumulator
+    from fast_agent.llm.usage_tracking import UsageAccumulator
 
 
 class McpAgent(ABC, ToolAgent):

@@ -1,7 +1,7 @@
 from google.genai import types
 from mcp.types import CallToolResult, TextContent
 
-from mcp_agent.llm.providers.google_converter import GoogleConverter
+from fast_agent.llm.provider.google.google_converter import GoogleConverter
 
 
 def test_convert_function_results_to_google_text_only():

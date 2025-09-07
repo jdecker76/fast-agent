@@ -152,7 +152,7 @@ def format_plan_result_text(plan_result: PlanResult) -> str:
 
 def format_task_result_xml(task_result: TaskWithResult) -> str:
     """Format a task result with XML tags for better semantic understanding"""
-    from mcp_agent.llm.prompt_utils import format_fastagent_tag
+    from fast_agent.llm.prompt_utils import format_fastagent_tag
 
     return format_fastagent_tag(
         "task-result",
@@ -168,7 +168,7 @@ def format_task_result_xml(task_result: TaskWithResult) -> str:
 
 def format_step_result_xml(step_result: StepResult) -> str:
     """Format a step result with XML tags for better semantic understanding"""
-    from mcp_agent.llm.prompt_utils import format_fastagent_tag
+    from fast_agent.llm.prompt_utils import format_fastagent_tag
 
     # Format each task result with XML
     task_results = []
@@ -190,7 +190,7 @@ def format_step_result_xml(step_result: StepResult) -> str:
 
 def format_plan_result(plan_result: PlanResult) -> str:
     """Format the full plan execution state with XML for better semantic understanding"""
-    from mcp_agent.llm.prompt_utils import format_fastagent_tag
+    from fast_agent.llm.prompt_utils import format_fastagent_tag
 
     # Format objective
     objective_tag = format_fastagent_tag("objective", plan_result.objective)

@@ -2,9 +2,9 @@ import os
 
 import pytest
 
+from fast_agent.llm.fastagent_llm import FastAgentLLM
+from fast_agent.llm.provider_key_manager import ProviderKeyManager
 from mcp_agent.core.exceptions import ProviderKeyError
-from mcp_agent.llm.augmented_llm import FastAgentLLM
-from mcp_agent.llm.provider_key_manager import ProviderKeyManager
 
 
 @pytest.mark.integration

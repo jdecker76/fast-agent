@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from mcp_agent.core.prompt import Prompt
 
 if TYPE_CHECKING:
-    from mcp_agent.llm.memory import Memory
+    from fast_agent.llm.memory import Memory
     from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
 
 

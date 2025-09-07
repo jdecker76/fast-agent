@@ -6,8 +6,8 @@ from fast_agent.agents.workflow.orchestrator_models import (
     PlanningStep,
     Step,
 )
+from fast_agent.llm.internal.passthrough import FIXED_RESPONSE_INDICATOR
 from mcp_agent.core.prompt import Prompt
-from mcp_agent.llm.augmented_llm_passthrough import FIXED_RESPONSE_INDICATOR
 
 
 @pytest.mark.integration

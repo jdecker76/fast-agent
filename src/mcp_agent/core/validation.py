@@ -4,13 +4,13 @@ Validation utilities for FastAgent configuration and dependencies.
 
 from typing import Any, Dict, List
 
+from fast_agent.llm.fastagent_llm import FastAgentLLM
 from mcp_agent.core.agent_types import AgentType
 from mcp_agent.core.exceptions import (
     AgentConfigError,
     CircularDependencyError,
     ServerConfigError,
 )
-from mcp_agent.llm.augmented_llm import FastAgentLLM
 
 
 def validate_server_references(context, agents: Dict[str, Dict[str, Any]]) -> None:

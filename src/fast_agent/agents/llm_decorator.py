@@ -21,10 +21,10 @@ from opentelemetry import trace
 from pydantic import BaseModel
 
 from fast_agent.context import Context
+from fast_agent.llm.provider_types import Provider
+from fast_agent.llm.usage_tracking import UsageAccumulator
 from mcp_agent.core.agent_types import AgentConfig, AgentType
 from mcp_agent.core.request_params import RequestParams
-from mcp_agent.llm.provider_types import Provider
-from mcp_agent.llm.usage_tracking import UsageAccumulator
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.content_helpers import normalize_to_multipart_list
 from mcp_agent.mcp.interfaces import FastAgentLLMProtocol, LlmAgentProtocol, LLMFactoryProtocol

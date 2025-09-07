@@ -4,11 +4,11 @@ This simplified implementation directly converts between MCP types and PromptMes
 
 from typing import TYPE_CHECKING
 
+from fast_agent.llm.sampling_converter import SamplingConverter
 from fast_agent.types.llm_stop_reason import LlmStopReason
 from mcp import ClientSession
 from mcp.types import CreateMessageRequestParams, CreateMessageResult, TextContent
 from mcp_agent.core.agent_types import AgentConfig
-from mcp_agent.llm.sampling_converter import SamplingConverter
 from mcp_agent.logging.logger import get_logger
 from mcp_agent.mcp.helpers.server_config_helpers import get_server_config
 from mcp_agent.mcp.interfaces import FastAgentLLMProtocol
@@ -33,8 +33,8 @@ def create_sampling_llm(
     Returns:
         An initialized LLM instance ready to use
     """
+    from fast_agent.llm.model_factory import ModelFactory
     from mcp_agent.agents.agent import Agent
-    from mcp_agent.llm.model_factory import ModelFactory
 
     app_context = None
     try:
