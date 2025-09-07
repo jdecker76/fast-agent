@@ -9,8 +9,8 @@ from anthropic.types import (
     MessageParam,
     PlainTextSourceParam,
     TextBlockParam,
-    ToolUseBlockParam,
     ToolResultBlockParam,
+    ToolUseBlockParam,
     URLImageSourceParam,
     URLPDFSourceParam,
 )

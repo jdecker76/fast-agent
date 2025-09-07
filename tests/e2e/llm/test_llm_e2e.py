@@ -1,10 +1,10 @@
+import base64
 import os
 from pathlib import Path
 from typing import Annotated
 
 import pytest
 import pytest_asyncio
-import base64
 from mcp.types import (
     BlobResourceContents,
     CallToolRequest,

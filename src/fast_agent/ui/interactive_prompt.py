@@ -22,7 +22,6 @@ from rich.console import Console
 from rich.table import Table
 
 from fast_agent.agents.agent_types import AgentType
-from fast_agent.progress_display import progress_display
 from fast_agent.types import PromptMessageExtended
 from fast_agent.ui.enhanced_prompt import (
     _display_agent_info_helper,
@@ -31,6 +30,7 @@ from fast_agent.ui.enhanced_prompt import (
     get_selection_input,
     handle_special_commands,
 )
+from fast_agent.ui.progress_display import progress_display
 from fast_agent.ui.usage_display import collect_agents_from_provider, display_usage_report
 from mcp_agent.mcp.mcp_aggregator import SEP
 

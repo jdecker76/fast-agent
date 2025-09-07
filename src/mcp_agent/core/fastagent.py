@@ -209,7 +209,7 @@ class FastAgent:
 
             # Stop progress display immediately if quiet mode is requested
             if self._programmatic_quiet:
-                from fast_agent.progress_display import progress_display
+                from fast_agent.ui.progress_display import progress_display
 
                 progress_display.stop()
 
@@ -292,7 +292,7 @@ class FastAgent:
                         self.app.context.config.logger.show_tools = False
 
                         # Directly disable the progress display singleton
-                        from fast_agent.progress_display import progress_display
+                        from fast_agent.ui.progress_display import progress_display
 
                         progress_display.stop()
 
@@ -443,7 +443,7 @@ class FastAgent:
             finally:
                 # Ensure progress display is stopped before showing usage summary
                 try:
-                    from fast_agent.progress_display import progress_display
+                    from fast_agent.ui.progress_display import progress_display
 
                     progress_display.stop()
                 except:  # noqa: E722

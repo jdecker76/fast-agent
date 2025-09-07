@@ -16,7 +16,7 @@ from mcp_agent.logging.events import Event, EventFilter, EventType
 
 def convert_log_event(event: Event) -> "ProgressEvent | None":
     """Convert a log event to a progress event if applicable."""
-    
+
     # Import at runtime to avoid circular imports
     from fast_agent.event_progress import ProgressAction, ProgressEvent
 
@@ -48,7 +48,7 @@ def convert_log_event(event: Event) -> "ProgressEvent | None":
             details = f"{server_name} ({tool_name})"
         else:
             details = f"{server_name}"
-        
+
         # For TOOL_PROGRESS, use progress message if available, otherwise keep default
         if progress_action == ProgressAction.TOOL_PROGRESS:
             progress_message = event_data.get("details", "")
@@ -57,7 +57,7 @@ def convert_log_event(event: Event) -> "ProgressEvent | None":
 
     elif "augmented_llm" in namespace:
         model = event_data.get("model", "")
-        
+
         # For all augmented_llm events, put model info in details column
         details = f"{model}"
         chat_turn = event_data.get("chat_turn")
@@ -71,14 +71,14 @@ def convert_log_event(event: Event) -> "ProgressEvent | None":
     streaming_tokens = None
     if progress_action == ProgressAction.STREAMING:
         streaming_tokens = event_data.get("details", "")
-    
+
     # Extract progress data for TOOL_PROGRESS actions
     progress = None
     total = None
     if progress_action == ProgressAction.TOOL_PROGRESS:
         progress = event_data.get("progress")
         total = event_data.get("total")
-    
+
     return ProgressEvent(
         action=ProgressAction(progress_action),
         target=target or "unknown",
@@ -195,7 +195,7 @@ class ProgressListener(LifecycleAwareListener):
         Args:
             display: Optional display handler. If None, the shared progress_display will be used.
         """
-        from fast_agent.progress_display import progress_display
+        from fast_agent.ui.progress_display import progress_display
 
         self.display = display or progress_display
 
