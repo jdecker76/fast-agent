@@ -1,4 +1,4 @@
-from fast_agent.console import console, error_console
+from fast_agent.ui.console import console, error_console
 
 
 class Application:

@@ -6,7 +6,7 @@ from mcp.types import CallToolResult
 from rich.panel import Panel
 from rich.text import Text
 
-from fast_agent import console
+from fast_agent.ui import console
 from fast_agent.ui.mermaid_utils import (
     MermaidDiagram,
     create_mermaid_live_link,

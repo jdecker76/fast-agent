@@ -554,7 +554,7 @@ class MCPAggregator(ContextDependent):
                     return result
         except ConnectionError:
             # Server offline - attempt reconnection
-            from fast_agent import console
+            from fast_agent.ui import console
 
             console.console.print(
                 f"[dim yellow]MCP server {server_name} reconnecting...[/dim yellow]"

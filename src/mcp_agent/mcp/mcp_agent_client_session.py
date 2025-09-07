@@ -197,7 +197,7 @@ class MCPAgentClientSession(ClientSession, ContextDependent):
 
             if isinstance(e, ClosedResourceError):
                 # Show clean offline message and convert to ConnectionError
-                from fast_agent import console
+                from fast_agent.ui import console
 
                 console.console.print(
                     f"[dim red]MCP server {self.session_server_name} offline[/dim red]"

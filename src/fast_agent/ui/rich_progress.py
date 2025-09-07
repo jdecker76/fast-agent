@@ -7,8 +7,8 @@ from typing import Optional
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from fast_agent.console import console as default_console
 from fast_agent.event_progress import ProgressAction, ProgressEvent
+from fast_agent.ui.console import console as default_console
 
 
 class RichProgressDisplay:

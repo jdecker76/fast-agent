@@ -764,7 +764,7 @@ class InteractivePrompt:
             rich_print("\n[bold blue]Last Assistant Response (Plain Text):[/bold blue]")
             rich_print("─" * 60)
             # Use console.print with markup=False to display raw text
-            from fast_agent import console
+            from fast_agent.ui import console
 
             console.console.print(content, markup=False)
             rich_print("─" * 60)
