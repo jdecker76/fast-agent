@@ -8,12 +8,11 @@ from deprecated import deprecated
 from mcp.types import GetPromptResult, PromptMessage
 from rich import print as rich_print
 
+from fast_agent.agents.agent_types import AgentType
+from fast_agent.types import PromptMessageExtended, RequestParams
+from fast_agent.ui.interactive_prompt import InteractivePrompt
+from fast_agent.ui.progress_display import progress_display
 from mcp_agent.agents.agent import Agent
-from mcp_agent.core.agent_types import AgentType
-from mcp_agent.core.interactive_prompt import InteractivePrompt
-from mcp_agent.core.request_params import RequestParams
-from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
-from mcp_agent.progress_display import progress_display
 
 
 class AgentApp:
@@ -51,7 +50,7 @@ class AgentApp:
 
     async def __call__(
         self,
-        message: Union[str, PromptMessage, PromptMessageMultipart] | None = None,
+        message: Union[str, PromptMessage, PromptMessageExtended] | None = None,
         agent_name: str | None = None,
         default_prompt: str = "",
         request_params: RequestParams | None = None,
@@ -62,9 +61,9 @@ class AgentApp:
 
         Args:
             message: Message content in various formats:
-                - String: Converted to a user PromptMessageMultipart
-                - PromptMessage: Converted to PromptMessageMultipart
-                - PromptMessageMultipart: Used directly
+                - String: Converted to a user PromptMessageExtended
+                - PromptMessage: Converted to PromptMessageExtended
+                - PromptMessageExtended: Used directly
             agent_name: Optional name of the agent to send to (defaults to first agent)
             default_prompt: Default message to use in interactive prompt mode
             request_params: Optional request parameters including MCP metadata
@@ -75,11 +74,13 @@ class AgentApp:
         if message:
             return await self._agent(agent_name).send(message, request_params)
 
-        return await self.interactive(agent_name=agent_name, default_prompt=default_prompt, request_params=request_params)
+        return await self.interactive(
+            agent_name=agent_name, default_prompt=default_prompt, request_params=request_params
+        )
 
     async def send(
         self,
-        message: Union[str, PromptMessage, PromptMessageMultipart],
+        message: Union[str, PromptMessage, PromptMessageExtended],
         agent_name: Optional[str] = None,
         request_params: RequestParams | None = None,
     ) -> str:
@@ -88,9 +89,9 @@ class AgentApp:
 
         Args:
             message: Message content in various formats:
-                - String: Converted to a user PromptMessageMultipart
-                - PromptMessage: Converted to PromptMessageMultipart
-                - PromptMessageMultipart: Used directly
+                - String: Converted to a user PromptMessageExtended
+                - PromptMessage: Converted to PromptMessageExtended
+                - PromptMessageExtended: Used directly
             agent_name: Optional name of the agent to send to
             request_params: Optional request parameters including MCP metadata
 
@@ -178,7 +179,7 @@ class AgentApp:
 
     async def with_resource(
         self,
-        prompt_content: Union[str, PromptMessage, PromptMessageMultipart],
+        prompt_content: Union[str, PromptMessage, PromptMessageExtended],
         resource_uri: str,
         server_name: str | None = None,
         agent_name: str | None = None,
@@ -187,7 +188,7 @@ class AgentApp:
         Send a message with an attached MCP resource.
 
         Args:
-            prompt_content: Content in various formats (String, PromptMessage, or PromptMessageMultipart)
+            prompt_content: Content in various formats (String, PromptMessage, or PromptMessageExtended)
             resource_uri: URI of the resource to retrieve
             server_name: Optional name of the MCP server to retrieve the resource from
             agent_name: Name of the agent to use
@@ -239,15 +240,17 @@ class AgentApp:
 
     @deprecated
     async def prompt(
-        self, 
-        agent_name: str | None = None, 
+        self,
+        agent_name: str | None = None,
         default_prompt: str = "",
-        request_params: RequestParams | None = None
+        request_params: RequestParams | None = None,
     ) -> str:
         """
         Deprecated - use interactive() instead.
         """
-        return await self.interactive(agent_name=agent_name, default_prompt=default_prompt, request_params=request_params)
+        return await self.interactive(
+            agent_name=agent_name, default_prompt=default_prompt, request_params=request_params
+        )
 
     async def interactive(
         self,
@@ -303,7 +306,7 @@ class AgentApp:
             if pretty_print_parallel:
                 agent = self._agents.get(agent_name)
                 if agent and agent.agent_type == AgentType.PARALLEL:
-                    from mcp_agent.ui.console_display import ConsoleDisplay
+                    from fast_agent.ui.console_display import ConsoleDisplay
 
                     display = ConsoleDisplay(config=None)
                     display.show_parallel_results(agent)

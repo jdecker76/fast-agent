@@ -9,8 +9,8 @@ from pydantic import BaseModel, Field
 from mcp_agent.core.prompt import Prompt
 
 if TYPE_CHECKING:
-    from mcp_agent.llm.memory import Memory
-    from mcp_agent.mcp.prompt_message_multipart import PromptMessageMultipart
+    from fast_agent.llm.memory import Memory
+    from fast_agent.mcp.prompt_message_extended import PromptMessageExtended
 
 
 @pytest.mark.integration
@@ -118,7 +118,7 @@ async def test_multiple_text_blocks_prompting(fast_agent, model_name):
     )
     async def agent_function():
         async with fast.run() as agent:
-            response: PromptMessageMultipart = await agent.default.generate(
+            response: PromptMessageExtended = await agent.default.generate(
                 [Prompt.user("write a 60 word story", "about cats - including the word 'cat'")]
             )
             response_text = response.all_text()
@@ -127,7 +127,7 @@ async def test_multiple_text_blocks_prompting(fast_agent, model_name):
             assert 32 <= word_count <= 70, f"Expected between 32-70 words, got {word_count}"
             assert "cat" in response_text
 
-            response: PromptMessageMultipart = await agent.default.generate(
+            response: PromptMessageExtended = await agent.default.generate(
                 [
                     Prompt.user("write a 60 word story"),
                     Prompt.user("about cats - including the word 'cat'"),

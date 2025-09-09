@@ -1,6 +1,6 @@
 [project]
 name = "fast-agent-mcp"
-version = "0.2.58"
+version = "0.3.0"
 description = "Define, Prompt and Test MCP enabled Agents and Workflows"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -23,8 +23,8 @@ dependencies = [
     "pyyaml>=6.0.2",
     "rich>=14.1.0",
     "typer>=0.15.1",
-    "anthropic>=0.63.0",
-    "openai>=1.99.9",
+    "anthropic>=0.66.0",
+    "openai>=1.106.1",
     "azure-identity>=1.14.0",
     "boto3>=1.35.0",
     "prompt-toolkit>=3.0.51",
@@ -32,7 +32,7 @@ dependencies = [
     "opentelemetry-instrumentation-openai>=0.43.1; python_version >= '3.10' and python_version < '4.0'",
     "opentelemetry-instrumentation-anthropic>=0.43.1; python_version >= '3.10' and python_version < '4.0'",
     "opentelemetry-instrumentation-mcp>=0.43.1; python_version >= '3.10' and python_version < '4.0'",
-    "google-genai>=1.27.0",
+    "google-genai>=1.33.0",
     "opentelemetry-instrumentation-google-genai>=0.3b0",
     "tensorzero>=2025.7.5",
     "deprecated>=1.2.18",
@@ -72,11 +72,13 @@ include = [
     "src/mcp_agent/**/*.txt",    
     "src/mcp_agent/**/*.example",
     "src/mcp_agent/py.typed",
+    "src/fast_agent/**/*.py",
+    "src/fast_agent/py.typed",
     "examples/**/*",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/mcp_agent"]
+packages = ["src/mcp_agent", "src/fast_agent"]
 artifacts = [
     "src/mcp_agent/resources/examples/**/*",
 ]
@@ -97,7 +99,7 @@ filterwarnings = [
 ]
 
 # Other pytest options can go here too
-testpaths = ["test", "integration_tests"]
+testpaths = ["tests"]
 
 [dependency-groups]
 dev = [
@@ -114,10 +116,9 @@ dev = [
 ]
 
 [project.scripts]
-fast-agent = "mcp_agent.cli.__main__:main"
-fast-agent-mcp = "mcp_agent.cli.__main__:main"
-fastagent = "mcp_agent.cli.__main__:app"
-silsila = "mcp_agent.cli.__main__:app"
+fast-agent = "fast_agent.cli.__main__:main"
+fast-agent-mcp = "fast_agent.cli.__main__:main"
+fastagent = "fast_agent.cli.__main__:app"
 prompt-server = "mcp_agent.mcp.prompts.__main__:main"
 
 [tool.setuptools.package-data]
