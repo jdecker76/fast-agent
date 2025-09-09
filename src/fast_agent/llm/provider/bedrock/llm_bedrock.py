@@ -317,9 +317,6 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
         """
         bedrock_tools = []
 
-        # Create mapping from cleaned names to original names for tool execution
-        self.tool_name_mapping = {}
-
         self.logger.debug(f"Converting {len(tools.tools)} MCP tools to Nova format")
 
         for tool in tools.tools:
@@ -362,20 +359,20 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
             ):
                 nova_schema["required"] = input_schema["required"]
 
-            # Apply tool name policy (e.g., Nova requires hyphen→underscore)
-            policy = getattr(self, "_tool_name_policy_for_conversion", "preserve")
-            if policy == "replace_hyphens_with_underscores":
-                clean_name = tool.name.replace("-", "_")
-            else:
-                clean_name = tool.name
+            # Use the tool name mapping that was already built in _bedrock_completion
+            # This ensures consistent transformation logic across the codebase
+            clean_name = None
+            for mapped_name, original_name in tool_name_mapping.items():
+                if original_name == tool.name:
+                    clean_name = mapped_name
+                    break
 
-            # Store mapping from cleaned name back to original MCP name
-            # This is needed because:
-            # 1. Nova receives tools with cleaned names (utils_get_current_date_information)
-            # 2. Nova calls tools using cleaned names
-            # 3. But MCP server expects original names (utils-get_current_date_information)
-            # 4. So we map back: utils_get_current_date_information -> utils-get_current_date_information
-            self.tool_name_mapping[clean_name] = tool.name
+            if clean_name is None:
+                # Fallback if mapping not found (shouldn't happen)
+                clean_name = tool.name
+                self.logger.warning(
+                    f"Tool name mapping not found for {tool.name}, using original name"
+                )
 
             bedrock_tool = {
                 "toolSpec": {
@@ -845,7 +842,7 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
         Returns:
             Corresponding LlmStopReason enum value
         """
-        if bedrock_stop_reason in ["tool_use", "tool_calls"]:
+        if bedrock_stop_reason == "tool_use":
             return LlmStopReason.TOOL_USE
         elif bedrock_stop_reason == "end_turn":
             return LlmStopReason.END_TURN
@@ -854,7 +851,10 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
         elif bedrock_stop_reason == "max_tokens":
             return LlmStopReason.MAX_TOKENS
         else:
-            # Default to END_TURN for unknown stop reasons
+            # Default to END_TURN for unknown stop reasons, but log for debugging
+            self.logger.warning(
+                f"Unknown Bedrock stop reason: {bedrock_stop_reason}, defaulting to END_TURN"
+            )
             return LlmStopReason.END_TURN
 
     def _convert_multipart_to_bedrock_message(
@@ -1076,8 +1076,8 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
                                         self.logger.warning(
                                             f"Failed to parse accumulated input as JSON: {accumulated_input} - {e}"
                                         )
-                                        # If it's not valid JSON, treat it as a string value
-                                        tool_use["toolUse"]["input"] = accumulated_input
+                                        # If it's not valid JSON, wrap it as a dict to avoid downstream errors
+                                        tool_use["toolUse"]["input"] = {"value": accumulated_input}
                                 # Clean up the accumulator
                                 del tool_use["toolUse"]["_input_accumulator"]
                     continue
@@ -1143,8 +1143,8 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
                             self.logger.warning(
                                 f"Failed to parse final accumulated input as JSON: {accumulated_input} - {e}"
                             )
-                            # If it's not valid JSON, treat it as a string value
-                            tool_use["toolUse"]["input"] = accumulated_input
+                            # If it's not valid JSON, wrap it as a dict to avoid downstream errors
+                            tool_use["toolUse"]["input"] = {"value": accumulated_input}
                     # Clean up the accumulator
                     del tool_use["toolUse"]["_input_accumulator"]
 
@@ -1257,7 +1257,19 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
         # Determine tool schema fallback order and caches
         caps = self.capabilities.get(model) or ModelCapabilities()
         if caps.schema and caps.schema != ToolSchemaType.NONE:
-            schema_order = [caps.schema]
+            # Special case: Force Mistral 7B to try SYSTEM_PROMPT instead of cached DEFAULT
+            if (
+                model == "mistral.mistral-7b-instruct-v0:2"
+                and caps.schema == ToolSchemaType.DEFAULT
+            ):
+                print(
+                    f"🔧 FORCING SYSTEM_PROMPT for {model} (was cached as DEFAULT)",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                schema_order = [ToolSchemaType.SYSTEM_PROMPT, ToolSchemaType.DEFAULT]
+            else:
+                schema_order = [caps.schema]
         else:
             # Restore original fallback order: Anthropic models try anthropic first, others skip it
             if model.startswith("anthropic."):
@@ -1265,6 +1277,12 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
                     ToolSchemaType.ANTHROPIC,
                     ToolSchemaType.DEFAULT,
                     ToolSchemaType.SYSTEM_PROMPT,
+                ]
+            elif model == "mistral.mistral-7b-instruct-v0:2":
+                # Force Mistral 7B to try SYSTEM_PROMPT first (it doesn't work well with DEFAULT)
+                schema_order = [
+                    ToolSchemaType.SYSTEM_PROMPT,
+                    ToolSchemaType.DEFAULT,
                 ]
             else:
                 schema_order = [
@@ -1284,11 +1302,13 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
 
             # Build tools representation for this schema
             tools_payload: Union[List[Dict[str, Any]], str, None] = None
+            # Get tool name policy (needed even when no tools for cache logic)
+            name_policy = (
+                self.capabilities.get(model) or ModelCapabilities()
+            ).tool_name_policy or ToolNamePolicy.PRESERVE
+
             if tool_list and tool_list.tools:
                 # Build tool name mapping once per schema attempt
-                name_policy = (
-                    self.capabilities.get(model) or ModelCapabilities()
-                ).tool_name_policy or ToolNamePolicy.PRESERVE
                 tool_name_mapping = self._build_tool_name_mapping(tool_list, name_policy)
 
                 # Store mapping for tool execution
@@ -1299,12 +1319,6 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
                         tool_list, tool_name_mapping
                     )
                 elif schema_choice == ToolSchemaType.DEFAULT:
-                    # Set tool name policy for Nova conversion
-                    self._tool_name_policy_for_conversion = (
-                        "replace_hyphens_with_underscores"
-                        if name_policy == ToolNamePolicy.UNDERSCORES
-                        else "preserve"
-                    )
                     tools_payload = self._convert_tools_nova_format(tool_list, tool_name_mapping)
                 elif schema_choice == ToolSchemaType.SYSTEM_PROMPT:
                     tools_payload = self._convert_tools_system_prompt_format(
@@ -1353,6 +1367,22 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
                     "- Do not paraphrase or modify the tool result in any way."
                 )
                 system_text = f"{system_text}\n\n{llama_nudge}" if system_text else llama_nudge
+
+            # Mistral-specific nudge: prevent tool calling loops and accept tool results
+            if (
+                schema_choice == ToolSchemaType.SYSTEM_PROMPT
+                and isinstance(model, str)
+                and model.startswith("mistral.")
+            ):
+                mistral_nudge = (
+                    "TOOL EXECUTION RULES:\n"
+                    "- Call each tool only ONCE per conversation turn.\n"
+                    "- Accept and trust all tool results - do not question or retry them.\n"
+                    "- After receiving a tool result, provide a direct answer based on that result.\n"
+                    "- Do not call the same tool multiple times or call additional tools unless specifically requested.\n"
+                    "- Tool results are always valid - do not attempt to validate or correct them."
+                )
+                system_text = f"{system_text}\n\n{mistral_nudge}" if system_text else mistral_nudge
 
             if system_text:
                 if system_mode == SystemMode.SYSTEM:
@@ -1554,7 +1584,7 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
                 # If Nova/default worked and we used preserve but server complains, flip cache for next time
                 if (
                     schema_choice == ToolSchemaType.DEFAULT
-                    and getattr(self, "_tool_name_policy_for_conversion", "preserve") == "preserve"
+                    and name_policy == ToolNamePolicy.PRESERVE
                 ):
                     # Heuristic: if tool names include '-', prefer underscores next time
                     try:
@@ -1759,7 +1789,6 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
 
         # Determine if we should parse for system-prompt tool calls (unified capabilities)
         caps_tmp = self.capabilities.get(model) or ModelCapabilities()
-        sys_prompt_schema = caps_tmp.schema == ToolSchemaType.SYSTEM_PROMPT
 
         # Try to parse system prompt tool calls if we have an end_turn with tools available
         # This handles cases where native tool calling failed but model generates system prompt format
