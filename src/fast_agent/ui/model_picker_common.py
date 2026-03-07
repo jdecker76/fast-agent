@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 ModelSource = Literal["curated", "all"]
+ProviderActivationAction = Literal["codex-login"]
 KEEP_VALUE = "__keep__"
 DEFAULT_VALUE = "__default__"
 
@@ -25,6 +26,7 @@ PICKER_PROVIDER_ORDER: tuple[Provider, ...] = (
     Provider.ANTHROPIC,
     Provider.HUGGINGFACE,
     Provider.OPENAI,
+    Provider.GENERIC,
     Provider.GOOGLE,
     Provider.XAI,
     Provider.GROQ,
@@ -33,6 +35,7 @@ PICKER_PROVIDER_ORDER: tuple[Provider, ...] = (
     Provider.OPENROUTER,
     Provider.AZURE,
     Provider.BEDROCK,
+    Provider.FAST_AGENT,
 )
 
 REFER_TO_DOCS_PROVIDERS: tuple[Provider, ...] = (
@@ -40,6 +43,9 @@ REFER_TO_DOCS_PROVIDERS: tuple[Provider, ...] = (
     Provider.AZURE,
     Provider.BEDROCK,
 )
+
+GENERIC_CUSTOM_MODEL_SENTINEL = "generic.__custom__"
+CODEX_LOGIN_SENTINEL = "codexresponses.__login__"
 
 
 @dataclass(frozen=True)
@@ -56,6 +62,7 @@ class ModelOption:
     alias: str | None = None
     fast: bool = False
     curated: bool = False
+    activation_action: ProviderActivationAction | None = None
 
 
 @dataclass(frozen=True)
@@ -112,6 +119,9 @@ def _provider_is_active(provider: Provider, config_payload: dict[str, Any]) -> b
         except Exception:
             pass
 
+    if provider in {Provider.FAST_AGENT, Provider.GENERIC}:
+        return True
+
     return False
 
 
@@ -158,6 +168,16 @@ def active_provider_names(snapshot: ModelPickerSnapshot) -> list[str]:
     return [option.provider.display_name for option in snapshot.providers if option.active]
 
 
+def provider_activation_action(
+    snapshot: ModelPickerSnapshot,
+    provider: Provider,
+) -> ProviderActivationAction | None:
+    option = find_provider(snapshot, provider.config_name)
+    if provider == Provider.CODEX_RESPONSES and not option.active:
+        return "codex-login"
+    return None
+
+
 def _model_identity(model_spec: str) -> tuple[Provider, str] | None:
     try:
         parsed = ModelFactory.parse_model_string(model_spec)
@@ -181,6 +201,14 @@ def model_options_for_provider(
     *,
     source: ModelSource,
 ) -> list[ModelOption]:
+    if provider == Provider.GENERIC:
+        return [
+            ModelOption(
+                spec=GENERIC_CUSTOM_MODEL_SENTINEL,
+                label="Enter local model string (e.g. llama3.2)",
+            )
+        ]
+
     if provider in REFER_TO_DOCS_PROVIDERS:
         return [
             ModelOption(
@@ -190,6 +218,15 @@ def model_options_for_provider(
         ]
 
     provider_option = find_provider(snapshot, provider.config_name)
+    activation_action = provider_activation_action(snapshot, provider)
+    if activation_action is not None:
+        return [
+            ModelOption(
+                spec=CODEX_LOGIN_SENTINEL,
+                label="Log in to enable Codex (Plan)",
+                activation_action=activation_action,
+            )
+        ]
 
     curated_options: list[ModelOption] = []
     for entry in provider_option.curated_entries:
@@ -200,7 +237,7 @@ def model_options_for_provider(
             tags.append("legacy")
 
         suffix = f" ({', '.join(tags)})" if tags else ""
-        label = f"{entry.alias:<18} → {entry.model}{suffix}"
+        label = f"{entry.alias:<19} → {entry.model}{suffix}"
         curated_options.append(
             ModelOption(
                 spec=entry.model,
@@ -234,11 +271,7 @@ def model_options_for_provider(
 
 
 def _supports_web_search(provider: Provider, model_name: str) -> bool:
-    if provider in {
-        Provider.RESPONSES,
-        Provider.CODEX_RESPONSES,
-        Provider.OPENRESPONSES,
-    }:
+    if provider in {Provider.RESPONSES, Provider.CODEX_RESPONSES, Provider.OPENRESPONSES}:
         return True
 
     if provider == Provider.ANTHROPIC:
