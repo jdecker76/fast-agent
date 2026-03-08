@@ -117,8 +117,36 @@ COMMAND_SPECS: Final[tuple[CommandSpec, ...]] = (
         ),
     ),
     CommandSpec(
+        command="model",
+        summary="Model inspection, switching, and runtime settings",
+        usage="/model [reasoning|verbosity|fast|web_search|web_fetch|switch|doctor|aliases|catalog|help] [args]",
+        actions=(
+            CommandActionSpec(action="reasoning", help="Inspect or set reasoning effort"),
+            CommandActionSpec(action="verbosity", help="Inspect or set text verbosity"),
+            CommandActionSpec(action="fast", help="Inspect or set service tier"),
+            CommandActionSpec(action="web_search", help="Inspect or set web search state"),
+            CommandActionSpec(action="web_fetch", help="Inspect or set web fetch state"),
+            CommandActionSpec(action="switch", help="Switch model (starts a new session)"),
+            CommandActionSpec(action="doctor", help="Inspect model onboarding readiness"),
+            CommandActionSpec(action="aliases", aliases=("alias",), help="List or manage model aliases"),
+            CommandActionSpec(action="catalog", help="Show model catalog for a provider"),
+            CommandActionSpec(
+                action="help",
+                aliases=("--help", "-h"),
+                help="Show model command usage",
+            ),
+        ),
+        default_action="reasoning",
+        examples=(
+            "/model switch",
+            "/model doctor",
+            "/model aliases",
+            "/model catalog openai --all",
+        ),
+    ),
+    CommandSpec(
         command="models",
-        summary="Model onboarding state",
+        summary="Model onboarding and alias diagnostics",
         usage="/models [doctor|aliases|catalog|help] [args]",
         actions=(
             CommandActionSpec(action="doctor", help="Inspect model onboarding readiness"),
@@ -133,8 +161,8 @@ COMMAND_SPECS: Final[tuple[CommandSpec, ...]] = (
         default_action="doctor",
         examples=(
             "/models doctor",
-            "/models aliases list",
-            "/models catalog openai --all",
+            "/models aliases",
+            "/models catalog anthropic",
         ),
     ),
     CommandSpec(
