@@ -29,15 +29,19 @@
         radial-gradient(circle at 100% 0%, #ffd7cf 0%, transparent 35%),
         linear-gradient(160deg, #efe9dc 0%, #f8f7f3 45%, #ece8df 100%);
       min-height: 100vh;
+      height: 100vh;
+      overflow: hidden;
     }
 
     .page {
-      max-width: 1200px;
+      max-width: min(1580px, calc(100vw - 20px));
       margin: 0 auto;
-      padding: 24px;
+      padding: 14px;
       display: grid;
-      gap: 18px;
-      grid-template-columns: minmax(300px, 420px) minmax(320px, 1fr);
+      gap: 14px;
+      grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+      height: 100%;
+      align-items: stretch;
     }
 
     .panel {
@@ -46,6 +50,8 @@
       border-radius: 14px;
       padding: 16px;
       box-shadow: 0 10px 24px rgba(23, 32, 38, 0.06);
+      min-height: 0;
+      overflow: auto;
     }
 
     h1 {
@@ -196,13 +202,15 @@
 
     .preview-wrap {
       display: grid;
-      gap: 12px;
+      gap: 10px;
+      grid-template-rows: auto auto 1fr auto auto;
+      align-content: start;
     }
 
     .preview-box {
       border: 1px solid var(--line);
       border-radius: 14px;
-      min-height: 360px;
+      min-height: clamp(220px, 28vh, 310px);
       display: grid;
       place-items: center;
       overflow: hidden;
@@ -232,8 +240,8 @@
     }
 
     #preview .preview-layer {
-      width: min(92%, 620px);
-      max-height: 72vh;
+      width: min(88%, 520px);
+      max-height: clamp(190px, 24vh, 280px);
       height: auto;
       display: block;
       grid-area: 1 / 1;
@@ -257,26 +265,42 @@
     }
 
     textarea {
-      min-height: 180px;
+      min-height: 120px;
+      max-height: min(24vh, 220px);
       resize: vertical;
       font-family: var(--mono);
       font-size: 0.8rem;
     }
 
+    .meta-grid {
+      display: grid;
+      gap: 6px;
+    }
+
+    .matrix-summary {
+      padding: 8px 10px;
+      border: 1px solid #e1d7c8;
+      border-radius: 10px;
+      background: #fffaf1;
+      line-height: 1.45;
+    }
+
     .targets {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
-      gap: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+      gap: 6px;
+      align-content: start;
     }
 
     .target-card {
       border: 1px solid #d5ccbb;
       border-radius: 10px;
       background: #fffcf4;
-      padding: 8px;
+      padding: 6px;
       display: grid;
-      gap: 6px;
-      justify-items: center;
+      gap: 5px;
+      justify-items: stretch;
+      align-content: start;
     }
 
     .target-stage {
@@ -315,13 +339,105 @@
       font-family: var(--mono);
     }
 
+    .target-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .target-badge {
+      border-radius: 999px;
+      padding: 2px 6px;
+      font-size: 0.63rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border: 1px solid #d8cfbe;
+      background: #f5efe3;
+      color: #6b5c54;
+      white-space: nowrap;
+    }
+
+    .target-badge[data-state="clean"] {
+      background: #e5f7ea;
+      border-color: #9fdbac;
+      color: #1d6a32;
+    }
+
+    .target-badge[data-state="usable"] {
+      background: #eef4ff;
+      border-color: #bfd0ff;
+      color: #274a99;
+    }
+
+    .target-badge[data-state="dense"] {
+      background: #fff3dd;
+      border-color: #f0cb80;
+      color: #8a5a00;
+    }
+
+    .target-badge[data-state="muddy"],
+    .target-badge[data-state="lost"] {
+      background: #ffe8e3;
+      border-color: #efaa9f;
+      color: #a03d2f;
+    }
+
+    .target-badge[data-state="sparse"] {
+      background: #f1edff;
+      border-color: #cec0ff;
+      color: #5942ab;
+    }
+
+    .target-metrics {
+      font-size: 0.65rem;
+      line-height: 1.35;
+      color: #655a52;
+      font-family: var(--mono);
+      text-align: center;
+    }
+
+    .output-panel {
+      border: 1px solid #ded5c4;
+      border-radius: 10px;
+      background: #fffaf2;
+      overflow: hidden;
+    }
+
+    .output-panel summary {
+      cursor: pointer;
+      padding: 10px 12px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: #534840;
+      user-select: none;
+    }
+
+    .output-panel textarea {
+      border: none;
+      border-top: 1px solid #e5dccd;
+      border-radius: 0;
+      background: #fffefb;
+    }
+
     @media (max-width: 980px) {
+      body {
+        height: auto;
+        overflow: auto;
+      }
+
       .page {
         grid-template-columns: 1fr;
+        height: auto;
       }
 
       .preview-box {
         min-height: 280px;
+      }
+
+      .panel {
+        overflow: visible;
       }
     }
   </style>
@@ -525,8 +641,11 @@
 
           <div class="row">
             <label for="targetSizes">Target render sizes (px, comma-separated)</label>
-            <input id="targetSizes" type="text" value="16,20,24,32,48,64,96,128" />
-            <p class="hint">Common UI icon sizes: 16, 20, 24, 32, 48, 64. These previews are scaled render targets of the same SVG.</p>
+            <div class="pair-wide">
+              <input id="targetSizes" type="text" value="16,20,24,32,48,64,96,128" />
+              <button id="tuneDotsBtn" class="small-btn" type="button">Tune dots</button>
+            </div>
+            <p class="hint">Common UI icon sizes: 16, 20, 24, 32, 48, 64. “Tune dots” uses the smallest target size as the limiting case and aims for a cleaner dot-matrix render.</p>
           </div>
 
           <div class="row">
@@ -542,8 +661,11 @@
 
     <section class="panel preview-wrap">
       <div class="preview-box" id="preview"></div>
-      <div class="meta" id="stats"></div>
-      <div class="meta" id="quality"></div>
+      <div class="meta-grid">
+        <div class="meta" id="stats"></div>
+        <div class="meta" id="quality"></div>
+        <div class="meta matrix-summary" id="matrixSummary"></div>
+      </div>
       <div class="targets" id="targetGrid"></div>
 
       <div class="action-row">
@@ -552,7 +674,10 @@
         <button id="download16Btn" type="button">Download 16x16 SVG</button>
       </div>
 
-      <textarea id="svgOutput" spellcheck="false"></textarea>
+      <details class="output-panel">
+        <summary>SVG source</summary>
+        <textarea id="svgOutput" spellcheck="false"></textarea>
+      </details>
     </section>
   </main>
 
@@ -586,12 +711,14 @@
       previewBackdropColor: byId("previewBackdropColor"),
       svgMode: byId("svgMode"),
       targetSizes: byId("targetSizes"),
+      tuneDotsBtn: byId("tuneDotsBtn"),
       showGuide16: byId("showGuide16"),
       preview: byId("preview"),
       targetGrid: byId("targetGrid"),
       svgOutput: byId("svgOutput"),
       stats: byId("stats"),
-      quality: byId("quality")
+      quality: byId("quality"),
+      matrixSummary: byId("matrixSummary")
     };
 
     const linkedRanges = [
@@ -676,7 +803,7 @@
     let pendingUrlConfig = null;
     let urlSyncTimer = 0;
     let lastTargetLayoutKey = "";
-    let targetImages = [];
+    let targetCards = [];
     let lastTargetPreviewUrl = "";
 
     function invalidateGeometryCache() {
@@ -737,7 +864,7 @@
       if (deduped.length === 0) {
         return [16, 20, 24, 32, 48, 64];
       }
-      return deduped.slice(0, 12);
+      return deduped.sort((a, b) => a - b).slice(0, 12);
     }
 
     const COMMON_FONT_CANDIDATES = [
@@ -1306,28 +1433,121 @@
       window.history.replaceState({}, "", nextUrl);
     }
 
-    function classifySpacing(value) {
-      if (value < 0.9) {
-        return "too dense";
-      }
-      if (value <= 1.8) {
-        return "good";
-      }
-      if (value <= 2.6) {
-        return "coarse";
-      }
-      return "very coarse";
+    function formatMetric(value, digits = 2) {
+      return Number.parseFloat(value.toFixed(digits)).toString();
     }
 
-    function buildTargetQuality(config, targetPx) {
-      const effSpacingX = (config.spacing * targetPx) / config.width;
-      const effSpacingY = (config.spacing * targetPx) / config.height;
-      const limiting = Math.min(effSpacingX, effSpacingY);
+    function getMatrixRasterSpec(targetPx) {
+      const idealCenter = clamp(1.45 + Math.log2(Math.max(targetPx, 16) / 16) * 0.22, 1.45, 2.15);
+      return {
+        minCenter: idealCenter - 0.25,
+        idealCenter,
+        maxCenter: idealCenter + 0.35,
+        minFillRatio: 0.34,
+        idealFillRatio: 0.4,
+        maxFillRatio: 0.48,
+        minDiameter: idealCenter * 0.34,
+        maxDiameter: idealCenter * 0.48,
+        minGap: idealCenter * 0.24
+      };
+    }
+
+    function buildTargetMetrics(config, targetPx) {
+      const scale = Math.min(targetPx / config.width, targetPx / config.height);
+      const centerPx = config.spacing * scale;
+      const radiusPx = config.radius * scale;
+      const diameterPx = radiusPx * 2;
+      const gapPx = Math.max(0, (config.spacing - config.radius * 2) * scale);
+      const fillRatio = centerPx > 0 ? diameterPx / centerPx : 0;
+      const spec = getMatrixRasterSpec(targetPx);
+      let state = "usable";
+      let label = "usable";
+
+      if (centerPx < spec.minCenter * 0.65 || diameterPx < spec.minDiameter * 0.55) {
+        state = "lost";
+        label = "lost";
+      } else if (gapPx < spec.minGap * 0.55 || fillRatio > 0.56) {
+        state = "muddy";
+        label = "muddy";
+      } else if (centerPx < spec.minCenter) {
+        state = "dense";
+        label = "dense";
+      } else if (centerPx > spec.maxCenter * 1.2 || diameterPx < spec.minDiameter * 0.9) {
+        state = "sparse";
+        label = "sparse";
+      } else if (
+        centerPx <= spec.maxCenter &&
+        diameterPx >= spec.minDiameter &&
+        diameterPx <= spec.maxDiameter &&
+        gapPx >= spec.minGap &&
+        fillRatio >= spec.minFillRatio &&
+        fillRatio <= spec.maxFillRatio
+      ) {
+        state = "clean";
+        label = "clean";
+      }
+
       return {
         targetPx,
-        limiting,
-        label: classifySpacing(limiting)
+        centerPx,
+        diameterPx,
+        gapPx,
+        fillRatio,
+        state,
+        label,
+        spec
       };
+    }
+
+    function buildMatrixRecommendation(config) {
+      if (config.targetSizes.length === 0) {
+        return null;
+      }
+
+      const smallest = config.targetSizes[0];
+      const spec = getMatrixRasterSpec(smallest);
+      const limitingViewBox = Math.max(config.width, config.height);
+      const spacingMin = (spec.minCenter * limitingViewBox) / smallest;
+      const spacingIdeal = (spec.idealCenter * limitingViewBox) / smallest;
+      const spacingMax = (spec.maxCenter * limitingViewBox) / smallest;
+      const radiusMin = spacingMin * (spec.minFillRatio / 2);
+      const radiusIdeal = spacingIdeal * (spec.idealFillRatio / 2);
+      const radiusMax = spacingMax * (spec.maxFillRatio / 2);
+
+      return {
+        smallest,
+        spacingMin,
+        spacingIdeal,
+        spacingMax,
+        radiusMin,
+        radiusIdeal,
+        radiusMax,
+        columnsMin: Math.round(smallest / spec.maxCenter),
+        columnsMax: Math.round(smallest / spec.minCenter),
+        viewBoxMin: (config.spacing * smallest) / spec.maxCenter,
+        viewBoxMax: (config.spacing * smallest) / spec.minCenter
+      };
+    }
+
+    function buildQualitySummary(targetMetrics) {
+      return targetMetrics
+        .map((metric) => `${metric.targetPx}px ${metric.label} (${formatMetric(metric.centerPx)}c/${formatMetric(metric.diameterPx)}d)`)
+        .join(" · ");
+    }
+
+    function buildMatrixSummary(config, result, targetMetrics) {
+      if (targetMetrics.length === 0) {
+        return "Add at least one target size to evaluate the rasterized dot matrix.";
+      }
+
+      const smallest = targetMetrics[0];
+      const recommendation = buildMatrixRecommendation(config);
+      const activeDensity = result.totalDots > 0 ? (result.activeDots / result.totalDots) * 100 : 0;
+      if (!recommendation) {
+        return "";
+      }
+
+      return `Smallest target ${smallest.targetPx}px is the limiting case: current centers are ${formatMetric(smallest.centerPx)}px apart, dots are ${formatMetric(smallest.diameterPx)}px wide, and gaps are ${formatMetric(smallest.gapPx)}px (${smallest.label}). The grid is ${result.columns}×${result.rows} with ${formatMetric(activeDensity, 1)}% highlighted dots. For a cleaner matrix at ${smallest.targetPx}px, aim for about ${recommendation.columnsMin}-${recommendation.columnsMax} dot steps across the icon — roughly spacing ${formatMetric(recommendation.spacingMin, 1)}-${formatMetric(recommendation.spacingMax, 1)} and radius ${formatMetric(recommendation.radiusMin, 1)}-${formatMetric(recommendation.radiusMax, 1)} in this viewBox, or keep spacing ${formatMetric(config.spacing, 1)} and shrink the viewBox to about ${formatMetric(recommendation.viewBoxMin, 0)}-${formatMetric(recommendation.viewBoxMax, 0)}px.`;
     }
 
     function updateTargetLayout(config) {
@@ -1337,7 +1557,7 @@
       }
 
       fields.targetGrid.innerHTML = "";
-      targetImages = [];
+      targetCards = [];
       lastTargetLayoutKey = key;
 
       if (config.targetSizes.length === 0) {
@@ -1353,7 +1573,7 @@
         stage.className = "target-stage";
         stage.dataset.backdrop = config.previewBackdrop;
         stage.style.setProperty("--preview-block", config.previewBackdropColor);
-        const frame = clamp(size + 18, 76, 170);
+        const frame = clamp(size + 10, 60, 140);
         stage.style.width = `${frame}px`;
         stage.style.height = `${frame}px`;
 
@@ -1364,23 +1584,50 @@
         img.style.height = `${size}px`;
         img.alt = `${size}px preview`;
         stage.appendChild(img);
-        targetImages.push(img);
+        const labelRow = document.createElement("div");
+        labelRow.className = "target-label-row";
 
         const label = document.createElement("div");
         label.className = "target-label";
         label.textContent = `${size}px`;
 
+        const badge = document.createElement("div");
+        badge.className = "target-badge";
+        badge.textContent = "—";
+
+        const metrics = document.createElement("div");
+        metrics.className = "target-metrics";
+
+        labelRow.appendChild(label);
+        labelRow.appendChild(badge);
         card.appendChild(stage);
-        card.appendChild(label);
+        card.appendChild(labelRow);
+        card.appendChild(metrics);
         fragment.appendChild(card);
+        targetCards.push({ img, stage, badge, metrics });
       });
 
       fields.targetGrid.appendChild(fragment);
     }
 
-    function renderTargetPreviews(svg, config) {
+    function updateTargetMetrics(targetMetrics) {
+      targetCards.forEach((card, index) => {
+        const metric = targetMetrics[index];
+        if (!metric) {
+          return;
+        }
+
+        card.badge.dataset.state = metric.state;
+        card.badge.textContent = metric.label;
+        card.metrics.textContent = `${formatMetric(metric.centerPx)}c · ${formatMetric(metric.diameterPx)}d · ${formatMetric(metric.gapPx)}g`;
+        card.stage.title = `${metric.targetPx}px: ${metric.label}; center ${formatMetric(metric.centerPx)}px, dot ${formatMetric(metric.diameterPx)}px, gap ${formatMetric(metric.gapPx)}px`;
+      });
+    }
+
+    function renderTargetPreviews(svg, config, targetMetrics) {
       updateTargetLayout(config);
-      if (targetImages.length === 0) {
+      updateTargetMetrics(targetMetrics);
+      if (targetCards.length === 0) {
         if (lastTargetPreviewUrl) {
           URL.revokeObjectURL(lastTargetPreviewUrl);
           lastTargetPreviewUrl = "";
@@ -1389,8 +1636,8 @@
       }
 
       const nextUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
-      targetImages.forEach((img) => {
-        img.src = nextUrl;
+      targetCards.forEach((card) => {
+        card.img.src = nextUrl;
       });
       if (lastTargetPreviewUrl) {
         URL.revokeObjectURL(lastTargetPreviewUrl);
@@ -1411,6 +1658,7 @@
     function render() {
       const config = getConfig();
       const result = buildSvg(config);
+      const targetMetrics = config.targetSizes.map((targetPx) => buildTargetMetrics(config, targetPx));
       const byteSize = new Blob([result.svg], { type: "image/svg+xml" }).size;
       fields.preview.dataset.backdrop = config.previewBackdrop;
       fields.preview.style.setProperty("--preview-block", config.previewBackdropColor);
@@ -1419,11 +1667,9 @@
       fields.preview.innerHTML = `${previewArt}${previewGuide}`;
       fields.svgOutput.value = result.svg;
       fields.stats.textContent = `${config.width} x ${config.height} canvas | ${result.columns} x ${result.rows} grid | ${result.activeDots} highlighted / ${result.totalDots} dots | ${formatBytes(byteSize)} (${config.svgMode}, ${config.colorMode})`;
-      const quality16 = buildTargetQuality(config, 16);
-      const quality20 = buildTargetQuality(config, 20);
-      const quality24 = buildTargetQuality(config, 24);
-      fields.quality.textContent = `16px: ${quality16.label} (${quality16.limiting.toFixed(2)} px spacing), 20px: ${quality20.label} (${quality20.limiting.toFixed(2)}), 24px: ${quality24.label} (${quality24.limiting.toFixed(2)})`;
-      renderTargetPreviews(result.svg, config);
+      fields.quality.textContent = targetMetrics.length > 0 ? buildQualitySummary(targetMetrics) : "Add target sizes to evaluate spacing and dot diameter.";
+      fields.matrixSummary.textContent = buildMatrixSummary(config, result, targetMetrics);
+      renderTargetPreviews(result.svg, config, targetMetrics);
       scheduleUrlSync(config);
     }
 
@@ -1491,6 +1737,31 @@
     fields.colorMode.addEventListener("change", () => {
       applyVariantBackdropDefaults(fields.colorMode.value);
       queueRender();
+    });
+
+    fields.tuneDotsBtn.addEventListener("click", () => {
+      const recommendation = buildMatrixRecommendation(getConfig());
+      if (!recommendation) {
+        return;
+      }
+
+      const nextSpacing = clamp(
+        recommendation.spacingIdeal,
+        Number.parseFloat(fields.spacing.min),
+        Number.parseFloat(fields.spacing.max)
+      );
+      const nextRadius = clamp(
+        recommendation.radiusIdeal,
+        Number.parseFloat(fields.radius.min),
+        Number.parseFloat(fields.radius.max)
+      );
+      setInputValue("spacing", formatMetric(nextSpacing, 1));
+      setInputValue("radius", formatMetric(nextRadius, 1));
+      fields.tuneDotsBtn.textContent = `Tuned for ${recommendation.smallest}px`;
+      queueRender();
+      window.setTimeout(() => {
+        fields.tuneDotsBtn.textContent = "Tune dots";
+      }, 1200);
     });
 
     document.querySelectorAll("[data-preset]").forEach((btn) => {
