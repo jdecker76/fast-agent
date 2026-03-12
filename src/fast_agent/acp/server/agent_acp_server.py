@@ -86,6 +86,7 @@ from fast_agent.constants import (
     DEFAULT_TERMINAL_OUTPUT_BYTE_LIMIT,
 )
 from fast_agent.context import Context
+from fast_agent.core.exceptions import ProviderKeyError
 from fast_agent.core.fastagent import AgentInstance
 from fast_agent.core.instruction_refresh import McpInstructionCapable, build_instruction
 from fast_agent.core.instruction_utils import (
@@ -119,6 +120,19 @@ from fast_agent.ui.interactive_diagnostics import write_interactive_trace
 from fast_agent.workflow_telemetry import ACPPlanTelemetryProvider, ToolHandlerWorkflowTelemetry
 
 logger = get_logger(__name__)
+
+ACP_AUTH_METHOD_ID = "fast-agent-ai-secrets"
+ACP_AUTH_DOCS_URL = "https://fast-agent.ai/ref/config_file/"
+ACP_AUTH_CONFIG_FILE = "fastagent.secrets.yaml"
+ACP_AUTH_RECOMMENDED_COMMANDS: tuple[str, ...] = (
+    "fast-agent check",
+    "fast-agent model doctor",
+    "fast-agent model setup",
+)
+
+
+def _coerce_registry_version(value: object) -> int:
+    return value if isinstance(value, int) else 0
 
 
 def _clear_current_task_cancellation_requests(*, session_id: str) -> int:
@@ -315,7 +329,9 @@ class AgentACPServer(ACPAgent):
         )
         self._dump_agent_card_callback = dump_agent_card_callback
         self._reload_callback = reload_callback
-        self._primary_registry_version = getattr(primary_instance, "registry_version", 0)
+        self._primary_registry_version = _coerce_registry_version(
+            getattr(primary_instance, "registry_version", 0)
+        )
         self._shared_reload_lock = asyncio.Lock()
         self._stale_instances: list[AgentInstance] = []
         self.server_name = server_name
@@ -391,6 +407,51 @@ class AgentACPServer(ACPAgent):
             return DEFAULT_TERMINAL_OUTPUT_BYTE_LIMIT
 
         return calculate_terminal_output_limit_for_model(model_name)
+
+    def _build_auth_meta(self) -> dict[str, Any]:
+        """Return static setup guidance shared by initialize/authenticate/auth errors."""
+        return {
+            "configFile": ACP_AUTH_CONFIG_FILE,
+            "docsUrl": ACP_AUTH_DOCS_URL,
+            "recommendedCommands": list(ACP_AUTH_RECOMMENDED_COMMANDS),
+            "description": (
+                f"Configure provider keys in {ACP_AUTH_CONFIG_FILE} or environment variables. "
+                "For interactive setup, run `fast-agent model setup` in a terminal."
+            ),
+        }
+
+    def _build_auth_required_data(
+        self,
+        error: ProviderKeyError,
+        *,
+        agent: AgentProtocol | object | None = None,
+    ) -> dict[str, Any]:
+        """Translate provider auth failures into ACP AUTH_REQUIRED payload data."""
+        data: dict[str, Any] = {
+            "methodId": ACP_AUTH_METHOD_ID,
+            "message": error.message,
+            "details": error.details,
+            **self._build_auth_meta(),
+        }
+
+        llm = getattr(agent, "_llm", None)
+        provider = getattr(llm, "provider", None)
+        provider_name = getattr(provider, "value", None)
+        provider_display_name = getattr(provider, "display_name", None)
+        if isinstance(provider_name, str) and provider_name:
+            from fast_agent.llm.provider_key_manager import ProviderKeyManager
+
+            env_var = ProviderKeyManager.get_env_key_name(provider_name)
+            data["envVars"] = [env_var]
+            if isinstance(provider_display_name, str) and provider_display_name:
+                data["provider"] = provider_display_name
+                if not data["details"]:
+                    data["details"] = (
+                        f"Add the {provider_display_name} credentials to "
+                        f"{ACP_AUTH_CONFIG_FILE} or set {env_var}."
+                    )
+
+        return data
 
     async def initialize(
         self,
@@ -502,7 +563,7 @@ class AgentACPServer(ACPAgent):
             # to avoid requiring client/SDK support for typed auth metadata yet.
             auth_methods = [
                 AuthMethod(
-                    id="fast-agent-ai-secrets",
+                    id=ACP_AUTH_METHOD_ID,
                     name="Configure fast-agent",
                     description=(
                         "Set provider keys in fastagent.secrets.yaml or env vars. "
@@ -536,15 +597,15 @@ class AgentACPServer(ACPAgent):
         #
         # The actual credentials (LLM provider keys, MCP server auth, etc.) are configured via
         # fast-agent config/secrets and existing CLI commands; see the advertised method text.
-        if method_id != "fast-agent-ai-secrets":
+        if method_id != ACP_AUTH_METHOD_ID:
             raise RequestError.invalid_params(
                 {
                     "methodId": method_id,
-                    "supported": ["fast-agent-ai-secrets"],
+                    "supported": [ACP_AUTH_METHOD_ID],
                 }
             )
 
-        return AuthenticateResponse()
+        return AuthenticateResponse(field_meta=self._build_auth_meta())
 
     def _extract_fs_capabilities(self, fs_caps: Any) -> dict[str, bool]:
         """Normalize filesystem capabilities for status reporting."""
@@ -720,22 +781,22 @@ class AgentACPServer(ACPAgent):
         if self._active_prompts:
             return
 
-        latest_version = self._get_registry_version()
+        latest_version = _coerce_registry_version(self._get_registry_version())
         if latest_version <= self._primary_registry_version:
             return
 
         async with self._shared_reload_lock:
             if self._active_prompts:
                 return
-            latest_version = self._get_registry_version()
+            latest_version = _coerce_registry_version(self._get_registry_version())
             if latest_version <= self._primary_registry_version:
                 return
 
             new_instance = await self._create_instance_task()
             old_instance = self.primary_instance
             self.primary_instance = new_instance
-            self._primary_registry_version = getattr(
-                new_instance, "registry_version", latest_version
+            self._primary_registry_version = _coerce_registry_version(
+                getattr(new_instance, "registry_version", latest_version)
             )
             self._stale_instances.append(old_instance)
             self.primary_agent_name = self._select_primary_agent(new_instance)
@@ -754,10 +815,12 @@ class AgentACPServer(ACPAgent):
                 old_instance = self.primary_instance
                 self.primary_instance = new_instance
                 latest_version = (
-                    self._get_registry_version() if self._get_registry_version else None
+                    _coerce_registry_version(self._get_registry_version())
+                    if self._get_registry_version
+                    else 0
                 )
-                self._primary_registry_version = getattr(
-                    new_instance, "registry_version", latest_version
+                self._primary_registry_version = _coerce_registry_version(
+                    getattr(new_instance, "registry_version", latest_version)
                 )
                 self._stale_instances.append(old_instance)
                 self.primary_agent_name = self._select_primary_agent(new_instance)
@@ -772,7 +835,7 @@ class AgentACPServer(ACPAgent):
         if await_refresh_session_state:
             await self._refresh_session_state(session_state, instance)
         else:
-            self._refresh_session_state(session_state, instance)
+            asyncio.create_task(self._refresh_session_state(session_state, instance))
         if old_instance != self.primary_instance:
             try:
                 await self._dispose_instance_task(old_instance)
@@ -1421,7 +1484,7 @@ class AgentACPServer(ACPAgent):
                             timeout_seconds=getattr(
                                 agent._shell_runtime,
                                 "timeout_seconds",
-                                90,  # ty: ignore[unresolved-attribute]
+                                90,
                             ),
                             tool_handler=tool_handler,
                             default_output_byte_limit=default_limit,
@@ -1725,9 +1788,9 @@ class AgentACPServer(ACPAgent):
 
     async def load_session(
         self,
-        mcp_servers: list[HttpMcpServer | SseMcpServer | McpServerStdio],
+        cwd: str,
         session_id: str,
-        cwd: str | None = None,
+        mcp_servers: list[HttpMcpServer | SseMcpServer | McpServerStdio] | None = None,
         **kwargs: Any,
     ) -> LoadSessionResponse | None:
         """Load a saved session and stream history updates."""
@@ -1741,7 +1804,7 @@ class AgentACPServer(ACPAgent):
             name="acp_load_session",
             session_id=session_id,
             cwd=request_cwd,
-            mcp_server_count=len(mcp_servers),
+            mcp_server_count=len(mcp_servers or []),
         )
         async with self._session_lock:
             existing_session = session_id in self._session_state
@@ -1749,7 +1812,7 @@ class AgentACPServer(ACPAgent):
         session_state, session_modes = await self._initialize_session_state(
             session_id,
             cwd=request_cwd,
-            mcp_servers=mcp_servers,
+            mcp_servers=mcp_servers or [],
         )
 
         manager = get_session_manager(cwd=Path(request_cwd).expanduser().resolve())
@@ -1848,8 +1911,8 @@ class AgentACPServer(ACPAgent):
 
     async def resume_session(
         self,
+        cwd: str,
         session_id: str,
-        cwd: str | None = None,
         mcp_servers: list[HttpMcpServer | SseMcpServer | McpServerStdio] | None = None,
         **kwargs: Any,
     ) -> ResumeSessionResponse:
@@ -1869,8 +1932,8 @@ class AgentACPServer(ACPAgent):
 
     async def new_session(
         self,
-        mcp_servers: list[HttpMcpServer | SseMcpServer | McpServerStdio],
-        cwd: str | None = None,
+        cwd: str,
+        mcp_servers: list[HttpMcpServer | SseMcpServer | McpServerStdio] | None = None,
         **kwargs: Any,
     ) -> NewSessionResponse:
         """
@@ -1891,13 +1954,13 @@ class AgentACPServer(ACPAgent):
             session_id=session_id,
             instance_scope=self._instance_scope,
             cwd=request_cwd,
-            mcp_server_count=len(mcp_servers),
+            mcp_server_count=len(mcp_servers or []),
         )
 
         session_state, session_modes = await self._initialize_session_state(
             session_id,
             cwd=request_cwd,
-            mcp_servers=mcp_servers,
+            mcp_servers=mcp_servers or [],
         )
 
         logger.info(
@@ -2169,9 +2232,11 @@ class AgentACPServer(ACPAgent):
             # Track the stop reason to return in PromptResponse
             acp_stop_reason: StopReason = END_TURN
             status_line_meta: dict[str, Any] | None = None
+            active_agent: AgentProtocol | object | None = None
             try:
                 if current_agent_name:
                     agent = instance.agents[current_agent_name]
+                    active_agent = agent
 
                     # Set up streaming if connection is available and agent supports it
                     stream_listener = None
@@ -2385,6 +2450,17 @@ class AgentACPServer(ACPAgent):
 
                 else:
                     logger.error("No primary agent available")
+            except ProviderKeyError as e:
+                logger.info(
+                    "ACP prompt requires provider authentication",
+                    name="acp_prompt_auth_required",
+                    session_id=session_id,
+                    agent=current_agent_name,
+                    error=e.message,
+                )
+                raise RequestError.auth_required(
+                    self._build_auth_required_data(e, agent=active_agent)
+                ) from e
             except Exception as e:
                 logger.error(
                     f"Error processing prompt: {e}",

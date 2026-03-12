@@ -99,7 +99,7 @@ class ModelFactory:
         "glm": "hf.zai-org/GLM-5:novita",
         "qwen3": "hf.Qwen/Qwen3-Next-80B-A3B-Instruct:together",
         "deepseek31": "hf.deepseek-ai/DeepSeek-V3.1",
-        "kimithink": "hf.moonshotai/Kimi-K2-Thinking:together",
+        "kimithink": "hf.moonshotai/Kimi-K2-Thinking:fireworks-ai",
         "deepseek32": "hf.deepseek-ai/DeepSeek-V3.2:fireworks-ai",
         "kimi25": ("hf.moonshotai/Kimi-K2.5:fireworks-ai?temperature=1.0&top_p=0.95&reasoning=on"),
         # "kimi25instant": (
@@ -128,7 +128,7 @@ class ModelFactory:
         Uses provider's helper if available; otherwise, returns False.
         """
         try:
-            from fast_agent.llm.provider.bedrock.llm_bedrock import BedrockLLM  # type: ignore
+            from fast_agent.llm.provider.bedrock.llm_bedrock import BedrockLLM
 
             return BedrockLLM.matches_model_pattern(model_name)
         except Exception:
@@ -136,6 +136,14 @@ class ModelFactory:
 
     # Mapping of providers to their LLM classes
     PROVIDER_CLASSES: dict[Provider, LLMClass] = {}
+
+    # Backward-compatibility alias for older external packages (e.g. published ACP
+    # wrappers) that still mutate ModelFactory.DEFAULT_PROVIDERS directly.
+    #
+    # This intentionally points at the runtime provider registry so legacy writes like:
+    #   ModelFactory.DEFAULT_PROVIDERS["wizard-setup"] = Provider.FAST_AGENT
+    # still affect provider resolution for unprefixed model names.
+    DEFAULT_PROVIDERS: dict[str, Provider] = ModelDatabase._RUNTIME_MODEL_DEFAULT_PROVIDERS
 
     # Mapping of special model names to their specific LLM classes
     # This overrides the provider-based class selection
