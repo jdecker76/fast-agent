@@ -71,10 +71,10 @@ def test_should_not_prompt_for_model_picker_when_message_mode() -> None:
     )
 
 
-def test_should_not_prompt_for_model_picker_when_cards_present() -> None:
+def test_should_prompt_for_model_picker_when_cards_present() -> None:
     request = _make_request(agent_cards=["cards/"])
 
-    assert not _should_prompt_for_model_picker(
+    assert _should_prompt_for_model_picker(
         request,
         stdin_is_tty=True,
         stdout_is_tty=True,
@@ -87,7 +87,7 @@ def test_resolve_model_without_hardcoded_default_returns_none_without_sources() 
         model, source = _resolve_model_without_hardcoded_default(
             model=None,
             config_default_model=None,
-            model_aliases=None,
+            model_references=None,
         )
     finally:
         if previous is not None:
@@ -103,7 +103,7 @@ def test_resolve_model_without_hardcoded_default_prefers_config_default() -> Non
         model, source = _resolve_model_without_hardcoded_default(
             model=None,
             config_default_model="openai.gpt-4.1-mini",
-            model_aliases=None,
+            model_references=None,
         )
     finally:
         if previous is not None:
@@ -120,7 +120,7 @@ def test_resolve_model_without_hardcoded_default_uses_environment_variable() -> 
         model, source = _resolve_model_without_hardcoded_default(
             model=None,
             config_default_model=None,
-            model_aliases=None,
+            model_references=None,
         )
     finally:
         if previous is not None:
