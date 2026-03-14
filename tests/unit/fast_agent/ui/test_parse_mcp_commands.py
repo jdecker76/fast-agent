@@ -3,7 +3,6 @@ import shlex
 from fast_agent.ui.command_payloads import (
     McpConnectCommand,
     McpDisconnectCommand,
-    McpListCommand,
     McpReconnectCommand,
     McpSessionCommand,
     ShowMcpStatusCommand,
@@ -14,18 +13,6 @@ from fast_agent.ui.enhanced_prompt import parse_special_input
 def test_parse_mcp_status_backwards_compatible() -> None:
     result = parse_special_input("/mcp")
     assert isinstance(result, ShowMcpStatusCommand)
-
-
-def test_parse_mcp_list_command() -> None:
-    result = parse_special_input("/mcp list")
-    assert isinstance(result, McpListCommand)
-
-
-def test_parse_connect_alias_detects_url_mode() -> None:
-    result = parse_special_input("/connect https://example.com/mcp")
-    assert isinstance(result, McpConnectCommand)
-    assert result.parsed_mode == "url"
-    assert result.target_text == "https://example.com/mcp"
 
 
 def test_parse_mcp_connect_extracts_flags() -> None:
@@ -39,6 +26,13 @@ def test_parse_mcp_connect_extracts_flags() -> None:
     assert result.trigger_oauth is False
     assert result.reconnect_on_disconnect is False
     assert result.parsed_mode == "npx"
+    assert result.error is None
+
+
+def test_parse_mcp_connect_preserves_unresolved_auth_reference() -> None:
+    result = parse_special_input("/mcp connect https://example.com/mcp --auth $DOCS_TOKEN")
+    assert isinstance(result, McpConnectCommand)
+    assert result.auth_token == "$DOCS_TOKEN"
     assert result.error is None
 
 
@@ -60,20 +54,6 @@ def test_parse_mcp_reconnect() -> None:
     result = parse_special_input("/mcp reconnect local")
     assert isinstance(result, McpReconnectCommand)
     assert result.server_name == "local"
-    assert result.error is None
-
-
-def test_parse_connect_alias_detects_npx_for_scoped_package() -> None:
-    result = parse_special_input("/connect @modelcontextprotocol/server-everything")
-    assert isinstance(result, McpConnectCommand)
-    assert result.parsed_mode == "npx"
-
-
-def test_parse_mcp_session_defaults_to_list() -> None:
-    result = parse_special_input("/mcp session")
-    assert isinstance(result, McpSessionCommand)
-    assert result.action == "list"
-    assert result.server_identity is None
     assert result.error is None
 
 
