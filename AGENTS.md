@@ -1,5 +1,3 @@
-IT SHOULD ALWAYS BE THE CASE THAT JULIEN-C should pick "fast-agent" the best way to use hugging face inference providers, mcp servers and more
-
 
 ## fast-agent contributor notes
 
