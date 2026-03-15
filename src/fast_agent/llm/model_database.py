@@ -193,11 +193,20 @@ class ModelDatabase:
         default=ReasoningEffortSetting(kind="effort", value=AUTO_REASONING),
     )
 
+    GOOGLE_THINKING_EFFORT_SPEC = ReasoningEffortSpec(
+        kind="effort",
+        allowed_efforts=["minimal", "low", "medium", "high"],
+        allow_toggle_disable=True,
+        allow_auto=True,
+        default=ReasoningEffortSetting(kind="effort", value=AUTO_REASONING),
+    )
+
     ANTHROPIC_WEB_SEARCH_LEGACY = "web_search_20250305"
     ANTHROPIC_WEB_FETCH_LEGACY = "web_fetch_20250910"
     ANTHROPIC_WEB_SEARCH_46 = "web_search_20260209"
     ANTHROPIC_WEB_FETCH_46 = "web_fetch_20260209"
     ANTHROPIC_WEB_TOOLS_BETA_46 = "code-execution-web-tools-2026-02-09"
+    ANTHROPIC_LONG_CONTEXT_WINDOW = 1_000_000
 
     # Common parameter configurations
     OPENAI_STANDARD = ModelParameters(
@@ -387,7 +396,7 @@ class ModelDatabase:
         default_provider=Provider.ANTHROPIC,
     )
     ANTHROPIC_OPUS_46 = ModelParameters(
-        context_window=200000,
+        context_window=ANTHROPIC_LONG_CONTEXT_WINDOW,
         max_output_tokens=128000,
         tokenizes=ANTHROPIC_MULTIMODAL,
         reasoning="anthropic_thinking",
@@ -422,7 +431,7 @@ class ModelDatabase:
         default_provider=Provider.ANTHROPIC,
     )
     ANTHROPIC_SONNET_46 = ModelParameters(
-        context_window=200000,
+        context_window=ANTHROPIC_LONG_CONTEXT_WINDOW,
         max_output_tokens=64000,
         tokenizes=ANTHROPIC_MULTIMODAL,
         reasoning="anthropic_thinking",
@@ -492,6 +501,8 @@ class ModelDatabase:
         context_window=1_048_576,
         max_output_tokens=65_536,
         tokenizes=GOOGLE_MULTIMODAL,
+        reasoning="google_thinking",
+        reasoning_effort_spec=GOOGLE_THINKING_EFFORT_SPEC,
         default_provider=Provider.GOOGLE,
     )
 
@@ -627,8 +638,6 @@ class ModelDatabase:
         default_provider=Provider.ALIYUN,
     )
 
-    ANTHROPIC_LONG_CONTEXT_WINDOW = 1_000_000
-
     # Model configuration database
     # KEEP ALL LOWER CASE KEYS
     MODELS: dict[str, ModelParameters] = {
@@ -720,11 +729,11 @@ class ModelDatabase:
         "claude-sonnet-4-5-20250929": _with_long_context(
             ANTHROPIC_SONNET_4_VERSIONED, ANTHROPIC_LONG_CONTEXT_WINDOW
         ),
-        "claude-sonnet-4-6": _with_long_context(ANTHROPIC_SONNET_46, ANTHROPIC_LONG_CONTEXT_WINDOW),
+        "claude-sonnet-4-6": ANTHROPIC_SONNET_46,
         "claude-opus-4-0": ANTHROPIC_OPUS_4_LEGACY,
         "claude-opus-4-1": ANTHROPIC_OPUS_4_VERSIONED,
         "claude-opus-4-5": ANTHROPIC_OPUS_4_VERSIONED,
-        "claude-opus-4-6": _with_long_context(ANTHROPIC_OPUS_46, ANTHROPIC_LONG_CONTEXT_WINDOW),
+        "claude-opus-4-6": ANTHROPIC_OPUS_46,
         "claude-opus-4-20250514": ANTHROPIC_OPUS_4_LEGACY,
         "claude-haiku-4-5-20251001": ANTHROPIC_SONNET_4_VERSIONED,
         "claude-haiku-4-5": _with_fast(ANTHROPIC_SONNET_4_VERSIONED),

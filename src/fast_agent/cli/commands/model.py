@@ -14,7 +14,7 @@ from rich.text import Text
 
 from fast_agent.cli.env_helpers import resolve_environment_dir_option
 from fast_agent.cli.shared_options import CommonAgentOptions
-from fast_agent.commands.context import AgentProvider, CommandContext, CommandIO
+from fast_agent.commands.context import CommandContext, CommandIO, StaticAgentProvider
 from fast_agent.commands.handlers import models_manager
 from fast_agent.commands.results import CommandMessage, CommandOutcome
 from fast_agent.config import (
@@ -40,24 +40,6 @@ from fast_agent.ui.model_reference_picker import (
 type WriteTarget = Literal["env", "project"]
 
 app = typer.Typer(help="Interactive model reference setup.")
-
-
-class _CliModelAgentProvider(AgentProvider):
-    """Minimal provider used for CLI-only command contexts."""
-
-    def _agent(self, name: str) -> object:
-        raise KeyError(name)
-
-    def agent_names(self) -> list[str]:
-        return []
-
-    async def list_prompts(
-        self,
-        namespace: str | None,
-        agent_name: str | None = None,
-    ) -> object:
-        del namespace, agent_name
-        return {}
 
 
 def _build_reference_setup_argument(
@@ -145,7 +127,7 @@ async def run_model_setup(
             outcome.add_message("Model setup cancelled.", channel="warning", right_info="model")
             return outcome
 
-    provider = _CliModelAgentProvider()
+    provider = StaticAgentProvider()
     ctx = CommandContext(
         agent_provider=provider,
         current_agent_name="cli",
@@ -183,7 +165,7 @@ async def run_model_doctor(
             env_dir=getattr(settings, "environment_dir", None),
         )
 
-    provider = _CliModelAgentProvider()
+    provider = StaticAgentProvider()
     ctx = CommandContext(
         agent_provider=provider,
         current_agent_name="cli",
@@ -431,7 +413,7 @@ async def _run_model_reference_unset(
     target: WriteTarget,
     dry_run: bool,
 ) -> CommandOutcome:
-    provider = _CliModelAgentProvider()
+    provider = StaticAgentProvider()
     ctx = CommandContext(
         agent_provider=provider,
         current_agent_name="cli",
@@ -461,7 +443,7 @@ async def _run_model_setup_command(
         cwd=start_path,
         env_dir=getattr(settings, "environment_dir", None),
     )
-    provider = _CliModelAgentProvider()
+    provider = StaticAgentProvider()
     io = TuiCommandIO(
         prompt_provider=provider,
         agent_name="cli",
@@ -545,7 +527,7 @@ async def _run_model_setup_command(
 
 async def _run_model_doctor_command(*, settings: Settings) -> None:
     start_path = resolve_model_reference_start_path(settings=settings)
-    provider = _CliModelAgentProvider()
+    provider = StaticAgentProvider()
     io = TuiCommandIO(
         prompt_provider=provider,
         agent_name="cli",
