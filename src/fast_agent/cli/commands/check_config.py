@@ -19,8 +19,11 @@ from fast_agent.constants import DEFAULT_ENVIRONMENT_DIR
 from fast_agent.core.agent_card_validation import AgentCardScanResult, scan_agent_card_directory
 from fast_agent.core.exceptions import ModelConfigError
 from fast_agent.core.keyring_utils import KeyringStatus, get_keyring_status
+from fast_agent.core.logging.logger import get_logger
 from fast_agent.llm.model_factory import ModelFactory
+from fast_agent.llm.model_overlays import ModelOverlayRegistry, load_model_overlay_registry
 from fast_agent.llm.model_selection import ModelSelectionCatalog
+from fast_agent.llm.provider.openai.openresponses import DEFAULT_OPENRESPONSES_BASE_URL
 from fast_agent.llm.provider_key_manager import API_KEY_HINT_TEXT, ProviderKeyManager
 from fast_agent.llm.provider_types import Provider
 from fast_agent.paths import EnvironmentPaths, default_skill_paths, resolve_environment_paths
@@ -32,6 +35,7 @@ app = typer.Typer(
     help="Check and diagnose FastAgent configuration",
     no_args_is_help=False,  # Allow showing our custom help instead
 )
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -173,6 +177,8 @@ def _resolve_active_model_providers(
     *,
     api_keys: dict[str, dict[str, str]],
     config_payload: dict[str, Any] | None,
+    start_path: Path,
+    env_dir: Path | None,
 ) -> set[Provider]:
     active_providers: set[Provider] = set()
 
@@ -185,7 +191,13 @@ def _resolve_active_model_providers(
             continue
 
     config_mapping: dict[str, Any] = config_payload if isinstance(config_payload, dict) else {}
-    active_providers.update(ModelSelectionCatalog.configured_providers(config_mapping))
+    active_providers.update(
+        ModelSelectionCatalog.configured_providers(
+            config_mapping,
+            start_path=start_path,
+            env_dir=env_dir,
+        )
+    )
     return active_providers
 
 
@@ -329,7 +341,7 @@ def _resolve_huggingface_login_label(provider_name: str) -> str | None:
         return None
 
     try:
-        from huggingface_hub import get_token  # type: ignore
+        from huggingface_hub import get_token  # ty: ignore[unresolved-import]
 
         hub_token = get_token()
     except Exception:
@@ -660,6 +672,8 @@ def show_models_overview(env_dir: Path | None = None) -> None:
     active_providers = _resolve_active_model_providers(
         api_keys=api_keys,
         config_payload=config_payload,
+        start_path=cwd,
+        env_dir=env_dir,
     )
 
     _print_section_header("Model Catalog", color="blue")
@@ -719,15 +733,22 @@ def _load_all_models_by_provider(
     scope: ProviderCatalogScope,
     *,
     config_payload: dict[str, Any] | None,
+    overlay_registry: ModelOverlayRegistry,
 ) -> dict[Provider, list[str]]:
     return {
-        provider: ModelSelectionCatalog.list_all_models(provider, config=config_payload)
+        provider: ModelSelectionCatalog.list_all_models(
+            provider,
+            config=config_payload,
+            overlay_registry=overlay_registry,
+        )
         for provider in scope.providers
     }
 
 
 def _build_curated_models_table(
     scope: ProviderCatalogScope,
+    *,
+    overlay_registry: ModelOverlayRegistry,
 ) -> tuple[Table, dict[Provider, set[str]], int]:
     curated_table = Table(show_header=True, box=None)
     curated_table.add_column("Provider", style="white", header_style="bold bright_white")
@@ -743,7 +764,10 @@ def _build_curated_models_table(
     row_count = 0
     curated_models_by_provider: dict[Provider, set[str]] = {}
     for provider in scope.providers:
-        provider_entries = ModelSelectionCatalog.list_current_entries(provider)
+        provider_entries = ModelSelectionCatalog.list_current_entries(
+            provider,
+            overlay_registry=overlay_registry,
+        )
         curated_models_by_provider[provider] = {entry.model for entry in provider_entries}
         for entry in provider_entries:
             curated_table.add_row(
@@ -818,12 +842,20 @@ def show_provider_model_catalog(
     """Show provider model catalog with curated entries first."""
     scope = _resolve_provider_catalog_scope(provider_name)
     config_payload = _load_catalog_config(env_dir)
-    all_models_by_provider = _load_all_models_by_provider(scope, config_payload=config_payload)
+    overlay_registry = load_model_overlay_registry(start_path=Path.cwd(), env_dir=env_dir)
+    all_models_by_provider = _load_all_models_by_provider(
+        scope,
+        config_payload=config_payload,
+        overlay_registry=overlay_registry,
+    )
 
     mode = "curated + all models" if show_all else "curated"
     _print_section_header(f"{scope.display_name} model catalog ({mode})", color="blue")
 
-    curated_table, curated_models_by_provider, row_count = _build_curated_models_table(scope)
+    curated_table, curated_models_by_provider, row_count = _build_curated_models_table(
+        scope,
+        overlay_registry=overlay_registry,
+    )
     if row_count == 0:
         console.print("[yellow]No curated models found for this provider scope.[/yellow]")
     else:
@@ -1107,6 +1139,7 @@ class _CheckSummaryContext:
     skill_errors: list[dict[str, str]]
     env_paths: EnvironmentPaths
     server_names: set[str] | None
+    overlay_preset_collision_messages: tuple[str, ...]
 
 
 def _relative_summary_path(search_root: Path, path: Path) -> str:
@@ -1171,6 +1204,10 @@ def _build_check_summary_context(env_dir: Path | None) -> _CheckSummaryContext:
     skills_manifests, skill_errors = skills_registry.load_manifests_with_errors()
     env_paths = resolve_environment_paths(cwd=cwd, override=environment_override)
     server_names = _build_server_names_from_config(config_summary)
+    overlay_preset_collision_messages = _collect_overlay_preset_collision_messages(
+        start_path=cwd,
+        env_dir=environment_override,
+    )
 
     return _CheckSummaryContext(
         cwd=cwd,
@@ -1190,7 +1227,47 @@ def _build_check_summary_context(env_dir: Path | None) -> _CheckSummaryContext:
         skill_errors=skill_errors,
         env_paths=env_paths,
         server_names=server_names,
+        overlay_preset_collision_messages=overlay_preset_collision_messages,
     )
+
+
+def _built_in_preset_sources() -> dict[str, str]:
+    sources = {
+        preset_name: "built-in model preset"
+        for preset_name in ModelFactory.MODEL_PRESETS
+    }
+    for provider_entries in ModelSelectionCatalog.CATALOG_ENTRIES_BY_PROVIDER.values():
+        for entry in provider_entries:
+            sources.setdefault(entry.alias, "curated model alias")
+    return sources
+
+
+def _collect_overlay_preset_collision_messages(
+    *,
+    start_path: Path,
+    env_dir: str | Path | None,
+) -> tuple[str, ...]:
+    preset_sources = _built_in_preset_sources()
+    overlay_registry = load_model_overlay_registry(start_path=start_path, env_dir=env_dir)
+
+    messages: list[str] = []
+    for overlay in overlay_registry.overlays:
+        source = preset_sources.get(overlay.name)
+        if source is None:
+            continue
+        message = (
+            f'Local model overlay "{overlay.name}" overrides existing '
+            f'{source} "{overlay.name}".'
+        )
+        messages.append(message)
+        logger.info(
+            "Local model overlay overrides existing preset",
+            overlay_name=overlay.name,
+            source=source,
+            overlay_path=str(overlay.manifest_path),
+        )
+
+    return tuple(messages)
 
 
 def _render_environment_summary(context: _CheckSummaryContext) -> None:
@@ -1336,6 +1413,15 @@ def _render_application_settings(config_summary: dict[str, Any]) -> None:
     console.print(logger_table)
 
 
+def _render_model_overlay_notices(context: _CheckSummaryContext) -> None:
+    if not context.overlay_preset_collision_messages:
+        return
+
+    _print_section_header("Model Overlays", color="blue")
+    for message in context.overlay_preset_collision_messages:
+        console.print(f"[cyan]Info:[/cyan] {message}")
+
+
 def _format_provider_row(provider: str, status: dict[str, str]) -> tuple[str, str, str, str]:
     if status["env"] and status["config"]:
         env_status = "[yellow]✓[/yellow]"
@@ -1354,6 +1440,8 @@ def _format_provider_row(provider: str, status: dict[str, str]) -> tuple[str, st
         active = f"[bold green]{status['env']}[/bold green]"
     elif provider == "generic":
         active = "[green]ollama (default)[/green]"
+    elif provider == "openresponses":
+        active = "[green]none (default)[/green]"
     else:
         active = "[dim]Not configured[/dim]"
 
@@ -1684,6 +1772,21 @@ def _should_warn_for_provider(
 ) -> bool:
     if provider in {Provider.FAST_AGENT, Provider.GENERIC}:
         return False
+    if provider == Provider.OPENRESPONSES:
+        cfg = config_summary.get("config") if config_summary.get("status") == "parsed" else {}
+        openresponses_cfg = cfg.get("openresponses", {}) if isinstance(cfg, dict) else {}
+        configured_base_url = None
+        if isinstance(openresponses_cfg, dict):
+            raw_base_url = openresponses_cfg.get("base_url")
+            if isinstance(raw_base_url, str) and raw_base_url.strip():
+                configured_base_url = raw_base_url.strip()
+        if configured_base_url is None:
+            env_base_url = os.getenv("OPENRESPONSES_BASE_URL")
+            if env_base_url and env_base_url.strip():
+                configured_base_url = env_base_url.strip()
+        if configured_base_url is None:
+            return False
+        return configured_base_url.rstrip("/") != DEFAULT_OPENRESPONSES_BASE_URL.rstrip("/")
     if provider == Provider.GOOGLE:
         cfg = config_summary.get("config") if config_summary.get("status") == "parsed" else {}
         google_cfg = cfg.get("google", {}) if isinstance(cfg, dict) else {}
@@ -1940,6 +2043,7 @@ def show_check_summary(env_dir: Path | None = None) -> None:
     context = _build_check_summary_context(env_dir)
     _render_environment_summary(context)
     _render_application_settings(context.config_summary)
+    _render_model_overlay_notices(context)
     _render_api_keys_panel(context.api_keys)
     _render_codex_oauth_panel(context.keyring_status)
     _render_mcp_servers_panel(context)

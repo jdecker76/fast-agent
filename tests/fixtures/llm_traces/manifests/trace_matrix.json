@@ -16,7 +16,7 @@
     }
   },
   "targets": {
-    "responses.gpt-5-mini.low": [
+    "responses.gpt-5-mini?reasoning=low": [
       "plain_text",
       "tool_use_weather",
       "web_search_capital"
@@ -33,6 +33,9 @@
     ],
     "openresponses.openai/gpt-oss-120b": [
       "plain_text",
+      "tool_use_weather"
+    ],
+    "llamacpp-qwen3-5-9b-gguf": [
       "tool_use_weather"
     ],
     "codexspark": [

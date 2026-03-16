@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from openai.types.responses import ResponseReasoningSummaryTextDeltaEvent, ResponseTextDeltaEvent
 
 from fast_agent.event_progress import ProgressAction
-from fast_agent.llm.provider.openai.streaming_utils import finalize_stream_response
+from fast_agent.llm.provider.openai.streaming_utils import fetch_and_finalize_stream_response
 from fast_agent.llm.provider.openai.tool_notifications import OpenAIToolNotificationMixin
 from fast_agent.llm.provider.openai.tool_stream_state import (
     OpenAIToolStreamEntry,
@@ -144,7 +144,40 @@ class OpenResponsesStreamingMixin(OpenAIToolNotificationMixin):
         reasoning_segments: list[str] = []
         tool_state = OpenAIToolStreamState()
         notified_tool_indices: set[int] = set()
+        notified_tool_use_ids: set[str] = set()
         final_response: Any | None = None
+        anonymous_tool_counter = 0
+
+        def mark_tool_notified(
+            *,
+            tool_use_id: str | None,
+            index: int | None,
+        ) -> None:
+            if tool_use_id:
+                notified_tool_use_ids.add(tool_use_id)
+            if index is not None:
+                notified_tool_indices.add(index)
+
+        def tool_use_id_for_event(*, event: Any, item: Any, index: int | None) -> str:
+            nonlocal anonymous_tool_counter
+
+            tool_use_id = self._tool_use_id_from_item(item)
+            if isinstance(tool_use_id, str) and tool_use_id:
+                return tool_use_id
+
+            item_id = getattr(event, "item_id", None) or getattr(item, "id", None)
+            if isinstance(item_id, str) and item_id:
+                return item_id
+
+            if index is not None:
+                return f"tool-{index}"
+
+            sequence_number = getattr(event, "sequence_number", None)
+            if isinstance(sequence_number, int):
+                return f"tool-seq-{sequence_number}"
+
+            anonymous_tool_counter += 1
+            return f"tool-unknown-{anonymous_tool_counter}"
 
         with warnings.catch_warnings():
             warnings.filterwarnings(
@@ -234,15 +267,9 @@ class OpenResponsesStreamingMixin(OpenAIToolNotificationMixin):
                     if not self._is_tool_item(item):
                         continue
                     index = getattr(event, "output_index", None)
-                    if index is None:
-                        continue
                     item_id = getattr(event, "item_id", None) or getattr(item, "id", None)
                     tool_info = tool_state.register(
-                        tool_use_id=(
-                            self._tool_use_id_from_item(item)
-                            or item_id
-                            or f"tool-{index}"
-                        ),
+                        tool_use_id=tool_use_id_for_event(event=event, item=item, index=index),
                         name=self._tool_name_from_item(item),
                         index=index,
                         item_id=item_id,
@@ -264,7 +291,10 @@ class OpenResponsesStreamingMixin(OpenAIToolNotificationMixin):
                         )
                         tool_info.start_notified = True
                     if tool_info.start_notified:
-                        notified_tool_indices.add(index)
+                        mark_tool_notified(
+                            tool_use_id=tool_info.tool_use_id,
+                            index=index,
+                        )
                     continue
 
                 if event_type and event_type.endswith(".delta") and (
@@ -326,6 +356,10 @@ class OpenResponsesStreamingMixin(OpenAIToolNotificationMixin):
                                 "tool_event": "stop",
                             },
                         )
+                        mark_tool_notified(
+                            tool_use_id=tool_use_id,
+                            index=index,
+                        )
                         if tool_info is not None:
                             tool_info.stop_notified = True
                     continue
@@ -349,8 +383,10 @@ class OpenResponsesStreamingMixin(OpenAIToolNotificationMixin):
                         if status in _TOOL_START_STATUSES and not tool_info.start_notified:
                             self._notify_tool_stream_listeners("start", payload)
                             tool_info.start_notified = True
-                            if tool_info.index is not None:
-                                notified_tool_indices.add(tool_info.index)
+                            mark_tool_notified(
+                                tool_use_id=tool_info.tool_use_id,
+                                index=tool_info.index,
+                            )
                         if status in _TOOL_STOP_STATUSES:
                             self._notify_tool_stream_listeners("stop", payload)
                             self.logger.info(
@@ -364,6 +400,10 @@ class OpenResponsesStreamingMixin(OpenAIToolNotificationMixin):
                                     "tool_event": "stop",
                                 },
                             )
+                            mark_tool_notified(
+                                tool_use_id=tool_info.tool_use_id,
+                                index=tool_info.index,
+                            )
                             tool_info.stop_notified = True
                             tool_state.close(
                                 index=tool_info.index,
@@ -372,47 +412,32 @@ class OpenResponsesStreamingMixin(OpenAIToolNotificationMixin):
                             )
                         continue
 
-        if final_response is None:
-            try:
-                final_response = await stream.get_final_response()
-            except Exception as exc:
-                self.logger.warning(
-                    "Failed to fetch final Open Responses payload",
-                    data={"error": str(exc)},
-                )
-                raise
-
-        incomplete_entries = tool_state.incomplete()
-        if incomplete_entries:
-            incomplete_tools = [
-                f"{entry.tool_name}:{entry.tool_use_id}" for entry in incomplete_entries
-            ]
-            response_status = getattr(final_response, "status", None)
-            log_method = self.logger.warning if response_status == "incomplete" else self.logger.error
-            log_method(
-                "Tool call streaming incomplete - started but never finished",
-                data={
-                    "incomplete_tools": incomplete_tools,
-                    "tool_count": len(incomplete_entries),
-                    "response_status": response_status,
-                },
+        def emit_tool_fallback(
+            output_items: list[Any],
+            notified_indices: set[int],
+            *,
+            model: str,
+        ) -> None:
+            self._emit_tool_notification_fallback(
+                output_items,
+                notified_indices,
+                model=model,
+                notified_tool_use_ids=notified_tool_use_ids,
             )
-            if response_status != "incomplete":
-                raise RuntimeError(
-                    "Streaming completed but tool call(s) never finished: "
-                    f"{', '.join(incomplete_tools)}"
-                )
 
-        finalize_stream_response(
+        final_response = await fetch_and_finalize_stream_response(
+            stream=stream,
             final_response=final_response,
+            fetch_failure_message="Failed to fetch final Open Responses payload",
+            use_exc_info_on_fetch_failure=False,
+            incomplete_entries=tool_state.incomplete(),
             model=model,
             agent_name=self.name,
             chat_turn=self.chat_turn,
             logger=self.logger,
             notified_tool_indices=notified_tool_indices,
-            emit_tool_fallback=self._emit_tool_notification_fallback,
+            emit_tool_fallback=emit_tool_fallback,
         )
-
         return final_response, reasoning_segments
 
     def _emit_tool_notification_fallback(
@@ -421,18 +446,20 @@ class OpenResponsesStreamingMixin(OpenAIToolNotificationMixin):
         notified_indices: set[int],
         *,
         model: str,
+        notified_tool_use_ids: set[str] | None = None,
     ) -> None:
         if not output_items:
             return
 
+        deduped_tool_use_ids = notified_tool_use_ids or set()
         for index, item in enumerate(output_items):
-            if index in notified_indices:
-                continue
             if not self._is_tool_item(item):
                 continue
 
             tool_name = self._tool_name_from_item(item)
             tool_use_id = self._tool_use_id_from_item(item) or f"tool-{index}"
+            if index in notified_indices or tool_use_id in deduped_tool_use_ids:
+                continue
 
             self._emit_fallback_tool_notification_event(
                 tool_name=tool_name,
