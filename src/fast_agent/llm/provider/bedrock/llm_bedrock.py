@@ -1016,9 +1016,23 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
                     )
 
         # Handle regular content
+        import base64
+
+        from mcp.types import ImageContent
+
         for content_item in msg.content:
             if isinstance(content_item, TextContent):
-                content_blocks.append({"type": "text", "text": content_item.text})
+                content_blocks.append({"text": content_item.text})
+            elif isinstance(content_item, ImageContent):
+                fmt = content_item.mimeType.split("/")[-1] if content_item.mimeType else "png"
+                content_blocks.append({
+                    "image": {
+                        "format": fmt,
+                        "source": {"bytes": base64.b64decode(content_item.data)},
+                    }
+                })
+            elif isinstance(content_item, dict):
+                content_blocks.append(content_item)
 
         return bedrock_msg
 

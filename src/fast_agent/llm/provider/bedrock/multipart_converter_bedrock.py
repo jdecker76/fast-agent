@@ -89,9 +89,25 @@ class BedrockConverter:
                 )
 
         # Handle regular content
-        from mcp.types import TextContent
+        import base64
+
+        from mcp.types import ImageContent, TextContent
+
         for content_item in multipart_msg.content:
             if isinstance(content_item, TextContent):
-                content_list.append({"type": "text", "text": content_item.text})
+                content_list.append({"text": content_item.text})
+            elif isinstance(content_item, ImageContent):
+                # Convert MCP ImageContent to Bedrock Converse API image block
+                fmt = content_item.mimeType.split("/")[-1] if content_item.mimeType else "png"
+                # Normalize jpeg -> jpeg (Bedrock accepts: png, jpeg, gif, webp)
+                content_list.append({
+                    "image": {
+                        "format": fmt,
+                        "source": {"bytes": base64.b64decode(content_item.data)},
+                    }
+                })
+            elif isinstance(content_item, dict):
+                # Pass through raw Bedrock-native blocks (e.g. document blocks)
+                content_list.append(content_item)
 
         return bedrock_msg
