@@ -957,6 +957,11 @@ class LlmDecorator(StreamingAgentMixin, AgentProtocol):
         model_display = model_name or "current model"
 
         for block in blocks or []:
+            # Raw dicts are provider-native blocks (e.g. Bedrock document blocks)
+            # explicitly injected by the caller — always pass through.
+            if isinstance(block, dict):
+                kept.append(block)
+                continue
             mime_type, category = self._extract_block_metadata(block)
             if self._block_supported(mime_type, category):
                 kept.append(block)
@@ -1036,6 +1041,19 @@ class LlmDecorator(StreamingAgentMixin, AgentProtocol):
             if mime and is_text_mime_type(mime):
                 return mime, "text"
             return mime, "document"
+
+        # Raw dict blocks — infer category from known Bedrock-native formats
+        if isinstance(block, dict):
+            if "document" in block:
+                fmt = block["document"].get("format", "")
+                mime = f"application/{fmt}" if fmt else "application/pdf"
+                return mime, "document"
+            if "image" in block:
+                fmt = block["image"].get("format", "png")
+                mime = f"image/{fmt}"
+                return mime, "vision"
+            # Unknown dict — treat as document
+            return None, "document"
 
         return None, "document"
 
