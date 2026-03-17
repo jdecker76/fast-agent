@@ -1,4 +1,4 @@
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence, Union
 
 from mcp.types import (
     CallToolRequest,
@@ -10,6 +10,10 @@ from mcp.types import (
     TextContent,
 )
 from pydantic import BaseModel
+
+# Extended content block type that also accepts raw dicts for provider-native
+# content blocks (e.g. Bedrock document blocks) not represented in MCP types.
+ExtendedContentBlock = Union[ContentBlock, dict[str, Any]]
 
 from fast_agent.mcp.helpers.content_helpers import get_text
 
@@ -25,7 +29,7 @@ class PromptMessageExtended(BaseModel):
     """
 
     role: Role
-    content: list[ContentBlock] = []
+    content: list[ExtendedContentBlock] = []
     tool_calls: dict[str, CallToolRequest] | None = None
     tool_results: dict[str, CallToolResult] | None = None
     channels: Mapping[str, Sequence[ContentBlock]] | None = None
