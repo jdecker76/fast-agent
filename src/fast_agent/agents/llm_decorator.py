@@ -999,6 +999,11 @@ class LlmDecorator(StreamingAgentMixin, AgentProtocol):
         if not model_name:
             return False
 
+        # If the model isn't in the database (e.g. Bedrock inference profiles),
+        # assume it supports all content types rather than stripping content.
+        if ModelDatabase.get_model_params(model_name) is None:
+            return True
+
         if mime_type:
             return ModelDatabase.supports_mime(model_name, mime_type)
 
