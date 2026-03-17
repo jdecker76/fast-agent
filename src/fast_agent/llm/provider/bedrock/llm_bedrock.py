@@ -1022,7 +1022,7 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
 
         for content_item in msg.content:
             if isinstance(content_item, TextContent):
-                content_blocks.append({"text": content_item.text})
+                content_blocks.append({"type": "text", "text": content_item.text})
             elif isinstance(content_item, ImageContent):
                 fmt = content_item.mimeType.split("/")[-1] if content_item.mimeType else "png"
                 content_blocks.append({

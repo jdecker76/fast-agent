@@ -95,7 +95,7 @@ class BedrockConverter:
 
         for content_item in multipart_msg.content:
             if isinstance(content_item, TextContent):
-                content_list.append({"text": content_item.text})
+                content_list.append({"type": "text", "text": content_item.text})
             elif isinstance(content_item, ImageContent):
                 # Convert MCP ImageContent to Bedrock Converse API image block
                 fmt = content_item.mimeType.split("/")[-1] if content_item.mimeType else "png"
