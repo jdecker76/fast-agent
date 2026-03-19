@@ -53,6 +53,7 @@ azure = [
 ]
 # For AWS Bedrock support, install with: uv pip install fast-agent-mcp[bedrock]
 bedrock = [
+    "aiobotocore>=2.7.0",
     "boto3>=1.35.0"
 ]
 # For TensorZero gateway support, install with: uv pip install fast-agent-mcp[tensorzero]
@@ -64,6 +65,7 @@ textual = [
 ]
 # For all provider support, install with: uv pip install fast-agent-mcp[all-providers]
 all-providers = [
+    "aiobotocore>=2.7.0",
     "azure-identity>=1.14.0",
     "boto3>=1.35.0",
     "tensorzero>=2025.7.5"
@@ -112,6 +114,7 @@ testpaths = ["tests"]
 
 [dependency-groups]
 dev = [
+    "aiobotocore>=2.7.0",
     "boto3>=1.35.0",
     "multilspy>=0.0.15",
     "pre-commit>=4.0.1",
