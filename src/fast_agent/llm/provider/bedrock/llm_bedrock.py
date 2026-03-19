@@ -1,9 +1,11 @@
+import asyncio
 import json
 import os
 import re
 import sys
 from dataclasses import dataclass
 from enum import Enum, auto
+from functools import partial
 from typing import TYPE_CHECKING, Any, Type, Union
 
 from mcp import Tool
@@ -278,6 +280,16 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
 
         if self._reasoning_effort_spec is None:
             self._reasoning_effort_spec = BEDROCK_REASONING_SPEC
+
+    async def _converse(self, client, **kwargs):
+        """Run client.converse() in a thread so it doesn't block the event loop."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, partial(client.converse, **kwargs))
+
+    async def _converse_stream(self, client, **kwargs):
+        """Run client.converse_stream() in a thread so it doesn't block the event loop."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, partial(client.converse_stream, **kwargs))
 
     def _initialize_default_params(self, kwargs: dict) -> RequestParams:
         """Initialize Bedrock-specific default parameters"""
@@ -1757,14 +1769,14 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
                         self.logger.debug(
                             f"Using non-streaming API for {model} (schema={schema_choice})"
                         )
-                        response = client.converse(**converse_args)
+                        response = await self._converse(client, **converse_args)
                         processed_response = self._process_non_streaming_response(response, model)
                     else:
                         self.logger.debug(
                             f"Using streaming API for {model} (schema={schema_choice})"
                         )
                         attempted_streaming = True
-                        response = client.converse_stream(**converse_args)
+                        response = await self._converse_stream(client, **converse_args)
                         processed_response = await self._process_stream(
                             response, model
                         )
@@ -1793,12 +1805,12 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
 
                         # Retry the API call
                         if not use_streaming:
-                            response = client.converse(**converse_args)
+                            response = await self._converse(client, **converse_args)
                             processed_response = self._process_non_streaming_response(
                                 response, model
                             )
                         else:
-                            response = client.converse_stream(**converse_args)
+                            response = await self._converse_stream(client, **converse_args)
                             processed_response = await self._process_stream(
                                 response, model
                             )
@@ -1842,7 +1854,7 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
                         self.logger.debug(
                             f"Falling back to non-streaming API for {model} after streaming error"
                         )
-                        response = client.converse(**converse_args)
+                        response = await self._converse(client, **converse_args)
                         processed_response = self._process_non_streaming_response(response, model)
                         caps.stream_with_tools = StreamPreference.NON_STREAM
                         if not caps.schema:
@@ -1952,12 +1964,12 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
                             self.capabilities.get(model) or ModelCapabilities()
                         ).stream_with_tools
                         if cache_pref == StreamPreference.NON_STREAM or not has_tools:
-                            response = client.converse(**converse_args)
+                            response = await self._converse(client, **converse_args)
                             processed_response = self._process_non_streaming_response(
                                 response, model
                             )
                         else:
-                            response = client.converse_stream(**converse_args)
+                            response = await self._converse_stream(client, **converse_args)
                             processed_response = await self._process_stream(
                                 response, model
                             )
