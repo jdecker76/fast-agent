@@ -569,48 +569,92 @@ class MCPAggregator(ContextDependent):
         self._skybridge_configs.clear()
         self._attached_server_names = []
 
-    async def _fetch_server_tools(self, server_name: str) -> list[Tool]:
+    async def _fetch_server_tools(self, server_name: str, max_retries: int = 3) -> list[Tool]:
         supports_tools = await self.server_supports_feature(server_name, "tools")
         if not supports_tools:
             logger.debug(
                 f"Server '{server_name}' did not advertise tools; attempting optimistic list_tools call"
             )
 
-        try:
-            result: ListToolsResult = await self._execute_on_server(
-                server_name=server_name,
-                operation_type="tools/list",
-                operation_name="",
-                method_name="list_tools",
-                method_args={},
-            )
-            return result.tools or []
-        except Exception as e:
-            if supports_tools:
-                logger.error(f"Error loading tools from server '{server_name}'", data=e)
-            else:
-                logger.debug(
-                    f"Server '{server_name}' does not provide tools (list_tools failed): {e}"
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                result: ListToolsResult = await self._execute_on_server(
+                    server_name=server_name,
+                    operation_type="tools/list",
+                    operation_name="",
+                    method_name="list_tools",
+                    method_args={},
                 )
-            return []
+                if result and result.tools:
+                    if attempt > 1:
+                        logger.info(
+                            f"list_tools succeeded for '{server_name}' on attempt {attempt}"
+                        )
+                    return result.tools
+                # Got a response but no tools — might be a transient issue during server startup
+                logger.warning(
+                    f"list_tools for '{server_name}' returned empty result (attempt {attempt}/{max_retries})"
+                )
+                last_error = Exception("list_tools returned empty result")
+            except Exception as e:
+                last_error = e
+                logger.warning(
+                    f"list_tools failed for '{server_name}' (attempt {attempt}/{max_retries}): {e}"
+                )
 
-    async def _fetch_server_prompts(self, server_name: str) -> list[Prompt]:
+            if attempt < max_retries:
+                import asyncio
+                await asyncio.sleep(2 * attempt)  # 2s, 4s backoff
+
+        if supports_tools:
+            logger.error(
+                f"Error loading tools from server '{server_name}' after {max_retries} attempts",
+                data=last_error,
+            )
+        else:
+            logger.debug(
+                f"Server '{server_name}' does not provide tools (list_tools failed): {last_error}"
+            )
+        return []
+
+    async def _fetch_server_prompts(self, server_name: str, max_retries: int = 3) -> list[Prompt]:
         if not await self.server_supports_feature(server_name, "prompts"):
             logger.debug(f"Server '{server_name}' does not support prompts")
             return []
 
-        try:
-            result = await self._execute_on_server(
-                server_name=server_name,
-                operation_type="prompts/list",
-                operation_name="",
-                method_name="list_prompts",
-                method_args={},
-            )
-            return getattr(result, "prompts", [])
-        except Exception as e:
-            logger.debug(f"Error loading prompts from server '{server_name}': {e}")
-            return []
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                result = await self._execute_on_server(
+                    server_name=server_name,
+                    operation_type="prompts/list",
+                    operation_name="",
+                    method_name="list_prompts",
+                    method_args={},
+                )
+                prompts = getattr(result, "prompts", [])
+                if prompts is not None:
+                    if attempt > 1:
+                        logger.info(
+                            f"list_prompts succeeded for '{server_name}' on attempt {attempt}"
+                        )
+                    return prompts
+                last_error = Exception("list_prompts returned None")
+            except Exception as e:
+                last_error = e
+                logger.warning(
+                    f"list_prompts failed for '{server_name}' (attempt {attempt}/{max_retries}): {e}"
+                )
+
+            if attempt < max_retries:
+                import asyncio
+                await asyncio.sleep(2 * attempt)
+
+        logger.debug(
+            f"Error loading prompts from server '{server_name}' after {max_retries} attempts: {last_error}"
+        )
+        return []
 
     async def attach_server(
         self,
