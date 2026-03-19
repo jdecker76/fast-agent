@@ -329,9 +329,12 @@ class BedrockLLM(FastAgentLLM[BedrockMessageParam, BedrockMessage]):
         """Get or create Bedrock Runtime client."""
         if self._bedrock_runtime_client is None:
             try:
+                from botocore.config import Config as BotoConfig
                 session = boto3.Session(profile_name=self.aws_profile)
                 self._bedrock_runtime_client = session.client(
-                    "bedrock-runtime", region_name=self.aws_region
+                    "bedrock-runtime",
+                    region_name=self.aws_region,
+                    config=BotoConfig(read_timeout=300, retries={"max_attempts": 2}),
                 )
             except NoCredentialsError as e:
                 raise ProviderKeyError(
