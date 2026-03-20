@@ -43,7 +43,6 @@ if TYPE_CHECKING:
     from mcp import ListToolsResult
 
 try:
-    import aiobotocore.session
     import boto3
     from botocore.exceptions import (
         BotoCoreError,
@@ -51,11 +50,15 @@ try:
         NoCredentialsError,
     )
 except ImportError:
-    aiobotocore = None  # type: ignore[assignment]
     boto3 = None  # type: ignore[assignment]
     BotoCoreError = Exception  # type: ignore[assignment, misc]
     ClientError = Exception  # type: ignore[assignment, misc]
     NoCredentialsError = Exception  # type: ignore[assignment, misc]
+
+try:
+    import aiobotocore.session
+except ImportError:
+    aiobotocore = None  # type: ignore[assignment]
 
 
 DEFAULT_BEDROCK_MODEL = "amazon.nova-lite-v1:0"
